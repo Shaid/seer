@@ -9,16 +9,19 @@
  * never be imported from browser-bundled code under src/).
  *
  * The config table is defined via defineGameConfig() from @seer/pipeline —
- * the canonical shape that runPipeline() and create-seer templates target.
+ * the nested GameConfig[] shape that runPipeline() and create-seer templates
+ * target.
  */
 
 import {
   defineGameConfig,
+  flattenConfigs,
   resolveDataDir,
   findFileCI,
   resType,
   getGameConfig as _getGameConfig,
   getSupportedPlatforms as _getSupportedPlatforms,
+  type PlatformConfig as BasePlatformConfig,
   type GameConfig as BaseGameConfig,
 } from '@seer/pipeline';
 import {
@@ -35,6 +38,7 @@ export {
   PLATFORM_IDS,
   DEFAULT_GAME,
   DEFAULT_PLATFORM,
+  flattenConfigs,
   resolveDataDir,
   findFileCI,
   resType,
@@ -42,17 +46,21 @@ export {
 export type { GameId, PlatformId };
 
 /**
- * Consumer-narrowed config type. `@seer/pipeline`'s GameConfig uses bare
- * `string` for `game`/`platform` since the library can't know this project's
- * specific IDs. Narrowing here restores compile-time typo checking (e.g.
- * `game: 'gam1'` below would now fail to compile) against
- * GAME_IDS/PLATFORM_IDS — see docs/architecture-overview.md §5 for the
- * rationale behind keeping this narrowing at the consumer boundary rather
- * than making the library type generic.
+ * Consumer-narrowed platform type. `@seer/pipeline`'s PlatformConfig uses
+ * bare `string` for `platform` since the library can't know this project's
+ * specific IDs. Narrowing here restores compile-time typo checking.
  */
-export interface GameConfig extends Omit<BaseGameConfig, 'game' | 'platform'> {
-  game: GameId;
+export interface PlatformConfig extends Omit<BasePlatformConfig, 'platform'> {
   platform: PlatformId;
+}
+
+/**
+ * Consumer-narrowed game config. The `id` is narrowed to `GameId`, and
+ * platforms are narrowed to `PlatformConfig[]`.
+ */
+export interface GameConfig extends Omit<BaseGameConfig, 'id' | 'platforms'> {
+  id: GameId;
+  platforms: PlatformConfig[];
 }
 
 /**
@@ -60,26 +68,33 @@ export interface GameConfig extends Omit<BaseGameConfig, 'game' | 'platform'> {
  * when you add a new game or a new platform port of an existing game.
  *
  * Delete this placeholder entry and add your own. Register pipeline step
- * functions (exportGameData, buildAssets) directly on each entry —
- * runPipeline() calls them instead of resolving script paths by convention.
+ * functions (exportGameData, buildAssets) directly on platform entries —
+ * runPipeline() calls them via the flattened config.
  */
-export const GAME_PLATFORMS: GameConfig[] = defineGameConfig([
+export const GAME_CONFIGS: GameConfig[] = defineGameConfig([
   {
-    game: 'game1',
-    platform: 'platform1',
-    displayName: 'Placeholder Game (Platform 1)',
-    dataDirs: ['game1/platform1'],
-    executable: undefined,
-    expectedFiles: [],
-    supported: false,
-    assetDir: 'game1',
-    features: {},
+    id: 'game1',
+    displayName: 'Placeholder Game',
+    platforms: [
+      {
+        platform: 'platform1',
+        dataDirs: ['game1/platform1'],
+        executable: undefined,
+        expectedFiles: [],
+        supported: false,
+        assetDir: 'game1',
+        features: {},
+      },
+    ],
   },
 ]);
 
+/** Flat array of all platform entries, with game back-references set. */
+export const GAME_PLATFORMS = flattenConfigs(GAME_CONFIGS) as PlatformConfig[];
+
 /** Lookup a specific game+platform config. */
-export function getGameConfig(game: GameId, platform: PlatformId): GameConfig | undefined {
-  return _getGameConfig(GAME_PLATFORMS, game, platform) as GameConfig | undefined;
+export function getGameConfig(game: GameId, platform: PlatformId): PlatformConfig | undefined {
+  return _getGameConfig(GAME_PLATFORMS, game, platform) as PlatformConfig | undefined;
 }
 
 /** Get all supported platforms for a game. */

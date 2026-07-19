@@ -7,22 +7,26 @@ import {
   resType,
   resolveDataDir,
   findFileCI,
-  type GamePlatformConfig,
+  defineGameConfig,
+  flattenConfigs,
+  getPlatformConfig,
+  getAllSupportedPlatforms,
+  type PlatformConfig,
+  type GameConfig,
 } from '../config.ts';
 
-const PLACEHOLDER: GamePlatformConfig = {
+const PLACEHOLDER: PlatformConfig = {
   game: 'game1',
   platform: 'platform1',
-  displayName: 'Placeholder',
   dataDirs: ['game1/platform1'],
   expectedFiles: [],
   supported: false,
   assetDir: 'game1',
 };
 
-const PLATFORMS: GamePlatformConfig[] = [PLACEHOLDER];
+const PLATFORMS: PlatformConfig[] = [PLACEHOLDER];
 
-describe('getGameConfig / getSupportedPlatforms', () => {
+describe('getGameConfig / getSupportedPlatforms (flat)', () => {
   it('finds the config', () => {
     const config = getGameConfig(PLATFORMS, 'game1', 'platform1');
     expect(config).toBeDefined();
@@ -40,12 +44,81 @@ describe('getGameConfig / getSupportedPlatforms', () => {
   });
 });
 
+describe('defineGameConfig / flattenConfigs', () => {
+  const GAME: GameConfig = {
+    id: 'wime',
+    displayName: 'War in Middle Earth',
+    platforms: [
+      { platform: 'amiga', dataDirs: ['wime/amiga'], expectedFiles: ['a'], supported: true, assetDir: 'wime' },
+      { platform: 'dos', dataDirs: ['wime/dos'], expectedFiles: ['b'], supported: false, assetDir: 'wime' },
+    ],
+  };
+
+  it('returns the config unchanged', () => {
+    const input = [GAME];
+    const result = defineGameConfig(input);
+    expect(result).toStrictEqual(input);
+  });
+
+  it('flattens into PlatformConfig[] with game back-references', () => {
+    const flat = flattenConfigs([GAME]);
+    expect(flat).toHaveLength(2);
+    expect(flat[0].game).toBe('wime');
+    expect(flat[0].platform).toBe('amiga');
+    expect(flat[1].game).toBe('wime');
+    expect(flat[1].platform).toBe('dos');
+  });
+});
+
+describe('getPlatformConfig', () => {
+  const GAME: GameConfig = {
+    id: 'spirit',
+    displayName: 'Spirit of Excalibur',
+    platforms: [
+      { platform: 'amiga', dataDirs: ['spirit/amiga'], expectedFiles: [], supported: true, assetDir: 'spirit' },
+    ],
+  };
+
+  it('finds a platform by game+platform id', () => {
+    const p = getPlatformConfig([GAME], 'spirit', 'amiga');
+    expect(p).toBeDefined();
+    expect(p?.assetDir).toBe('spirit');
+  });
+
+  it('returns undefined for a missing game', () => {
+    expect(getPlatformConfig([GAME], 'nope', 'amiga')).toBeUndefined();
+  });
+
+  it('returns undefined for a missing platform', () => {
+    expect(getPlatformConfig([GAME], 'spirit', 'dos')).toBeUndefined();
+  });
+});
+
+describe('getAllSupportedPlatforms', () => {
+  const GAME: GameConfig = {
+    id: 'conan',
+    displayName: 'Conan',
+    platforms: [
+      { platform: 'amiga', dataDirs: [], expectedFiles: [], supported: true, assetDir: 'c' },
+      { platform: 'dos', dataDirs: [], expectedFiles: [], supported: false, assetDir: 'c' },
+      { platform: 'iigs', dataDirs: [], expectedFiles: [], supported: true, assetDir: 'c' },
+    ],
+  };
+
+  it('returns only supported platform IDs', () => {
+    expect(getAllSupportedPlatforms([GAME], 'conan')).toEqual(['amiga', 'iigs']);
+  });
+
+  it('returns empty for an unknown game', () => {
+    expect(getAllSupportedPlatforms([GAME], 'nope')).toEqual([]);
+  });
+});
+
 describe('resType', () => {
   it('falls back to uppercase for logical types with no override', () => {
-    const config: GamePlatformConfig = {
+    const config: PlatformConfig = {
       game: 'game1',
       platform: 'platform1',
-      displayName: 'x',
       dataDirs: ['x'],
       expectedFiles: [],
       supported: true,
@@ -55,10 +128,9 @@ describe('resType', () => {
   });
 
   it('uses typeCodes override when present', () => {
-    const config: GamePlatformConfig = {
+    const config: PlatformConfig = {
       game: 'game1',
       platform: 'platform1',
-      displayName: 'x',
       dataDirs: ['x'],
       expectedFiles: [],
       supported: true,
@@ -73,11 +145,10 @@ describe('resType', () => {
 describe('resolveDataDir', () => {
   const FIXTURE_ROOT = join(process.cwd(), 'data', '__test_fixture__');
 
-  function makeConfig(overrides: Partial<GamePlatformConfig> = {}): GamePlatformConfig {
+  function makeConfig(overrides: Partial<PlatformConfig> = {}): PlatformConfig {
     return {
       game: 'game1',
       platform: 'platform1',
-      displayName: 'Fixture',
       dataDirs: ['__test_fixture__'],
       expectedFiles: ['GAME.EXE'],
       supported: true,

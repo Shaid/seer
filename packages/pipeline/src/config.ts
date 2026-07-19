@@ -1,9 +1,13 @@
 /**
- * Generic pipeline config utilities — resolveDataDir, findFileCI, resType.
+ * Game + platform config types and data-dir resolution.
  *
- * These functions operate on a GamePlatformConfig[] array provided by the
- * consumer, not on a hardcoded module-level table. The consumer defines
- * their own GAME_PLATFORMS array and passes it (or a subset) where needed.
+ * Two levels of config:
+ *   - `GameConfig` — game-level wrapper (id, display name, array of platforms).
+ *   - `PlatformConfig` — single platform entry (executable, expected files, etc.).
+ *
+ * `defineGameConfig()` accepts a nested `GameConfig[]` and returns it as-is.
+ * `flattenConfigs()` converts the nested shape into a flat `PlatformConfig[]`
+ * array for functions that iterate over every game+platform combination.
  *
  * Node-only: uses node:fs and node:path. Never import from browser-bundled code.
  */
@@ -11,69 +15,144 @@
 import { existsSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve, join } from 'node:path';
 
-export interface GamePlatformConfig {
-  game: string;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/**
+ * A single platform port of a game — the smallest config unit. Each entry
+ * describes where to find files for one platform and whether it's usable.
+ */
+export interface PlatformConfig {
+  /** Game this platform belongs to (back-reference set by flattenConfigs). */
+  game?: string;
+  /** Platform identifier (e.g. 'amiga', 'dosvga'). */
   platform: string;
-  /** Human-readable name for UI/CLI display. */
-  displayName: string;
   /**
-   * Base directories to SEARCH for this game+platform's files — NOT exact
-   * paths. The canonical base is `data/<game>/<platform>/`, but the actual
-   * data files may live anywhere beneath it (dropped flat, nested in a
-   * subfolder, extracted from a disk image, etc). `resolveDataDir()` walks
-   * each base breadth-first and returns the shallowest directory that
-   * actually contains the executable or one of `expectedFiles` (matched
-   * case-insensitively). Multiple bases are searched in order; the first
-   * that resolves wins.
+   * Base directories to SEARCH for this platform's files — NOT exact paths.
+   * The canonical base is `data/<game>/<platform>/`, but the actual data
+   * files may live anywhere beneath it. `resolveDataDir()` walks each base
+   * breadth-first and returns the shallowest directory that contains an
+   * expected file.
    */
   dataDirs: string[];
   /** Executable filename for exe-data extraction (omit if there isn't one). */
   executable?: string;
   /**
    * Filenames (or relative paths beneath the data directory) that identify
-   * this game+platform's data — used by `resolveDataDir()` to recognise the
-   * directory, and by pipeline scripts to know what to look for. Include
-   * every file your build-assets/export-game-data scripts will read.
+   * this platform's data — used by `resolveDataDir()` to recognise the
+   * directory, and by pipeline scripts to know what to look for.
    */
   expectedFiles: string[];
-  /** Whether this game+platform combination has usable data available. */
+  /** Whether this platform combination has usable data available. */
   supported: boolean;
   /** Runtime asset output subdirectory under public/assets/. */
   assetDir: string;
-  /**
-   * Optional per-platform overrides for resource type codes/names, for
-   * formats where different ports rename container entry types (e.g. some
-   * DOS ports store 4-letter type codes byte-reversed relative to the
-   * original Amiga release). Leave undefined if not applicable.
-   */
+  /** Optional per-platform overrides for resource type codes/names. */
   typeCodes?: Record<string, string>;
-  /**
-   * Free-form feature flags for this game+platform — use this instead of
-   * adding new top-level boolean fields for every optional subsystem
-   * (e.g. `{ music: true, tileGrid: false }`). Keeps the config shape open
-   * without hardcoding assumptions about what every game has.
-   */
+  /** Free-form feature flags for this platform (e.g. `{ music: true }`). */
   features?: Record<string, boolean>;
 }
 
-/** Lookup a specific game+platform config from an array. */
-export function getGameConfig(
-  platforms: GamePlatformConfig[],
+/**
+ * Top-level game config — groups platforms under a single human-readable
+ * game identity. This is the shape consumers write in their config file.
+ */
+export interface GameConfig {
+  /** Game identifier (e.g. 'wime', 'spirit'). */
+  id: string;
+  /** Human-readable name (e.g. 'War in Middle Earth'). */
+  displayName: string;
+  /** One entry per supported platform port. */
+  platforms: PlatformConfig[];
+}
+
+// ---------------------------------------------------------------------------
+// Config helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Defines a nested game config. A thin typed wrapper — returns the config
+ * as-is — but gives the consumer IDE autocompletion and compile-time
+ * checking against the GameConfig shape.
+ */
+export function defineGameConfig<T extends GameConfig[]>(config: T): T {
+  return config;
+}
+
+/**
+ * A `PlatformConfig` with the `game` back-reference always set.
+ * Returned by `flattenConfigs()`.
+ */
+export interface FlattenedPlatform extends PlatformConfig {
+  game: string;
+}
+
+/**
+ * Flatten a nested GameConfig[] into a flat array with game back-references.
+ */
+export function flattenConfigs(configs: GameConfig[]): FlattenedPlatform[] {
+  return configs.flatMap((g) =>
+    g.platforms.map((p) => ({ ...p, game: g.id })),
+  );
+}
+
+/** Look up one platform inside a nested GameConfig[]. */
+export function getPlatformConfig(
+  configs: GameConfig[],
   game: string,
   platform: string,
-): GamePlatformConfig | undefined {
+): PlatformConfig | undefined {
+  for (const g of configs) {
+    if (g.id !== game) continue;
+    return g.platforms.find((p) => p.platform === platform);
+  }
+  return undefined;
+}
+
+/** Get all supported platform IDs for a game from a nested GameConfig[]. */
+export function getAllSupportedPlatforms(
+  configs: GameConfig[],
+  game: string,
+): string[] {
+  for (const g of configs) {
+    if (g.id !== game) continue;
+    return g.platforms.filter((p) => p.supported).map((p) => p.platform);
+  }
+  return [];
+}
+
+// ---------------------------------------------------------------------------
+// Flat-array helpers (work directly on PlatformConfig[])
+// ---------------------------------------------------------------------------
+
+/** Lookup a specific game+platform config from a flat array. */
+export function getGameConfig(
+  platforms: PlatformConfig[],
+  game: string,
+  platform: string,
+): PlatformConfig | undefined {
   return platforms.find((c) => c.game === game && c.platform === platform);
 }
 
-/** Get all supported platforms for a game from an array. */
-export function getSupportedPlatforms(platforms: GamePlatformConfig[], game: string): string[] {
-  return platforms.filter((c) => c.game === game && c.supported).map((c) => c.platform);
+/** Get all supported platforms for a game from a flat array. */
+export function getSupportedPlatforms(
+  platforms: PlatformConfig[],
+  game: string,
+): string[] {
+  return platforms
+    .filter((c) => c.game === game && c.supported)
+    .map((c) => c.platform);
 }
 
-/** Map a logical resource type (e.g. 'image') to a platform-specific code, if overridden. */
-export function resType(config: GamePlatformConfig, logical: string): string {
+/** Map a logical resource type to a platform-specific code, if overridden. */
+export function resType(config: PlatformConfig, logical: string): string {
   return config.typeCodes?.[logical] ?? logical.toUpperCase();
 }
+
+// ---------------------------------------------------------------------------
+// Data-dir resolution
+// ---------------------------------------------------------------------------
 
 /** Directory names skipped when searching for a game's data folder. */
 const IGNORED_DIR_NAMES = new Set(['node_modules', '.git']);
@@ -82,7 +161,7 @@ const IGNORED_DIR_NAMES = new Set(['node_modules', '.git']);
 const MAX_SEARCH_DEPTH = 4;
 
 /** True if `dir` directly contains this game's executable or any expected file. */
-function looksLikeDataDir(dir: string, config: GamePlatformConfig): boolean {
+function looksLikeDataDir(dir: string, config: PlatformConfig): boolean {
   let entries: Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -91,7 +170,8 @@ function looksLikeDataDir(dir: string, config: GamePlatformConfig): boolean {
   }
   if (config.executable) {
     const exeLower = config.executable.toLowerCase();
-    if (entries.some((e) => e.isFile() && e.name.toLowerCase() === exeLower)) return true;
+    if (entries.some((e) => e.isFile() && e.name.toLowerCase() === exeLower))
+      return true;
   }
   const lowerNames = new Set(entries.map((e) => e.name.toLowerCase()));
   return config.expectedFiles.some((f) => lowerNames.has(f.toLowerCase()));
@@ -99,9 +179,7 @@ function looksLikeDataDir(dir: string, config: GamePlatformConfig): boolean {
 
 /**
  * Finds a file in `dir` matching `name` case-insensitively, returning its
- * on-disk filename (useful since different platform ports conventionally use
- * different filename casing). Falls back to `name` unchanged if nothing
- * matches, so callers still get a sensible path in error messages.
+ * on-disk filename. Falls back to `name` unchanged if nothing matches.
  */
 export function findFileCI(dir: string, name: string): string {
   let names: string[];
@@ -119,16 +197,14 @@ export function findFileCI(dir: string, name: string): string {
  *
  * Walks each base in `config.dataDirs` breadth-first (shallowest match wins)
  * and returns the first directory that directly contains the game's
- * executable or any expected file, matched case-insensitively. Returns
- * undefined if no base yields a match. This tolerates any user-organised
- * layout: flat files, nested subfolders, extracted disk images, etc.
+ * executable or any expected file, matched case-insensitively.
  *
  * @param dataRoot - Root directory under which `config.dataDirs` are
  *   searched. Defaults to `<cwd>/data`. Pass an explicit path to override
  *   (e.g. for `--data-dir` CLI support).
  */
 export function resolveDataDir(
-  config: GamePlatformConfig,
+  config: PlatformConfig,
   dataRoot = resolve('data'),
 ): string | undefined {
   for (const base of config.dataDirs) {

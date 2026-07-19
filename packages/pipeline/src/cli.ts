@@ -9,23 +9,63 @@ import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import {
-  runPipeline,
-  hexDump,
-  resolveDataDir,
-  getSupportedPlatforms,
   type GameConfig,
-} from './index.ts';
+  type PlatformConfig,
+  flattenConfigs,
+  getAllSupportedPlatforms,
+  resolveDataDir,
+} from './config.ts';
+import { runPipeline, type PipelineEntry } from './pipeline.ts';
+import { hexDump } from './hex-dump.ts';
 
 export const CONFIG_FILENAMES = ['seer.config.ts', 'seer.config.js', 'seer.config.mjs'];
 
-/** Load a consumer's config file from `dir`, returning the GameConfig array. */
+/**
+ * Load a consumer's config file from `dir`, returning the nested GameConfig
+ * array. Handles both nested (`{ games: [...] }` / `[{ id, platforms }]`)
+ * and legacy flat (`[{ platform, ... }]`) formats.
+ */
 export async function loadConfig(dir: string): Promise<GameConfig[]> {
   for (const name of CONFIG_FILENAMES) {
     const filePath = resolve(dir, name);
     if (existsSync(filePath)) {
       const mod = await import(pathToFileURL(filePath).href);
-      const config = mod.default ?? mod;
-      return Array.isArray(config) ? config : [config];
+      const raw = mod.default ?? mod;
+
+      // Nested: `[{ id, displayName, platforms }]` or `{ games: [...] }`
+      if (Array.isArray(raw) && raw.length > 0 && raw[0].id && raw[0].platforms) {
+        return raw as GameConfig[];
+      }
+      if (raw.games && Array.isArray(raw.games)) {
+        return raw.games as GameConfig[];
+      }
+
+      // Legacy flat: `[{ platform, ... }]` — wrap in synthetic GameConfig
+      if (Array.isArray(raw) && raw.length > 0 && raw[0].platform) {
+        const grouped = new Map<string, Record<string, unknown>[]>();
+        for (const entry of raw) {
+          const game = (entry.game as string) ?? 'default';
+          const list = grouped.get(game) ?? [];
+          list.push(entry);
+          grouped.set(game, list);
+        }
+        return [...grouped.entries()].map(([id, platforms]) => ({
+          id,
+          displayName: (platforms[0]?.displayName as string) ?? id,
+          platforms: platforms as unknown as GameConfig['platforms'],
+        }));
+      }
+
+      // Single object (non-array) — treat as one game with one platform
+      if (raw && typeof raw === 'object' && !Array.isArray(raw) && raw.platform) {
+        return [
+          {
+            id: (raw.game as string) ?? 'default',
+            displayName: (raw.displayName as string) ?? (raw.game as string) ?? 'default',
+            platforms: [raw] as unknown as GameConfig['platforms'],
+          },
+        ];
+      }
     }
   }
   throw new Error(
@@ -56,7 +96,8 @@ export async function cmdExtract(
   platform?: string,
   dataDir?: string,
 ): Promise<void> {
-  const result = await runPipeline(configs, { game, platform, dataDir });
+  const entries: PipelineEntry[] = flattenConfigs(configs);
+  const result = await runPipeline(entries, { game, platform, dataDir });
   if (result.length === 0) {
     console.error('No supported game+platform combinations found.');
     process.exit(1);
@@ -76,25 +117,34 @@ export function cmdHexDump(args: string[]): void {
 }
 
 export function cmdDoctor(configs: GameConfig[], dataDir?: string): void {
-  const gameIds = [...new Set(configs.map((c) => c.game))];
-  console.log(`Found ${gameIds.length} game(s), ${configs.length} game+platform entr${configs.length === 1 ? 'y' : 'ies'} in config.\n`);
+  const totalPlatforms = configs.reduce((n, g) => n + g.platforms.length, 0);
+  console.log(
+    `Found ${configs.length} game(s), ${totalPlatforms} game+platform entr${totalPlatforms === 1 ? 'y' : 'ies'} in config.\n`,
+  );
 
-  for (const gameId of gameIds) {
-    const entries = configs.filter((c) => c.game === gameId);
-    console.log(`Game: ${gameId}`);
-    console.log(`  Display name: ${entries[0]?.displayName ?? '(none)'}`);
-    console.log(`  Supported platforms: ${getSupportedPlatforms(configs, gameId).join(', ') || '(none)'}`);
+  for (const game of configs) {
+    console.log(`Game: ${game.id}`);
+    console.log(`  Display name: ${game.displayName}`);
+    console.log(
+      `  Supported platforms: ${getAllSupportedPlatforms(configs, game.id).join(', ') || '(none)'}`,
+    );
 
-    for (const cfg of entries) {
-      console.log(`  Platform: ${cfg.platform}${cfg.supported ? '' : ' (not marked supported)'}`);
-      console.log(`    exportGameData: ${cfg.exportGameData ? 'registered' : 'not registered'}`);
-      console.log(`    buildAssets:    ${cfg.buildAssets ? 'registered' : 'not registered'}`);
+    for (const platform of game.platforms) {
+      const p = platform as PlatformConfig & { exportGameData?: unknown; buildAssets?: unknown };
+      console.log(
+        `  Platform: ${platform.platform}${platform.supported ? '' : ' (not marked supported)'}`,
+      );
+      console.log(`    exportGameData: ${p.exportGameData ? 'registered' : 'not registered'}`);
+      console.log(`    buildAssets:    ${p.buildAssets ? 'registered' : 'not registered'}`);
 
-      const resolved = resolveDataDir(cfg, dataDir);
+      const resolved = resolveDataDir(
+        { ...platform, game: game.id },
+        dataDir,
+      );
       if (resolved) {
         console.log(`    Data dir: found at ${resolved}`);
       } else {
-        console.warn(`    Data dir: not found (searched ${cfg.dataDirs.join(', ')})`);
+        console.warn(`    Data dir: not found (searched ${platform.dataDirs.join(', ')})`);
       }
     }
     console.log('');

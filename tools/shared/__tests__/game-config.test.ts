@@ -1,11 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import {
-  getGameConfig,
-  getSupportedPlatforms,
-} from '@seer/pipeline';
+import { getGameConfig, getSupportedPlatforms, flattenConfigs } from '@seer/pipeline';
 import {
   GAME_IDS,
   PLATFORM_IDS,
+  GAME_CONFIGS,
   GAME_PLATFORMS,
 } from '../game-config.ts';
 
@@ -16,17 +14,23 @@ describe('GAME_IDS / PLATFORM_IDS', () => {
   });
 });
 
-describe('GAME_PLATFORMS', () => {
-  it('all configs have the required fields', () => {
-    for (const config of GAME_PLATFORMS) {
-      expect(config.game).toBeDefined();
-      expect(config.platform).toBeDefined();
-      expect(config.displayName).toBeDefined();
-      expect(Array.isArray(config.dataDirs)).toBe(true);
-      expect(config.dataDirs.length).toBeGreaterThan(0);
-      expect(Array.isArray(config.expectedFiles)).toBe(true);
-      expect(typeof config.supported).toBe('boolean');
-      expect(typeof config.assetDir).toBe('string');
+describe('GAME_CONFIGS', () => {
+  it('all game configs have the required fields', () => {
+    for (const game of GAME_CONFIGS) {
+      expect(game.id).toBeDefined();
+      expect(game.displayName).toBeDefined();
+      expect(Array.isArray(game.platforms)).toBe(true);
+      expect(game.platforms.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('flattened GAME_PLATFORMS has game back-references', () => {
+    const flat = flattenConfigs(GAME_CONFIGS);
+    for (const entry of flat) {
+      expect(entry.game).toBeDefined();
+      expect(entry.platform).toBeDefined();
+      expect(typeof entry.supported).toBe('boolean');
+      expect(typeof entry.assetDir).toBe('string');
     }
   });
 });

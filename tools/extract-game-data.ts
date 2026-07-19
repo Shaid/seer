@@ -23,12 +23,12 @@ import {
   GAME_IDS,
   PLATFORM_IDS,
   DEFAULT_GAME,
-  GAME_PLATFORMS,
+  GAME_CONFIGS,
   getSupportedPlatforms,
   type GameId,
   type PlatformId,
 } from './shared/game-config.ts';
-import { runPipeline } from '@seer/pipeline';
+import { runPipeline, flattenConfigs, type PipelineEntry } from '@seer/pipeline';
 
 interface Options {
   game: GameId | 'all';
@@ -56,6 +56,7 @@ export function parseArgs(argv: string[]): Options {
     if (arg === '--help' || arg === '-h') {
       console.log(USAGE);
       process.exit(0);
+      return {} as Options; // unreachable but satisfies tsc
     } else if (arg === '--game' && args[i + 1]) {
       const val = ++i && args[i];
       if (val === 'all') {
@@ -84,42 +85,29 @@ export function parseArgs(argv: string[]): Options {
   const resolvedGame: GameId | 'all' = game ?? DEFAULT_GAME;
   const resolvedPlatform: PlatformId | 'all' =
     platform ??
-    (resolvedGame === 'all' ? 'all' : (getSupportedPlatforms(resolvedGame)[0] ?? PLATFORM_IDS[0]));
+    (resolvedGame === 'all'
+      ? 'all'
+      : (getSupportedPlatforms(resolvedGame)[0] ?? PLATFORM_IDS[0]));
 
   return { game: resolvedGame, platform: resolvedPlatform, exportOnly, assetsOnly };
 }
 
 async function main() {
   const opts = parseArgs(process.argv);
+  const entries = flattenConfigs(GAME_CONFIGS) as PipelineEntry[];
+  const result = await runPipeline(entries, {
+    game: opts.game,
+    platform: opts.platform,
+  });
 
-  // 'all' expansion: runPipeline handles iteration, but we need to expand
-  // 'all' to concrete supported combinations ourselves, since the library
-  // accepts concrete game/platform IDs only.
-  const games = opts.game === 'all' ? [...GAME_IDS] : [opts.game];
-  const results: { game: GameId; platform: PlatformId; ok: boolean }[] = [];
-
-  for (const game of games) {
-    const platforms =
-      opts.platform === 'all'
-        ? (opts.game === 'all' ? getSupportedPlatforms(game) : [...PLATFORM_IDS])
-        : [opts.platform];
-
-    for (const platform of platforms) {
-      const pipelineResults = await runPipeline(GAME_PLATFORMS, { game, platform });
-      const first = pipelineResults[0];
-      const ok = first ? first.steps.every(([, s]) => s) : false;
-      results.push({ game, platform, ok });
-    }
-  }
-
-  if (results.length === 0) {
+  if (result.length === 0) {
     console.error('No supported game+platform combinations found.');
-    console.error('Edit tools/shared/game-config.ts to mark a config as supported: true.');
+    console.error('Edit tools/shared/game-config.ts to mark a platform as supported: true.');
     process.exit(1);
   }
 
-  console.log('\n' + '='.repeat(60));
-  console.log('All games/platforms processed.');
+  const allOk = result.every((r) => r.steps.every(([, ok]) => ok));
+  if (!allOk) process.exit(1);
 }
 
 // Standalone CLI mode

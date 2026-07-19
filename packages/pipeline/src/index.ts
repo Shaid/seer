@@ -1,5 +1,11 @@
 export {
-  type GamePlatformConfig,
+  type PlatformConfig,
+  type GameConfig,
+  type FlattenedPlatform,
+  defineGameConfig,
+  flattenConfigs,
+  getPlatformConfig,
+  getAllSupportedPlatforms,
   getGameConfig,
   getSupportedPlatforms,
   resType,
@@ -10,8 +16,7 @@ export {
 export {
   type PipelineStep,
   type PipelineResult,
-  type GameConfig,
-  defineGameConfig,
+  type PipelineEntry,
   runPipeline,
 } from './pipeline.ts';
 

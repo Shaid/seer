@@ -9,7 +9,10 @@ import {
   cmdExtract,
   cmdHexDump,
 } from '../cli.ts';
-import type { GameConfig } from '../pipeline.ts';
+import type { GameConfig, PlatformConfig } from '../config.ts';
+import type { PipelineStep } from '../pipeline.ts';
+
+type TestPlatform = PlatformConfig & { exportGameData?: PipelineStep; buildAssets?: PipelineStep };
 
 describe('parseArgs', () => {
   it('extracts --game and --platform', () => {
@@ -38,16 +41,18 @@ describe('loadConfig', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('loads a .ts config file', async () => {
+  it('loads a nested GameConfig[] from a .ts config file', async () => {
     const dir = resolve(tmpDir, 'ts');
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       resolve(dir, 'seer.config.ts'),
-      `export default [{ game: 'ts-game', platform: 'p1', displayName: 'TS Game', dataDirs: ['ts/p1'], expectedFiles: [], supported: true, assetDir: 'ts' }];\n`,
+      `export default [{ id: 'ts-game', displayName: 'TS Game', platforms: [{ platform: 'p1', dataDirs: ['ts/p1'], expectedFiles: [], supported: true, assetDir: 'ts' }] }];\n`,
     );
     const configs = await loadConfig(dir);
     expect(configs).toHaveLength(1);
-    expect(configs[0].game).toBe('ts-game');
+    expect(configs[0].id).toBe('ts-game');
+    expect(configs[0].platforms).toHaveLength(1);
+    expect(configs[0].platforms[0].platform).toBe('p1');
   });
 
   it('loads a .js config file', async () => {
@@ -55,13 +60,14 @@ describe('loadConfig', () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       resolve(dir, 'seer.config.js'),
-      `export default [{ game: 'js-game', platform: 'p1', displayName: 'JS Game', dataDirs: ['js/p1'], expectedFiles: [], supported: true, assetDir: 'js' }];\n`,
+      `export default [{ id: 'js-game', displayName: 'JS Game', platforms: [{ platform: 'p1', dataDirs: ['js/p1'], expectedFiles: [], supported: true, assetDir: 'js' }] }];\n`,
     );
     const configs = await loadConfig(dir);
-    expect(configs[0].game).toBe('js-game');
+    expect(configs[0].id).toBe('js-game');
+    expect(configs[0].platforms[0].platform).toBe('p1');
   });
 
-  it('wraps a single-object config in an array', async () => {
+  it('wraps a single-object flat config in a synthetic GameConfig', async () => {
     const dir = resolve(tmpDir, 'single');
     mkdirSync(dir, { recursive: true });
     writeFileSync(
@@ -71,7 +77,22 @@ describe('loadConfig', () => {
     const configs = await loadConfig(dir);
     expect(Array.isArray(configs)).toBe(true);
     expect(configs).toHaveLength(1);
-    expect(configs[0].game).toBe('single');
+    expect(configs[0].id).toBe('single');
+    expect(configs[0].platforms[0].platform).toBe('p1');
+  });
+
+  it('wraps a legacy flat array in synthetic GameConfig entries', async () => {
+    const dir = resolve(tmpDir, 'flat');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      resolve(dir, 'seer.config.ts'),
+      `export default [{ game: 'g1', platform: 'p1', displayName: 'Flat', dataDirs: ['g1/p1'], expectedFiles: [], supported: true, assetDir: 'g1' }];\n`,
+    );
+    const configs = await loadConfig(dir);
+    expect(configs).toHaveLength(1);
+    expect(configs[0].id).toBe('g1');
+    expect(configs[0].displayName).toBe('Flat');
+    expect(configs[0].platforms[0].platform).toBe('p1');
   });
 
   it('throws when no config file exists', async () => {
@@ -86,18 +107,22 @@ describe('loadConfig', () => {
   });
 });
 
-function makeConfig(overrides: Partial<GameConfig> = {}): GameConfig {
+function makeGameConfig(overrides: Partial<GameConfig> = {}): GameConfig {
   return {
-    game: 'demo',
-    platform: 'amiga',
+    id: 'demo',
     displayName: 'Demo',
-    dataDirs: ['__cli_test__/amiga'],
-    executable: 'GAME.EXE',
-    expectedFiles: ['GAME.EXE'],
-    supported: true,
-    assetDir: 'demo',
+    platforms: [
+      {
+        platform: 'amiga',
+        dataDirs: ['__cli_test__/amiga'],
+        executable: 'GAME.EXE',
+        expectedFiles: ['GAME.EXE'],
+        supported: true,
+        assetDir: 'demo',
+      },
+    ],
     ...overrides,
-  };
+  } as GameConfig;
 }
 
 describe('cmdDoctor', () => {
@@ -124,13 +149,13 @@ describe('cmdDoctor', () => {
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(resolve(dataDir, 'GAME.EXE'), '');
 
-    cmdDoctor([makeConfig()]);
+    cmdDoctor([makeGameConfig()]);
 
     expect(loggedText()).toContain(`Data dir: found at ${dataDir}`);
   });
 
   it('reports the data dir as not found when nothing matches on disk', () => {
-    cmdDoctor([makeConfig({ dataDirs: ['__does_not_exist__'] })]);
+    cmdDoctor([makeGameConfig({ platforms: [{ platform: 'amiga', dataDirs: ['__does_not_exist__'], expectedFiles: ['GAME.EXE'], supported: true, assetDir: 'demo' }] })]);
 
     const warnedText = warnSpy.mock.calls.map((c) => c.join(' ')).join('\n');
     expect(warnedText).toContain('Data dir: not found');
@@ -140,9 +165,12 @@ describe('cmdDoctor', () => {
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(resolve(dataDir, 'GAME.EXE'), '');
 
-    const amiga = makeConfig();
-    const dos = makeConfig({ platform: 'dos', dataDirs: ['__does_not_exist_dos__'], supported: false });
-    cmdDoctor([amiga, dos]);
+    cmdDoctor([makeGameConfig({
+      platforms: [
+        { platform: 'amiga', dataDirs: ['__cli_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE'], supported: true, assetDir: 'demo' },
+        { platform: 'dos', dataDirs: ['__does_not_exist_dos__'], expectedFiles: ['GAME.EXE'], supported: false, assetDir: 'demo' },
+      ],
+    })]);
 
     const text = loggedText();
     expect(text).toContain('Found 1 game(s), 2 game+platform entries in config.');
@@ -154,7 +182,9 @@ describe('cmdDoctor', () => {
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(resolve(dataDir, 'GAME.EXE'), '');
 
-    cmdDoctor([makeConfig({ exportGameData: () => {}, buildAssets: undefined })]);
+    cmdDoctor([makeGameConfig({
+      platforms: [{ platform: 'amiga', dataDirs: ['__cli_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE'], supported: true, assetDir: 'demo', exportGameData: () => {} }] as TestPlatform[],
+    })]);
 
     const text = loggedText();
     expect(text).toContain('exportGameData: registered');
@@ -167,7 +197,9 @@ describe('cmdDoctor', () => {
     mkdirSync(nested, { recursive: true });
     writeFileSync(resolve(nested, 'GAME.EXE'), '');
 
-    cmdDoctor([makeConfig({ dataDirs: ['demo/amiga'] })], customRoot);
+    cmdDoctor([makeGameConfig({
+      platforms: [{ platform: 'amiga', dataDirs: ['demo/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE'], supported: true, assetDir: 'demo' }],
+    })], customRoot);
 
     expect(loggedText()).toContain(`Data dir: found at ${nested}`);
     rmSync(customRoot, { recursive: true, force: true });
@@ -194,21 +226,33 @@ describe('cmdExtract', () => {
   });
 
   it('does not exit when all steps succeed', async () => {
-    const config = makeConfig({
-      dataDirs: ['__cli_extract_test__/amiga'],
-      exportGameData: () => {},
-      buildAssets: () => {},
+    const config = makeGameConfig({
+      platforms: [{
+        platform: 'amiga',
+        dataDirs: ['__cli_extract_test__/amiga'],
+        executable: 'GAME.EXE',
+        expectedFiles: ['GAME.EXE'],
+        supported: true,
+        assetDir: 'demo',
+        exportGameData: () => {},
+        buildAssets: () => {},
+      }] as TestPlatform[],
     });
     await cmdExtract([config], 'demo', 'amiga');
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
   it('exits with code 1 when a step fails', async () => {
-    const config = makeConfig({
-      dataDirs: ['__cli_extract_test__/amiga'],
-      exportGameData: () => {
-        throw new Error('boom');
-      },
+    const config = makeGameConfig({
+      platforms: [{
+        platform: 'amiga',
+        dataDirs: ['__cli_extract_test__/amiga'],
+        executable: 'GAME.EXE',
+        expectedFiles: ['GAME.EXE'],
+        supported: true,
+        assetDir: 'demo',
+        exportGameData: () => { throw new Error('boom'); },
+      }] as TestPlatform[],
     });
     await cmdExtract([config], 'demo', 'amiga');
     expect(exitSpy).toHaveBeenCalledWith(1);

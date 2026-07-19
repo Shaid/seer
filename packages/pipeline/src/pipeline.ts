@@ -1,10 +1,9 @@
 /**
- * Pipeline orchestration: defineGameConfig + runPipeline.
+ * Pipeline orchestration: runPipeline.
  *
- * This module is the bridge between a consumer's project config and the
- * reusable orchestration logic (step execution, error tolerance, summary
- * reporting). The consumer owns the config file; the library owns the
- * orchestration loop.
+ * The bridge between a consumer's config and the reusable orchestration loop
+ * (step execution, error tolerance, summary reporting). Consumers register
+ * step functions directly on their flattened config entries.
  *
  * Node-only: uses node:fs, node:child_process. Never import from
  * browser-bundled code.
@@ -13,7 +12,8 @@
 import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
-  type GamePlatformConfig,
+  type PlatformConfig,
+  type FlattenedPlatform,
   getGameConfig,
   getSupportedPlatforms,
   resolveDataDir,
@@ -25,12 +25,14 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * A single reusable pipeline step — a function that takes a game+platform
- * config and the resolved data directory, and does one stage of work.
- * May be sync or async; thrown exceptions (or rejected promises) are caught
- * and reported by the orchestrator.
+ * A single reusable pipeline step — a function that takes a platform config
+ * and the resolved data directory, and does one stage of work.
+ * May be sync or async; thrown exceptions are caught by the orchestrator.
  */
-export type PipelineStep = (config: GamePlatformConfig, dataDir: string) => void | Promise<void>;
+export type PipelineStep = (
+  config: PlatformConfig,
+  dataDir: string,
+) => void | Promise<void>;
 
 /** Pipeline result for a single game+platform combination. */
 export interface PipelineResult {
@@ -39,25 +41,16 @@ export interface PipelineResult {
   steps: [string, boolean][];
 }
 
-/** A game+platform config augmented with the pipeline functions the consumer
- * registers for the orchestration loop to call. Extends GamePlatformConfig
- * so data fields (displayName, dataDirs, expectedFiles, etc.) are still
- * required. */
-export interface GameConfig extends GamePlatformConfig {
+/**
+ * A platform config augmented with the pipeline step functions the consumer
+ * registers for the orchestrator to call. This is what `runPipeline` accepts
+ * — a flat array, one entry per game+platform combination.
+ */
+export interface PipelineEntry extends FlattenedPlatform {
   /** Stage 1: parse game executable / data tables, write raw JSON. */
   exportGameData?: PipelineStep;
   /** Stage 2: decode resource files into web-native PNG + JSON assets. */
   buildAssets?: PipelineStep;
-}
-
-/**
- * Defines a game+platform configuration object (or array of them).
- *
- * A thin typed wrapper — returns the config as-is — but gives the consumer
- * IDE autocompletion and compile-time checking against the GameConfig shape.
- */
-export function defineGameConfig<T extends GameConfig | GameConfig[]>(config: T): T {
-  return config;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,7 +71,10 @@ interface PipelineOptions {
  * exceptions thrown after an `await` inside an async step are actually
  * caught here rather than becoming an unhandled rejection.
  */
-async function runStep(name: string, fn: () => void | Promise<void>): Promise<boolean> {
+async function runStep(
+  name: string,
+  fn: () => void | Promise<void>,
+): Promise<boolean> {
   try {
     console.log(`\n── ${name} ──`);
     await fn();
@@ -90,12 +86,16 @@ async function runStep(name: string, fn: () => void | Promise<void>): Promise<bo
 }
 
 /** Print a helpful error when the data directory can't be found. */
-function printDataDirNotFound(config: GamePlatformConfig, dataRoot: string): void {
+function printDataDirNotFound(
+  config: PlatformConfig,
+  dataRoot: string,
+): void {
   console.error(
     `Could not find game data under: ${config.dataDirs.map((d) => resolve(dataRoot, d)).join(', ')}`,
   );
+  const gameDir = config.game ? `${config.game}/${config.platform}` : config.platform;
   console.error(
-    `Place your game files anywhere inside ${dataRoot}/${config.game}/${config.platform}/ — files may be`,
+    `Place your game files anywhere inside ${dataRoot}/${gameDir}/ — files may be`,
   );
   console.error(`flat, in a subfolder, or nested however you like. Looked for:`);
   if (config.executable) console.error(`  - executable: ${config.executable}`);
@@ -103,43 +103,43 @@ function printDataDirNotFound(config: GamePlatformConfig, dataRoot: string): voi
 }
 
 /**
- * Run the full extraction pipeline for one game+platform combination.
+ * Run the full extraction pipeline for one or more game+platform combinations.
  *
- * The consumer calls this once per combination from their own CLI wrapper.
  * Per-step failure is tolerated: a failed step is logged but does not
  * prevent subsequent steps from running.
  *
- * @param configs - The full config array (typically the consumer's
- *   GAME_PLATFORMS). `runPipeline` filters to the requested game+platform.
+ * @param entries - Flat array of platform configs with optional pipeline step
+ *   functions attached. Use `flattenConfigs()` to convert a nested
+ *   `GameConfig[]` into this shape.
  * @param options - Which game+platform to process. When both are omitted,
- *   the first supported combination in the array is used.
- * @returns Results for each step that ran, suitable for a summary printout
- *   or programmatic checking.
+ *   the first supported entry in the array is used.
  */
 export async function runPipeline(
-  configs: GameConfig[],
+  entries: PipelineEntry[],
   options: PipelineOptions = {},
 ): Promise<PipelineResult[]> {
-  const game = options.game ?? configs[0]?.game;
-  const platform = options.platform ?? configs[0]?.platform;
+  const game = options.game ?? entries[0]?.game;
+  const platform = options.platform ?? entries[0]?.platform;
 
   if (!game || !platform) {
     console.error('No game+platform specified and none found in config.');
     return [];
   }
 
-  // Expand 'all' to concrete game IDs, then expand 'all' platforms per game.
-  const games = game === 'all' ? [...new Set(configs.map((c) => c.game))] : [game];
+  const games =
+    game === 'all' ? [...new Set(entries.map((e) => e.game))] : [game];
   const results: PipelineResult[] = [];
 
   for (const gameId of games) {
     const platforms =
       platform === 'all'
-        ? getSupportedPlatforms(configs, gameId)
+        ? getSupportedPlatforms(entries, gameId)
         : [platform];
 
     for (const platformId of platforms) {
-      const config = getGameConfig(configs, gameId, platformId) as GameConfig | undefined;
+      const config = getGameConfig(entries, gameId, platformId) as
+        | PipelineEntry
+        | undefined;
       if (!config || !config.supported) continue;
 
       const dataDir = resolveDataDir(config, options.dataDir);
@@ -150,7 +150,7 @@ export async function runPipeline(
       }
 
       console.log(`\n${'='.repeat(60)}`);
-      console.log(config.displayName);
+      console.log(`${gameId} — ${platformId}`);
       console.log(`  Source: ${dataDir}`);
       console.log(`${'='.repeat(60)}`);
 
@@ -165,11 +165,15 @@ export async function runPipeline(
         if (hasExe) {
           steps.push([
             'export-game-data',
-            await runStep('Export game data', () => config.exportGameData!(config, dataDir)),
+            await runStep('Export game data', () =>
+              config.exportGameData!(config, dataDir),
+            ),
           ]);
         } else {
           console.log('\n── export-game-data ──');
-          console.warn(`  ⚠ ${config.executable ?? 'executable'} not found — skipping`);
+          console.warn(
+            `  ⚠ ${config.executable ?? 'executable'} not found — skipping`,
+          );
           steps.push(['export-game-data (skipped)', true]);
         }
       } else {
@@ -181,7 +185,9 @@ export async function runPipeline(
       if (config.buildAssets) {
         steps.push([
           'build-assets',
-          await runStep('Build assets', () => config.buildAssets!(config, dataDir)),
+          await runStep('Build assets', () =>
+            config.buildAssets!(config, dataDir),
+          ),
         ]);
       } else {
         console.log('\n── build-assets ──');
@@ -196,7 +202,9 @@ export async function runPipeline(
 
       const failed = steps.filter(([, ok]) => !ok);
       if (failed.length > 0) {
-        console.log(`\n${failed.length} step(s) had issues. Check warnings above.`);
+        console.log(
+          `\n${failed.length} step(s) had issues. Check warnings above.`,
+        );
       } else {
         console.log('\nAll steps complete.');
       }
