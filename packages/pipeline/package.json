@@ -8,9 +8,12 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "bin": {
+    "seer": "./bin/seer.mjs"
+  },
   "scripts": {
     "test": "vitest run",
-    "lint": "eslint src/"
+    "lint": "eslint src/ ../bin/"
   },
   "peerDependencies": {
     "pngjs": "^7.0.0"

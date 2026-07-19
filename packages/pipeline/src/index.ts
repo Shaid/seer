@@ -23,3 +23,5 @@ export {
   resolveDataFile,
   scanFilesByExtension,
 } from './io.ts';
+
+export { hexDump } from './hex-dump.ts';
