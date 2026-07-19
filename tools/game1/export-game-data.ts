@@ -7,13 +7,12 @@
  *
  * Replace the body of `main()` with your actual reverse-engineered table
  * parsing once you've identified the executable's data layout (via
- * disassembly, hex-dump.ts inspection, etc). See
- * docs/architecture-overview.md §6 (Stage 1) for what this stage is for.
+ * disassembly, hex-dump.ts inspection, etc).
  */
 import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { readBinary, writeJson } from '../shared/io.ts';
-import { BinaryReader } from '../../src/utils/binary-reader.ts';
+import { readBinary, writeJson } from '@seer/pipeline';
+import { BinaryReader } from '@seer/core';
 
 function main() {
   const dataDir = process.argv[2];

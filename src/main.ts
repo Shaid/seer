@@ -4,7 +4,7 @@
  * Reads ?game=&platform= from the URL if your project supports multiple
  * games/platforms (see src/game-id.ts), then boots the Game engine.
  */
-import { Game } from './engine/Game.ts';
+import { Game } from '@seer/engine';
 
 const container = document.getElementById('game-container');
 if (!container) {

@@ -1,13 +1,14 @@
 /**
- * hex-dump — re-exported from @seer/pipeline for backward compatibility.
- * Prefer: npx tsx packages/pipeline/src/hex-dump.ts <file> [offset] [length]
+ * hex-dump — CLI tool for inspecting binary game data files.
+ *
+ * Usage: npx tsx packages/pipeline/src/hex-dump.ts <file> [offset] [length]
  */
 import { basename } from 'node:path';
-import { readBinary } from '@seer/pipeline';
+import { readBinary } from './io.ts';
 
 const args = process.argv.slice(2);
 if (args.length === 0) {
-  console.error('Usage: npx tsx tools/shared/hex-dump.ts <file> [offset] [length]');
+  console.error('Usage: npx tsx packages/pipeline/src/hex-dump.ts <file> [offset] [length]');
   process.exit(1);
 }
 

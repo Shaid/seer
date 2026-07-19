@@ -11,7 +11,7 @@ import { defineConfig, type Plugin } from 'vite';
  * doesn't need runtime access to raw data files, delete this plugin.
  *
  * `data/` is never bundled or shipped; this only runs against the local dev
- * server. See docs/architecture-overview.md §6 (Stage 3) for the rationale.
+ * server.
  */
 function serveDataDir(): Plugin {
   const dataRoot = resolve('data');
@@ -54,5 +54,12 @@ export default defineConfig({
   },
   build: {
     target: 'es2023',
+  },
+  test: {
+    include: [
+      'packages/*/src/**/*.test.ts',
+      'src/**/*.test.ts',
+      'tools/**/*.test.ts',
+    ],
   },
 });

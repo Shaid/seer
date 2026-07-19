@@ -9,7 +9,7 @@
 
 import { Graphics, TextStyle, Texture, Rectangle } from 'pixi.js';
 import type { TextStyleFontWeight } from 'pixi.js';
-import type { Camera } from '../engine/Camera.ts';
+import type { Camera } from './Camera.ts';
 
 const VIEWPORT_CULL_MARGIN = 32;
 

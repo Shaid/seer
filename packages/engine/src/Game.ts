@@ -8,8 +8,6 @@
  * your game is a strategic map, a side-scroller, or anything else. Replace
  * the render setup in `init()` with whatever your reverse-engineered assets
  * actually need (tilemap, sprite layers, dialogue screens, etc).
- *
- * See docs/architecture-overview.md §8 for the architectural rationale.
  */
 
 import { Application } from 'pixi.js';

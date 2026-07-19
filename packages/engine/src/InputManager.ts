@@ -3,7 +3,7 @@
  */
 
 import type { Camera } from './Camera.ts';
-import { screenToWorld } from '../utils/pixi-helpers.ts';
+import { screenToWorld } from './pixi-helpers.ts';
 
 export interface InputConfig {
   /** Pan speed in pixels/frame when using keyboard */

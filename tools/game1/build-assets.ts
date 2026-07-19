@@ -12,7 +12,7 @@
  */
 import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { writeJson } from '../shared/io.ts';
+import { writeJson } from '@seer/pipeline';
 import { getGameConfig } from '../shared/game-config.ts';
 
 function main() {

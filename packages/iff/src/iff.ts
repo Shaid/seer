@@ -7,15 +7,10 @@
  * game — and is reusable whenever your target uses IFF-derived formats
  * (8SVX, ILBM, ANIM, SMUS, or a custom FORM-based format).
  *
- * If your target platform doesn't use IFF at all, delete this file; it's
- * included here as an example of what a "generic, format-agnostic decoder"
- * looks like, and as a real utility for the (fairly common) case where it
- * does apply.
- *
  * Structure: FORM <size> <type> <chunks...>
  * Each chunk: <fourCC> <size:uint32> <data...> [pad byte if odd size]
  */
-import { BinaryReader } from '../../utils/binary-reader.ts';
+import { BinaryReader } from '@seer/core';
 
 export interface IffChunk {
   id: string;
