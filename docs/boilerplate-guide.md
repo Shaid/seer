@@ -25,7 +25,7 @@ any target. Import from them; don't edit their source directly.
 | `@seer/engine` | `Camera.ts` — 2D pan/zoom/bounds-clamped camera; `InputManager.ts` — keyboard + mouse input (pan, edge-scroll, wheel zoom, drag, click); `DisplayMode.ts` — zoom-bounds/scale-mode config; `Game.ts` — top-level orchestrator shape; `pixi-helpers.ts` — viewport culling, atlas slicing, label styling (PixiJS-specific; peer dep on `pixi.js`) |
 | `@seer/pipeline` | Node-only: `resolveDataDir()`/`findFileCI()` — breadth-first, case-insensitive discovery of wherever the user dropped their game files; `io.ts` — generic file I/O (`readBinary`, `writePNG`, `writeIndexedPNG`, `writeJson`, `scanFilesByExtension`, `resolveDataFile`); `hex-dump.ts` — CLI binary inspector, your first tool when reverse-engineering a new format |
 | `@seer/iff` | Generic EA IFF-85 FORM/chunk parser (depends on `@seer/core`). **Optional** — delete this package if your target doesn't use IFF-derived formats (8SVX, ILBM, ANIM, SMUS, or a custom FORM-based format) |
-| `@seer/smus` | Placeholder for a SMUS (Simple Musical Score) interpreter. **Optional** — only relevant if your target uses SMUS audio; currently unimplemented |
+| `@seer/smus` | SMUS (Simple Musical Score) interpreter — EA IFF 85 SMUS format parser, SampledSound .instr/.ss parser, Sonix audio engine with instrument converters. **Optional** — only relevant if your target uses SMUS audio |
 
 Also reusable as-is at the project root:
 
@@ -110,8 +110,8 @@ for you:
    loader in the sibling project's `src/assets/formats/exe-data.ts`
    (`parseHunks()`) is a reasonable reference — the table *offsets* are still
    unique to each compiled binary and must be found via disassembly.
-5. **Your audio format decoder**, if applicable — `@seer/smus` is a
-   placeholder if your target uses SMUS.
+5. **Your audio format decoder**, if applicable — `@seer/smus` is populated
+   with a working SMUS interpreter if your target uses SMUS.
 6. **Your actual game/rendering logic**, built out from `@seer/engine`'s
    `Game.ts` template.
 

@@ -111,17 +111,15 @@ switching to seer's `BinaryReader` requires **zero changes** to existing
 (`iff.ts`, `smus.ts`, `sampled-sound.ts`) can switch to `@seer/core`'s
 export without modifying their constructor calls.
 
-### 3.5 Decide on `@seer/smus` vs keeping SMUS in middilgard
+### 3.5 ~~Decide on `@seer/smus` vs keeping SMUS in middilgard~~ ✓ DONE
 
-seer's `@seer/smus` is a placeholder. middilgard has a complete SMUS parser,
-WebAudio engine, and music manager (800+ lines). Options:
+**Resolved: Option B — SMUS upstreamed to `@seer/smus`.**
 
-- **A. Keep SMUS in middilgard** — simplest, no seer changes needed.
-- **B. Contribute SMUS upstream to `@seer/smus`** — benefits other consumers
-  but requires seer to accept a large chunk of game-specific code.
-
-**Recommend Option A** for now. SMUS is specific to Melbourne House games.
-If a second consumer emerges, contribute upstream then.
+The full SMUS implementation (parser, sampled-sound parser, Sonix engine,
+instrument converters, 8 engine tests) now lives in `@seer/smus` as a
+working reference implementation of the Sonix-style SMUS format.middilgard
+re-exports from `@seer/smus` for backward compatibility — existing importers
+are unchanged.
 
 ---
 
@@ -232,147 +230,62 @@ middilgard's own tools continue to import from `game-config.ts` directly
 Ordered from lowest risk to highest. Each step is independently shippable —
 middilgard should pass all tests and build cleanly after each one.
 
-### Step 1: Add `@seer/*` dependencies to middilgard's `package.json`
+### ~~Step 1: Upstream SMUS to `@seer/smus`~~ ✓ DONE
 
-Add workspace-local dependencies pointing at the sibling seer repo:
+The full SMUS implementation (parser, sampled-sound parser, Sonix engine,
+instrument converters, 8 engine tests) now lives in `@seer/smus`.
+middilgard re-exports from `@seer/smus` for backward compatibility — all
+existing importers unchanged. Three local files are now thin re-export shims:
+`src/assets/formats/smus.ts`, `src/assets/formats/sampled-sound.ts`,
+`src/engine/smus-engine.ts`.
 
-```json
-{
-  "dependencies": {
-    "@seer/core": "file:../seer/packages/core",
-    "@seer/engine": "file:../seer/packages/engine",
-    "@seer/iff": "file:../seer/packages/iff",
-    "@seer/pipeline": "file:../seer/packages/pipeline"
-  }
-}
-```
+### ~~Step 2: Add `@seer/*` dependencies to middilgard's `package.json`~~ ✓ DONE
 
-Run `npm install` and verify no peer dependency warnings.
+All six `@seer/*` packages added as `file:../seer/packages/*` dependencies:
+`@seer/core`, `@seer/engine`, `@seer/iff`, `@seer/pipeline`, `@seer/smus`.
 
-**Files changed:** `package.json`, `package-lock.json`
+### ~~Step 3: Replace `src/assets/formats/iff.ts` with `@seer/iff`~~ ✓ DONE
 
-### Step 2: Replace `src/assets/formats/iff.ts` with `@seer/iff`
+`iff.ts` deleted. `iff.test.ts` imports from `@seer/iff`. Barrel re-export in
+`src/utils/index.ts`. `binary-reader.test.ts` deleted (seer has its own).
+`smus.ts`/`sampled-sound.ts` already re-export shims — no changes needed.
 
-The files are identical. Delete `src/assets/formats/iff.ts` and update all
-importers:
+**Verified:** `npm test`, `npm run lint`
 
-| File | Old import | New import |
-|---|---|---|
-| `src/assets/formats/smus.ts` | `../../utils/binary-reader.ts` | (unchanged — uses `@seer/core` in step 3) |
-| `src/assets/formats/sampled-sound.ts` | `../../utils/binary-reader.ts` | (unchanged) |
-| `src/utils/__tests__/binary-reader.test.ts` | (tests middilgard's copy) | **Delete this test** — seer has its own |
-| `src/assets/formats/__tests__/iff.test.ts` | `../iff.ts` | `@seer/iff` |
+### ~~Step 4: Replace `src/utils/binary-reader.ts` with `@seer/core`~~ ✓ DONE
 
-Add the re-export to `src/utils/index.ts`:
+`binary-reader.ts` deleted. `src/utils/index.ts` imports `BinaryReader` from
+`@seer/core`.
 
-```ts
-export { parseIff, findChunk, findChunks, type IffChunk, type IffForm } from '@seer/iff';
-```
+**Verified:** `npm test`, `npm run lint`
 
-**Verify:** `npm test`, `npm run lint`
+### ~~Step 5: Replace `src/utils/binary.ts` with `@seer/core` (partial)~~ ✓ DONE
 
-### Step 3: Replace `src/utils/binary-reader.ts` with `@seer/core`
+`binary.ts` imports `dataViewOf` from `@seer/core` and re-exports it.
+middilgard-specific helpers (`detectEndian`, `r16`, `r24`, `r32`, `Endianness`)
+kept locally.
 
-seer's `BinaryReader` defaults to big-endian — identical to middilgard's
-behaviour. Delete `src/utils/binary-reader.ts` and update imports:
+**Verified:** `npm test`, `npm run lint`
 
-| File | Import path change |
-|---|---|
-| `src/assets/formats/iff.ts` | Already removed in step 2 |
-| `src/assets/formats/smus.ts` | `../../utils/binary-reader.ts` → `@seer/core` |
-| `src/assets/formats/sampled-sound.ts` | `../../utils/binary-reader.ts` → `@seer/core` |
-| `src/utils/index.ts` | `./binary-reader.ts` → `@seer/core` |
+### ~~Step 6: Replace `src/utils/pixi-helpers.ts` with `@seer/engine`~~ ✓ DONE
 
-**Verify:** `npm test`, `npm run lint`
+`pixi-helpers.ts` deleted. All call sites updated to import from `@seer/engine`
+with renamed functions (`makeMapLabelStyle` → `makeLabelStyle`,
+`MapLabelStyleOptions` → `LabelStyleOptions`). 6 call sites across 5 files
+updated: `TileMap.ts`, `LocationLayer.ts`, `ItemLayer.ts`, `SettlementLayer.ts`,
+`EntityManager.ts`.
 
-### Step 4: Replace `src/utils/binary.ts` with `@seer/core` (partial)
+**Verified:** `npm test`, `npm run lint`, `npx tsc --noEmit`
 
-seer's `binary.ts` exports `dataViewOf` — identical to middilgard's version.
-middilgard's file also exports `detectEndian`, `r16`, `r24`, `r32`, and the
-`Endianness` type which seer does not have.
+### ~~Step 7: Replace engine subcomponents with `@seer/engine`~~ ✓ DONE
 
-Approach: keep middilgard's `binary.ts` but have it re-export `dataViewOf`
-from seer and keep only the middilgard-specific helpers locally:
+`Camera.ts`, `DisplayMode.ts`, `InputManager.ts` deleted. 11 import sites across
+8 files updated to import from `@seer/engine` directly — no aliases.
+`Game.ts` kept, only its imports changed.
 
-```ts
-// src/utils/binary.ts
-export { dataViewOf } from '@seer/core';
+**Verified:** `npm test`, `npm run lint`, `npx tsc --noEmit`
 
-// middilgard-specific helpers (not in seer)
-export function detectEndian(buffer: ArrayBuffer): 'be' | 'le' { ... }
-export function r16(view: DataView, offset: number): number { ... }
-export function r24(view: DataView, offset: number): number { ... }
-export function r32(view: DataView, offset: number): number { ... }
-export type Endianness = 'be' | 'le';
-```
-
-**Verify:** `npm test`, `npm run lint`
-
-### Step 5: Replace `src/utils/pixi-helpers.ts` with `@seer/engine`
-
-seer renamed `makeMapLabelStyle` → `makeLabelStyle` and
-`MapLabelStyleOptions` → `LabelStyleOptions`. middilgard must adopt the
-new names.
-
-Delete `src/utils/pixi-helpers.ts` and update `src/utils/index.ts`:
-
-```ts
-export {
-  computeUIScale,
-  computeViewportBounds,
-  makeLabelStyle,           // was makeMapLabelStyle
-  createDiamondMarker,
-  sliceAtlas,
-  sliceAtlasKeyed,
-  findNearestByWorldCoord,
-  screenToWorld,
-} from '@seer/engine';
-export type { LabelStyleOptions } from '@seer/engine';  // was MapLabelStyleOptions
-```
-
-Then rename all call sites:
-
-| File | Change |
-|---|---|
-| `src/map/TileMap.ts` | `makeMapLabelStyle` → `makeLabelStyle` |
-| `src/map/LocationLayer.ts` | `makeMapLabelStyle` → `makeLabelStyle` |
-| `src/map/ItemLayer.ts` | `makeMapLabelStyle` → `makeLabelStyle` |
-| `src/map/SettlementLayer.ts` | `makeMapLabelStyle` → `makeLabelStyle` |
-| `src/entities/EntityManager.ts` | `makeMapLabelStyle` → `makeLabelStyle` |
-| `src/engine/InputManager.ts` | Import `screenToWorld` from `@seer/engine` instead of `../utils/pixi-helpers.ts` |
-
-Also update the `MapLabelStyleOptions` type reference if used in any type
-annotations (check with grep — likely only in `pixi-helpers.ts` itself,
-which is being deleted).
-
-**Verify:** `npm test`, `npm run lint`, `npx tsc --noEmit`
-
-### Step 6: Replace engine subcomponents with `@seer/engine`
-
-`Camera.ts`, `DisplayMode.ts`, and `InputManager.ts` are identical. Delete
-the local copies and re-export from `@seer/engine`:
-
-```ts
-// src/engine/Camera.ts
-export { Camera } from '@seer/engine';
-
-// src/engine/DisplayMode.ts
-export { DisplayMode } from '@seer/engine';
-
-// src/engine/InputManager.ts
-export { InputManager } from '@seer/engine';
-```
-
-Alternatively, update the 5–6 files that import these directly to import
-from `@seer/engine` instead. The re-export approach is less invasive since
-`Game.ts` imports them via relative paths.
-
-**Keep `src/engine/Game.ts`** — it's middilgard-specific (472 lines vs
-seer's 120-line template).
-
-**Verify:** `npm test`, `npm run lint`, `npx tsc --noEmit`
-
-### Step 7: Wire `@seer/pipeline` for CLI commands (optional)
+### Step 8: Wire `@seer/pipeline` for CLI commands (optional)
 
 middilgard can adopt seer's `seer extract`/`seer hex-dump`/`seer doctor`
 CLI binary for developer-facing DX, while keeping its own
@@ -402,7 +315,7 @@ export default defineGameConfig(toSeerConfigs());
 
 **Verify:** `npx middilgard doctor`, `npx middilgard extract --game wime --platform amiga`
 
-### Step 8: Adopt seer's pipeline utilities in tools (optional)
+### Step 9: Adopt seer's pipeline utilities in tools (optional)
 
 middilgard's `tools/shared/io.ts` partially overlaps with seer's pipeline
 `io.ts`. middilgard can switch the generic functions to seer's versions:
@@ -498,13 +411,8 @@ After migration, the following must hold:
 
 ## 10. Sequencing Notes
 
-This migration is **deferred** per seer's framework-plan.md §8. The
-recommended timing is:
+Progress:
 
-- **Now:** do nothing — both projects iterate independently
-- **When seer publishes 0.1.0:** begin step 1 (add dependencies)
-- **Steps 2–6 (core/engine/iff):** can ship incrementally, one per PR
-- **Steps 7–8 (pipeline/CLI):** defer until seer's config shape stabilises
-  (the adapter layer makes this decoupled)
-- **Full cutover:** when seer has semver discipline and CI (§9–10 of
-  framework-plan.md)
+- **Steps 1–7:** ✓ DONE — all core/engine/iff/smus packages integrated
+- **Step 8 (CLI):** optional — defer until seer's config shape stabilises
+- **Step 9 (pipeline IO):** optional — defer until pipeline adoption

@@ -6,3 +6,14 @@ export { InputManager } from './InputManager.ts';
 export type { InputConfig, ClickHandler } from './InputManager.ts';
 export { Game, createGame } from './Game.ts';
 export type { GameOptions, CreateGameOptions } from './Game.ts';
+export {
+  computeUIScale,
+  computeViewportBounds,
+  makeLabelStyle,
+  createDiamondMarker,
+  sliceAtlas,
+  sliceAtlasKeyed,
+  findNearestByWorldCoord,
+  screenToWorld,
+} from './pixi-helpers.ts';
+export type { LabelStyleOptions } from './pixi-helpers.ts';
