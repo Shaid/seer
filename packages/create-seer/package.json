@@ -1,0 +1,22 @@
+{
+  "name": "create-seer",
+  "version": "0.1.0",
+  "description": "Scaffold a new seer project",
+  "type": "module",
+  "main": "./src/scaffold.ts",
+  "types": "./src/scaffold.ts",
+  "exports": {
+    ".": "./src/scaffold.ts"
+  },
+  "bin": {
+    "create-seer": "./bin/seer-create.mjs"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.0"
+  }
+}

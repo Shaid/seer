@@ -17,7 +17,8 @@
     "format": "prettier --write 'packages/*/src/**/*.ts' 'src/**/*.ts' 'tools/**/*.ts'",
     "hex-dump": "tsx packages/pipeline/src/hex-dump.ts",
     "extract-data": "tsx tools/extract-game-data.ts",
-    "build-assets": "tsx tools/extract-game-data.ts --assets-only"
+    "build-assets": "tsx tools/extract-game-data.ts --assets-only",
+    "create": "tsx packages/create-seer/bin/seer-create.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
