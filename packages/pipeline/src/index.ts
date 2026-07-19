@@ -25,3 +25,5 @@ export {
 } from './io.ts';
 
 export { hexDump } from './hex-dump.ts';
+
+export { loadAssets, createAssetLoader, type AssetSchema } from './assets.ts';
