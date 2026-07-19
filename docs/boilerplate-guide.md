@@ -6,26 +6,32 @@ existing sibling project (see `docs/architecture-overview.md` for the
 general architecture this follows). This guide describes what's here, what's
 a working example vs. a stub you must replace, and what to build fresh.
 
+Seer is structured as an npm workspace: genuinely reusable, game-agnostic
+code lives in scoped `packages/*` (installable independently, in principle —
+see `docs/framework-plan.md` for the roadmap toward that). Everything at the
+project root (`src/`, `tools/`) is **your project** — templates and
+placeholders you edit and diverge from freely, not framework code.
+
 ---
 
-## What's genuinely reusable, taken as-is
+## What's genuinely reusable, taken as-is (the `packages/*` workspace)
 
-These files have no game-specific logic and should work unmodified for any
-target:
+These packages have no game-specific logic and should work unmodified for
+any target. Import from them; don't edit their source directly.
+
+| Package | Contains |
+|---------|----------|
+| `@seer/core` | `binary.ts` — endian-aware byte-reading primitives (`r8`/`r16`/`r24`/`r32`); `binary-reader.ts` — cursor-based `BinaryReader`, endianness is a constructor param |
+| `@seer/engine` | `Camera.ts` — 2D pan/zoom/bounds-clamped camera; `InputManager.ts` — keyboard + mouse input (pan, edge-scroll, wheel zoom, drag, click); `DisplayMode.ts` — zoom-bounds/scale-mode config; `Game.ts` — top-level orchestrator shape; `pixi-helpers.ts` — viewport culling, atlas slicing, label styling (PixiJS-specific; peer dep on `pixi.js`) |
+| `@seer/pipeline` | Node-only: `resolveDataDir()`/`findFileCI()` — breadth-first, case-insensitive discovery of wherever the user dropped their game files; `io.ts` — generic file I/O (`readBinary`, `writePNG`, `writeIndexedPNG`, `writeJson`, `scanFilesByExtension`, `resolveDataFile`); `hex-dump.ts` — CLI binary inspector, your first tool when reverse-engineering a new format |
+| `@seer/iff` | Generic EA IFF-85 FORM/chunk parser (depends on `@seer/core`). **Optional** — delete this package if your target doesn't use IFF-derived formats (8SVX, ILBM, ANIM, SMUS, or a custom FORM-based format) |
+| `@seer/smus` | Placeholder for a SMUS (Simple Musical Score) interpreter. **Optional** — only relevant if your target uses SMUS audio; currently unimplemented |
+
+Also reusable as-is at the project root:
 
 | File | What it does |
 |------|---------------|
-| `tsconfig.json`, `eslint.config.js`, `.prettierrc` | Standard strict TS/lint/format setup |
-| `src/utils/binary.ts` | Endian-aware byte-reading primitives (`r8`/`r16`/`r24`/`r32`) |
-| `src/utils/binary-reader.ts` | Cursor-based `BinaryReader`, endianness is a constructor param |
-| `src/assets/formats/iff.ts` | Generic EA IFF-85 FORM/chunk parser (delete if your target doesn't use IFF) |
-| `src/engine/Camera.ts` | 2D pan/zoom/bounds-clamped camera |
-| `src/engine/InputManager.ts` | Keyboard + mouse input (pan, edge-scroll, wheel zoom, drag, click) |
-| `src/engine/DisplayMode.ts` | Zoom-bounds/scale-mode config object |
-| `src/utils/pixi-helpers.ts` | Viewport culling, atlas slicing, label styling (PixiJS-specific) |
-| `tools/shared/hex-dump.ts` | CLI binary inspector — your first tool when reverse-engineering a new format |
-| `tools/shared/io.ts` | Generic file I/O: `readBinary`, `writePNG`, `writeIndexedPNG`, `writeJson`, `scanFilesByExtension`, `resolveDataFile` |
-| `tools/shared/game-config.ts`'s `resolveDataDir()` / `findFileCI()` | Breadth-first, case-insensitive discovery of wherever the user dropped their game files |
+| `tsconfig.json`, `eslint.config.js`, `.prettierrc` | Standard strict TS/lint/format setup, shared across all packages |
 | The `__tests__/` colocation convention | Vitest auto-discovers `*.test.ts` next to the code it tests, no config needed |
 
 The testing *philosophy* used throughout (construct real bytes, assert on
@@ -45,7 +51,12 @@ placeholder values you must replace as soon as you know your actual target:
   pays off the moment you add a second platform port.
 - **`tools/shared/game-config.ts`** — replace the single placeholder
   `GAME_PLATFORMS` entry with your real config(s). This is the **one file**
-  you should need to edit when adding a new game or platform port.
+  you should need to edit when adding a new game or platform port. It
+  re-exports the generic lookup functions from `@seer/pipeline` and defines
+  a locally-narrowed `GamePlatformConfig` type (`game: GameId`, not bare
+  `string`) so typos in your config table are still caught at compile
+  time — see `docs/architecture-overview.md` §5 for why this narrowing
+  lives here rather than in the library.
 - **`tools/game1/export-game-data.ts`** and **`build-assets.ts`** — these are
   stage 1 / stage 2 pipeline stubs. Rename the `game1` directory to match
   your actual game ID and fill in real parsing logic once you've
@@ -57,14 +68,24 @@ placeholder values you must replace as soon as you know your actual target:
   interface, one loader function, parallel `fetch()`" convention. Replace
   the placeholder `AtlasMeta` fields with whatever your build-assets script
   actually produces.
-- **`src/engine/Game.ts`** — the top-level orchestrator shape (async init →
-  camera/input wiring → ticker loop). Replace the `TODO`s with your actual
-  rendering: tilemap, sprite layers, dialogue screens, whatever your genre
-  needs. **This is not assumed to be a map-based game** — see
-  `docs/architecture-overview.md` §8.
+- **`src/main.ts`** — boots `Game` from `@seer/engine` with placeholder world
+  dimensions. Replace `worldWidth`/`worldHeight` with your actual content
+  size once known, and adjust if you support multiple games/platforms via
+  URL params.
 - **`vite.config.ts`'s `serveDataDir()` plugin** — only needed if some asset
   type (typically audio) is decoded at runtime rather than precompiled.
   Delete it if your pipeline precompiles everything.
+
+`@seer/engine`'s `Game.ts` is technically inside the packages workspace, but
+unlike the rest of `@seer/engine` it's meant to be edited, not imported
+as-is: it's the top-level orchestrator shape (async init → camera/input
+wiring → ticker loop) with `TODO`s for your actual rendering — tilemap,
+sprite layers, dialogue screens, whatever your genre needs. **This is not
+assumed to be a map-based game** — see `docs/architecture-overview.md` §8.
+If you outgrow the single-file template, move your game-specific rendering
+logic into your own `src/` code and have it import `Camera`/`InputManager`/
+`DisplayMode` from `@seer/engine` directly, rather than continuing to edit
+the package file.
 
 ---
 
@@ -75,8 +96,10 @@ for you:
 
 1. **Your container format decoder** (if the target bundles multiple assets
    into one file — a resource fork, a PAK/WAD file, ROM banks, etc). Use
-   `hex-dump.ts` and `BinaryReader` to start probing; write your own
-   `parseContainer()`/`findResource()` once you understand the layout.
+   `@seer/pipeline`'s `hex-dump.ts` and `@seer/core`'s `BinaryReader` to
+   start probing; write your own `parseContainer()`/`findResource()` once
+   you understand the layout. If your container format is IFF-derived,
+   `@seer/iff` already gives you the generic FORM/chunk parsing.
 2. **Your bitmap/sprite decoder(s).** Depends entirely on the platform:
    planar bitplane graphics (Amiga/Atari ST), tile-based (SNES/Genesis),
    packed indexed pixels (VGA), etc.
@@ -87,8 +110,10 @@ for you:
    loader in the sibling project's `src/assets/formats/exe-data.ts`
    (`parseHunks()`) is a reasonable reference — the table *offsets* are still
    unique to each compiled binary and must be found via disassembly.
-5. **Your audio format decoder**, if applicable.
-6. **Your actual game/rendering logic** in `src/engine/`.
+5. **Your audio format decoder**, if applicable — `@seer/smus` is a
+   placeholder if your target uses SMUS.
+6. **Your actual game/rendering logic**, built out from `@seer/engine`'s
+   `Game.ts` template.
 
 ---
 
@@ -98,10 +123,11 @@ for you:
 2. Use `npm run hex-dump -- <file>` to start probing headers and structure.
 3. Write a minimal container/bitmap decoder as you understand more of the
    format, with tests constructing synthetic byte fixtures (see
-   `src/assets/formats/__tests__/iff.test.ts` for the pattern).
+   `packages/iff/src/__tests__/iff.test.ts` for the pattern).
 4. Update `tools/shared/game-config.ts` with your real game+platform entry.
 5. Fill in `tools/<game>/export-game-data.ts` and `build-assets.ts`.
 6. Wire up `src/data/GameData.ts` / `AssetLoader.ts` to match what stage 2
    actually produces.
-7. Build out `src/engine/Game.ts` to render your actual content.
+7. Build out `@seer/engine`'s `Game.ts` (or your own `src/` code importing
+   from it) to render your actual content.
 8. Run `npm test` and `npm run lint` before considering anything done.

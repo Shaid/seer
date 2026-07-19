@@ -7,8 +7,8 @@
  *
  * Replace the body with calls to your own format decoders (bitmap, palette,
  * sprite-sheet, level/map data, etc — see docs/architecture-overview.md §6-7).
- * `tools/shared/io.ts` has generic PNG/JSON writers you can reuse regardless
- * of what container/bitmap format you end up decoding.
+ * `@seer/pipeline` has generic PNG/JSON writers you can reuse regardless of
+ * what container/bitmap format you end up decoding.
  */
 import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';

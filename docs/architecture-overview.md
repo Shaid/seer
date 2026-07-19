@@ -229,9 +229,17 @@ via WebAudio, avoiding quality loss from transcoding.
 ## 7. Shared Format Decoder Library
 
 The format decoders are the **crown jewels** of the project — they represent
-the reverse-engineering effort itself. They live in `src/assets/formats/` and
-are imported by **both** the offline pipeline (`tools/`) and the browser runtime
-(`src/`).
+the reverse-engineering effort itself. They are imported by **both** the
+offline pipeline (`tools/`) and the browser runtime (`src/`), so they must
+live somewhere both zones can reach without introducing a reverse dependency.
+
+For a single-package project, this typically means a `src/assets/formats/`
+directory (or equivalent), imported directly by both zones. For a project
+split into scoped library packages (see the framework-plan-style workspace
+pattern), a format decoder becomes its own package — reusable and optionally
+installable independently of the rest of the pipeline/engine, since not
+every target actually needs every format (e.g. only titles using EA IFF-85
+containers need an IFF decoder at all).
 
 | Decoder | What It Reads | Key Platform Variations |
 |---------|---------------|------------------------|
