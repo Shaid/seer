@@ -119,6 +119,46 @@ specifics:
 This table is the **single source of truth** for per-game, per-platform
 configuration. All pipeline scripts and the runtime engine read from it.
 
+### Type Boundary When the Table's Utilities Are Extracted into a Library
+
+If the generic lookup/discovery functions that operate on this table (data
+directory resolution, config lookup, resource-type mapping, etc.) are
+extracted into a shared library separate from the project consuming it, a
+type-safety question arises: the game/platform identifiers are necessarily
+typed as bare `string` in the library's config interface, since the library
+cannot know a specific project's concrete game/platform IDs ahead of time.
+If the consumer's own configuration table is typed directly against that
+same widened library interface, it silently loses the compile-time
+typo-checking a string-literal-union type would otherwise provide (e.g. a
+misspelled game ID would type-check without error).
+
+Two ways to resolve this were considered:
+
+1. **Make the library's config type generic** (e.g.
+   `GamePlatformConfig<G extends string, P extends string>`), parameterizing
+   every function that touches it. This restores full type-safety end to end
+   with no casts required anywhere, at the cost of permanent generic-type
+   complexity in the library's public API — a cost paid by every consumer,
+   including ones who don't need string-literal-union identifiers at all
+   (e.g. projects loading game IDs from a runtime manifest rather than
+   compile-time literals).
+2. **Keep the library type as plain `string`, and have the consumer define
+   its own narrowed interface locally** (extending the library's interface
+   but overriding the identifier fields with its own string-literal-union
+   types), typing its configuration table against that. This restores
+   typo-checking on the table itself, at the cost of one explicit,
+   well-scoped cast at each point where a library function hands a
+   widened-`string` result back to consumer code that expects the narrowed
+   type.
+
+**Decision: option 2.** The library should stay generic and "dumb" about
+identifiers — it only ever needs *some* string to key its lookups — while
+the consumer, who is the only party that actually cares about a specific
+set of valid IDs, owns the narrowing. This keeps the library's public API
+free of generic-type ceremony that most consumers won't need, at the cost
+of a small number of clearly-commented casts localised to the consumer's
+own config module.
+
 ---
 
 ## 6. The Three-Stage Pipeline

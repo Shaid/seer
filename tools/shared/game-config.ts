@@ -15,7 +15,7 @@ import {
   resType,
   getGameConfig as _getGameConfig,
   getSupportedPlatforms as _getSupportedPlatforms,
-  type GamePlatformConfig,
+  type GamePlatformConfig as BaseGamePlatformConfig,
 } from '@seer/pipeline';
 import {
   GAME_IDS,
@@ -35,7 +35,21 @@ export {
   findFileCI,
   resType,
 };
-export type { GameId, PlatformId, GamePlatformConfig };
+export type { GameId, PlatformId };
+
+/**
+ * Consumer-narrowed config type. `@seer/pipeline`'s GamePlatformConfig uses
+ * bare `string` for `game`/`platform` since the library can't know this
+ * project's specific IDs. Narrowing here restores compile-time typo
+ * checking (e.g. `game: 'gam1'` below would now fail to compile) against
+ * GAME_IDS/PLATFORM_IDS — see docs/architecture-overview.md §5 for the
+ * rationale behind keeping this narrowing at the consumer boundary rather
+ * than making the library type generic.
+ */
+export interface GamePlatformConfig extends Omit<BaseGamePlatformConfig, 'game' | 'platform'> {
+  game: GameId;
+  platform: PlatformId;
+}
 
 /**
  * The config table itself. This is the ONE place that should need editing
@@ -59,7 +73,10 @@ export const GAME_PLATFORMS: GamePlatformConfig[] = [
 
 /** Lookup a specific game+platform config. */
 export function getGameConfig(game: GameId, platform: PlatformId): GamePlatformConfig | undefined {
-  return _getGameConfig(GAME_PLATFORMS, game, platform);
+  // Cast is safe: GAME_PLATFORMS is statically typed against the narrowed
+  // GamePlatformConfig above, so anything the library hands back already
+  // satisfies it — the library's own return type just can't express that.
+  return _getGameConfig(GAME_PLATFORMS, game, platform) as GamePlatformConfig | undefined;
 }
 
 /** Get all supported platforms for a game. */
