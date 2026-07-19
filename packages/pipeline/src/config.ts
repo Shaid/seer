@@ -28,30 +28,17 @@ export interface PlatformConfig {
   game?: string;
   /** Platform identifier (e.g. 'amiga', 'dosvga'). */
   platform: string;
-  /**
-   * Base directories to SEARCH for this platform's files — NOT exact paths.
-   * The canonical base is `data/<game>/<platform>/`, but the actual data
-   * files may live anywhere beneath it. `resolveDataDir()` walks each base
-   * breadth-first and returns the shallowest directory that contains an
-   * expected file.
-   */
   dataDirs: string[];
-  /** Executable filename for exe-data extraction (omit if there isn't one). */
   executable?: string;
-  /**
-   * Filenames (or relative paths beneath the data directory) that identify
-   * this platform's data — used by `resolveDataDir()` to recognise the
-   * directory, and by pipeline scripts to know what to look for.
-   */
   expectedFiles: string[];
-  /** Whether this platform combination has usable data available. */
   supported: boolean;
-  /** Runtime asset output subdirectory under public/assets/. */
   assetDir: string;
-  /** Optional per-platform overrides for resource type codes/names. */
   typeCodes?: Record<string, string>;
-  /** Free-form feature flags for this platform (e.g. `{ music: true }`). */
   features?: Record<string, boolean>;
+  /** Stage 1: parse game executable / data tables, write raw JSON. */
+  exportGameData?: (config: PlatformConfig, dataDir: string) => void | Promise<void>;
+  /** Stage 2: decode resource files into web-native PNG + JSON assets. */
+  buildAssets?: (config: PlatformConfig, dataDir: string) => void | Promise<void>;
 }
 
 /**
@@ -81,17 +68,13 @@ export function defineGameConfig<T extends GameConfig[]>(config: T): T {
 }
 
 /**
- * A `PlatformConfig` with the `game` back-reference always set.
- * Returned by `flattenConfigs()`.
+ * Flatten a nested GameConfig[] into a flat PlatformConfig[] with game
+ * back-references set on each entry. Internal utility — consumers pass
+ * GameConfig[] directly to runPipeline() and don't need to call this.
  */
-export interface FlattenedPlatform extends PlatformConfig {
-  game: string;
-}
-
-/**
- * Flatten a nested GameConfig[] into a flat array with game back-references.
- */
-export function flattenConfigs(configs: GameConfig[]): FlattenedPlatform[] {
+export function flattenConfigs(
+  configs: GameConfig[],
+): (PlatformConfig & { game: string })[] {
   return configs.flatMap((g) =>
     g.platforms.map((p) => ({ ...p, game: g.id })),
   );

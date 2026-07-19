@@ -46,28 +46,37 @@ flat config:
 
 ```ts
 // consumer's own seer.config.ts, in their repo
-import { defineGameConfig } from 'seer/pipeline';
+import { defineGameConfig } from '@seer/pipeline';
 
-export default defineGameConfig({
-  games: [
-    {
-      id: 'mygame',
-      platforms: [
-        {
-          id: 'myplatform',
-          dataDirs: ['mygame/myplatform'],
-          executable: 'GAME.EXE',
-          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
-          assetDir: 'mygame',
-        },
-      ],
-    },
-  ],
-});
+export default defineGameConfig([
+  {
+    id: 'mygame',
+    displayName: 'My Game',
+    platforms: [
+      {
+        platform: 'amiga',
+        dataDirs: ['mygame/amiga'],
+        executable: 'MYGAME',
+        expectedFiles: ['MYGAME'],
+        assetDir: 'mygame',
+      },
+      {
+        platform: 'dosvga',
+        dataDirs: ['mygame/dosvga'],
+        executable: 'MYGAME.EXE',
+        expectedFiles: ['MYGAME.EXE', 'DATA.DAT'],
+        assetDir: 'mygame',
+      },
+    ],
+  },
+]);
 ```
 
 The framework loads this file (similar to how Vite loads `vite.config.ts`)
-rather than importing a hardcoded array from its own source.
+rather than importing a hardcoded array from its own source. `GameConfig[]`
+is nested — each game entry groups its platforms together, so shared
+metadata (like `displayName`) is defined once rather than repeated per
+platform.
 
 ## 3. Plugin registration instead of naming-convention script dispatch
 
@@ -78,24 +87,38 @@ scripts live in the same repo. As a library, the orchestrator should accept
 **registered functions** from the consumer's config instead of file paths:
 
 ```ts
-export default defineGameConfig({
-  games: [
-    {
-      id: 'mygame',
-      pipeline: {
-        exportGameData: async (dataDir) => {
+export default defineGameConfig([
+  {
+    id: 'mygame',
+    displayName: 'My Game',
+    platforms: [
+      {
+        platform: 'amiga',
+        dataDirs: ['mygame/amiga'],
+        executable: 'MYGAME',
+        expectedFiles: ['MYGAME'],
+        assetDir: 'mygame',
+        exportGameData: async (cfg, dataDir) => {
           /* consumer's own reverse-engineered parsing */
         },
-        buildAssets: async (dataDir, outDir) => {
+        buildAssets: async (cfg, dataDir) => {
           /* consumer's own asset building */
         },
       },
-      platforms: [
-        /* ... */
-      ],
-    },
-  ],
-});
+      {
+        platform: 'dosvga',
+        dataDirs: ['mygame/dosvga'],
+        executable: 'MYGAME.EXE',
+        expectedFiles: ['MYGAME.EXE', 'DATA.DAT'],
+        assetDir: 'mygame',
+        // Step functions registered per platform — share a reference
+        // or assign different implementations per platform as needed.
+        exportGameData: myAmigaExport, // or a different fn for DOS
+        buildAssets: myAmigaAssets,
+      },
+    ],
+  },
+]);
 ```
 
 The orchestrator (`runPipeline()`) keeps the parts that are genuinely
@@ -296,7 +319,7 @@ one deliberate deviation from the originally suggested layout):
 |---|---|---|
 | `@seer/core` | browser-safe | `BinaryReader`, `binary.ts`, `loadAssets`/`createAssetLoader` |
 | `@seer/engine` | browser-safe | `Camera`, `InputManager`, `DisplayMode`, `Game`, `createGame`, `pixi-helpers.ts` (peer dep: PixiJS) |
-| `@seer/pipeline` | Node-only | `resolveDataDir`, `defineGameConfig`, `runPipeline`, CLI binary, hex-dump |
+| `@seer/pipeline` | Node-only | `PlatformConfig`, `GameConfig`, `defineGameConfig`, `flattenConfigs`, `resolveDataDir`, `runPipeline`, CLI binary (`seer extract`/`hex-dump`/`doctor`), hex-dump |
 | `@seer/iff` | Node-only | IFF-85 parser, resource-fork decoder (optional: install only if your target uses IFF containers) |
 | `@seer/smus` | Node-only | SMUS interpreter (optional: install only if your target uses SMUS audio) |
 
@@ -324,21 +347,18 @@ without awaiting, which meant an error thrown *after* an `await` inside an
 async step became an unhandled rejection instead of being caught and
 reported as a failed step.
 
-**Config shape is a flat array, not nested `{ games: [{ platforms }] }`.**
-The worked examples in §2/§3 above show a nested shape (`games` array, each
-with a `platforms` array and a shared `pipeline` block). The actual
-implementation instead uses a flat array of one entry per game+platform
-combination (`GameConfig[]`, each entry carrying its own `game`, `platform`,
-`exportGameData`, `buildAssets`, etc.) — this was a straightforward carry-
-over of the pre-existing `GamePlatformConfig` shape rather than a deliberate
-re-design, but it's been kept because it's simpler for `resolveDataDir`/
-`getGameConfig`/`getSupportedPlatforms` (which all operate on a flat array)
-and requires no separate "look up which game a platform belongs to" step in
-`runPipeline`. The tradeoff: a multi-platform game must repeat its
-`exportGameData`/`buildAssets` registration (or share a function reference)
-across each platform's entry, rather than defining it once at the game
-level. Worth reconsidering if that repetition becomes a real pain point in
-practice.
+**Config shape is nested `GameConfig[]`, not a flat array of one entry per
+game+platform.** The worked examples in §2/§3 above match the actual
+implementation: `GameConfig[]` where each entry is `{ id, displayName,
+platforms: PlatformConfig[] }`. Step functions (`exportGameData`,
+`buildAssets`) live directly on `PlatformConfig` — each platform registers
+its own functions, and `runPipeline` flattens the nested structure internally
+when iterating. This keeps the config readable (shared game metadata defined
+once, per-platform details grouped together) while `resolveDataDir`/
+`getGameConfig`/`getSupportedPlatforms` all accept `GameConfig[]` directly.
+`flattenConfigs()` is still exported for consumers who need a flat list for
+convenience helpers (like `GAME_PLATFORMS` in the shared tools), but is not
+required for pipeline usage.
 
 **Always scaffold multi-game/multi-platform, with one game/platform
 pre-configured.** The scaffolded `seer.config.ts` ships with a single

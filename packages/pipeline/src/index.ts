@@ -1,22 +1,19 @@
 export {
   type PlatformConfig,
   type GameConfig,
-  type FlattenedPlatform,
   defineGameConfig,
-  flattenConfigs,
   getPlatformConfig,
   getAllSupportedPlatforms,
   getGameConfig,
   getSupportedPlatforms,
+  flattenConfigs,
   resType,
   findFileCI,
   resolveDataDir,
 } from './config.ts';
 
 export {
-  type PipelineStep,
   type PipelineResult,
-  type PipelineEntry,
   runPipeline,
 } from './pipeline.ts';
 

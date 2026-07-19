@@ -53,7 +53,7 @@ placeholder values you must replace as soon as you know your actual target:
   `GAME_PLATFORMS` entry with your real config(s). This is the **one file**
   you should need to edit when adding a new game or platform port. It
   re-exports the generic lookup functions from `@seer/pipeline` and defines
-  a locally-narrowed `GamePlatformConfig` type (`game: GameId`, not bare
+  a locally-narrowed `PlatformConfig` type (`game: GameId`, not bare
   `string`) so typos in your config table are still caught at compile
   time — see `docs/architecture-overview.md` §5 for why this narrowing
   lives here rather than in the library.

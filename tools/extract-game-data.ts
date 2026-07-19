@@ -28,7 +28,7 @@ import {
   type GameId,
   type PlatformId,
 } from './shared/game-config.ts';
-import { runPipeline, flattenConfigs, type PipelineEntry } from '@seer/pipeline';
+import { runPipeline } from '@seer/pipeline';
 
 interface Options {
   game: GameId | 'all';
@@ -94,8 +94,7 @@ export function parseArgs(argv: string[]): Options {
 
 async function main() {
   const opts = parseArgs(process.argv);
-  const entries = flattenConfigs(GAME_CONFIGS) as PipelineEntry[];
-  const result = await runPipeline(entries, {
+  const result = await runPipeline(GAME_CONFIGS, {
     game: opts.game,
     platform: opts.platform,
   });

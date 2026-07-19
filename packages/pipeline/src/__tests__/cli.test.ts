@@ -9,10 +9,7 @@ import {
   cmdExtract,
   cmdHexDump,
 } from '../cli.ts';
-import type { GameConfig, PlatformConfig } from '../config.ts';
-import type { PipelineStep } from '../pipeline.ts';
-
-type TestPlatform = PlatformConfig & { exportGameData?: PipelineStep; buildAssets?: PipelineStep };
+import type { GameConfig } from '../config.ts';
 
 describe('parseArgs', () => {
   it('extracts --game and --platform', () => {
@@ -122,7 +119,7 @@ function makeGameConfig(overrides: Partial<GameConfig> = {}): GameConfig {
       },
     ],
     ...overrides,
-  } as GameConfig;
+  };
 }
 
 describe('cmdDoctor', () => {
@@ -145,7 +142,7 @@ describe('cmdDoctor', () => {
     return logSpy.mock.calls.map((c) => c.join(' ')).join('\n');
   }
 
-  it('resolves and reports the data dir when it exists on disk (regression: dead-code bug)', () => {
+  it('resolves and reports the data dir when it exists on disk', () => {
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(resolve(dataDir, 'GAME.EXE'), '');
 
@@ -155,7 +152,9 @@ describe('cmdDoctor', () => {
   });
 
   it('reports the data dir as not found when nothing matches on disk', () => {
-    cmdDoctor([makeGameConfig({ platforms: [{ platform: 'amiga', dataDirs: ['__does_not_exist__'], expectedFiles: ['GAME.EXE'], supported: true, assetDir: 'demo' }] })]);
+    cmdDoctor([makeGameConfig({
+      platforms: [{ platform: 'amiga', dataDirs: ['__does_not_exist__'], expectedFiles: ['GAME.EXE'], supported: true, assetDir: 'demo' }],
+    })]);
 
     const warnedText = warnSpy.mock.calls.map((c) => c.join(' ')).join('\n');
     expect(warnedText).toContain('Data dir: not found');
@@ -183,7 +182,7 @@ describe('cmdDoctor', () => {
     writeFileSync(resolve(dataDir, 'GAME.EXE'), '');
 
     cmdDoctor([makeGameConfig({
-      platforms: [{ platform: 'amiga', dataDirs: ['__cli_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE'], supported: true, assetDir: 'demo', exportGameData: () => {} }] as TestPlatform[],
+      platforms: [{ platform: 'amiga', dataDirs: ['__cli_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE'], supported: true, assetDir: 'demo', exportGameData: () => {} }],
     })]);
 
     const text = loggedText();
@@ -236,7 +235,7 @@ describe('cmdExtract', () => {
         assetDir: 'demo',
         exportGameData: () => {},
         buildAssets: () => {},
-      }] as TestPlatform[],
+      }],
     });
     await cmdExtract([config], 'demo', 'amiga');
     expect(exitSpy).not.toHaveBeenCalled();
@@ -252,7 +251,7 @@ describe('cmdExtract', () => {
         supported: true,
         assetDir: 'demo',
         exportGameData: () => { throw new Error('boom'); },
-      }] as TestPlatform[],
+      }],
     });
     await cmdExtract([config], 'demo', 'amiga');
     expect(exitSpy).toHaveBeenCalledWith(1);

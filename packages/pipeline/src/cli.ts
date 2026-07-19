@@ -10,12 +10,10 @@ import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import {
   type GameConfig,
-  type PlatformConfig,
-  flattenConfigs,
   getAllSupportedPlatforms,
   resolveDataDir,
 } from './config.ts';
-import { runPipeline, type PipelineEntry } from './pipeline.ts';
+import { runPipeline } from './pipeline.ts';
 import { hexDump } from './hex-dump.ts';
 
 export const CONFIG_FILENAMES = ['seer.config.ts', 'seer.config.js', 'seer.config.mjs'];
@@ -96,8 +94,7 @@ export async function cmdExtract(
   platform?: string,
   dataDir?: string,
 ): Promise<void> {
-  const entries: PipelineEntry[] = flattenConfigs(configs);
-  const result = await runPipeline(entries, { game, platform, dataDir });
+  const result = await runPipeline(configs, { game, platform, dataDir });
   if (result.length === 0) {
     console.error('No supported game+platform combinations found.');
     process.exit(1);
@@ -130,12 +127,11 @@ export function cmdDoctor(configs: GameConfig[], dataDir?: string): void {
     );
 
     for (const platform of game.platforms) {
-      const p = platform as PlatformConfig & { exportGameData?: unknown; buildAssets?: unknown };
       console.log(
         `  Platform: ${platform.platform}${platform.supported ? '' : ' (not marked supported)'}`,
       );
-      console.log(`    exportGameData: ${p.exportGameData ? 'registered' : 'not registered'}`);
-      console.log(`    buildAssets:    ${p.buildAssets ? 'registered' : 'not registered'}`);
+      console.log(`    exportGameData: ${platform.exportGameData ? 'registered' : 'not registered'}`);
+      console.log(`    buildAssets:    ${platform.buildAssets ? 'registered' : 'not registered'}`);
 
       const resolved = resolveDataDir(
         { ...platform, game: game.id },

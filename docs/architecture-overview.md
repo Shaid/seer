@@ -135,7 +135,7 @@ misspelled game ID would type-check without error).
 Two ways to resolve this were considered:
 
 1. **Make the library's config type generic** (e.g.
-   `GamePlatformConfig<G extends string, P extends string>`), parameterizing
+   `PlatformConfig<G extends string, P extends string>`), parameterizing
    every function that touches it. This restores full type-safety end to end
    with no casts required anywhere, at the cost of permanent generic-type
    complexity in the library's public API — a cost paid by every consumer,
