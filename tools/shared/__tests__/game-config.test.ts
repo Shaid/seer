@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
+  getGameConfig,
+  getSupportedPlatforms,
+} from '@seer/pipeline';
+import {
   GAME_IDS,
   PLATFORM_IDS,
   GAME_PLATFORMS,
-  getGameConfig,
-  getSupportedPlatforms,
 } from '../game-config.ts';
 
 describe('GAME_IDS / PLATFORM_IDS', () => {
@@ -31,18 +33,17 @@ describe('GAME_PLATFORMS', () => {
 
 describe('getGameConfig / getSupportedPlatforms', () => {
   it('finds the placeholder config', () => {
-    const config = getGameConfig('game1', 'platform1');
+    const config = getGameConfig(GAME_PLATFORMS, 'game1', 'platform1');
     expect(config).toBeDefined();
     expect(config?.assetDir).toBe('game1');
   });
 
   it('returns undefined for an unknown combination', () => {
-    // @ts-expect-error deliberately invalid for the test
-    expect(getGameConfig('game1', 'not-a-real-platform')).toBeUndefined();
+    expect(getGameConfig(GAME_PLATFORMS, 'game1', 'not-a-real-platform')).toBeUndefined();
   });
 
   it('returns only supported platforms for a game', () => {
-    const platforms = getSupportedPlatforms('game1');
+    const platforms = getSupportedPlatforms(GAME_PLATFORMS, 'game1');
     // The placeholder config has supported: false
     expect(platforms).toEqual([]);
   });
