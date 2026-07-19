@@ -18,7 +18,10 @@
     "hex-dump": "tsx packages/pipeline/src/hex-dump.ts",
     "extract-data": "tsx tools/extract-game-data.ts",
     "build-assets": "tsx tools/extract-game-data.ts --assets-only",
-    "create": "tsx packages/create-seer/bin/seer-create.mjs"
+    "create": "tsx packages/create-seer/bin/seer-create.mjs",
+    "dev:www": "npm run dev --prefix www",
+    "build:www": "npm run build --prefix www",
+    "preview:www": "npm run preview --prefix www"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
