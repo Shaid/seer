@@ -33,23 +33,25 @@ export async function loadConfig(dir: string): Promise<GameConfig[]> {
   );
 }
 
-/** Parse `--game` and `--platform` flags from raw CLI args. */
-export function parseArgs(argv: string[]): { game?: string; platform?: string } {
+/** Parse `--game`, `--platform`, and `--data-dir` flags from raw CLI args. */
+export function parseArgs(argv: string[]): { game?: string; platform?: string; dataDir?: string } {
   let game: string | undefined;
   let platform: string | undefined;
+  let dataDir: string | undefined;
   for (let i = 2; i < argv.length; i++) {
     if (argv[i] === '--game' && argv[i + 1]) game = argv[++i];
     else if (argv[i] === '--platform' && argv[i + 1]) platform = argv[++i];
+    else if (argv[i] === '--data-dir' && argv[i + 1]) dataDir = argv[++i];
   }
-  return { game, platform };
+  return { game, platform, dataDir };
 }
 
 // ---------------------------------------------------------------------------
 // Subcommand implementations
 // ---------------------------------------------------------------------------
 
-export function cmdExtract(configs: GameConfig[], game?: string, platform?: string): void {
-  const result = runPipeline(configs, { game, platform });
+export function cmdExtract(configs: GameConfig[], game?: string, platform?: string, dataDir?: string): void {
+  const result = runPipeline(configs, { game, platform, dataDir });
   if (result.length === 0) {
     console.error('No supported game+platform combinations found.');
     process.exit(1);
@@ -94,7 +96,7 @@ export function printUsage(): void {
 Usage: seer <command> [options]
 
 Commands:
-  extract [--game <id>] [--platform <id>]
+  extract [--game <id>] [--platform <id>] [--data-dir <path>]
     Run the offline extraction pipeline. Reads seer.config.ts.
   hex-dump <file> [offset] [length]
     Inspect binary file contents as hex + ASCII.

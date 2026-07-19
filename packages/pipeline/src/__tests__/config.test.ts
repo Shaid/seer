@@ -123,6 +123,16 @@ describe('resolveDataDir', () => {
     const config = makeConfig({ dataDirs: ['__does_not_exist__'] });
     expect(resolveDataDir(config)).toBeUndefined();
   });
+
+  it('accepts a custom dataRoot instead of defaulting to <cwd>/data', () => {
+    const customRoot = join(process.cwd(), 'data', '__custom_root__');
+    const nested = join(customRoot, 'mygame', 'amiga');
+    mkdirSync(nested, { recursive: true });
+    writeFileSync(join(nested, 'GAME.EXE'), '');
+    const config = makeConfig({ dataDirs: ['mygame/amiga'], executable: 'GAME.EXE' });
+    expect(resolveDataDir(config, customRoot)).toBe(nested);
+    rmSync(customRoot, { recursive: true, force: true });
+  });
 });
 
 describe('findFileCI', () => {

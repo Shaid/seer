@@ -67,6 +67,8 @@ interface PipelineOptions {
   game?: string;
   platform?: string;
   verbose?: boolean;
+  /** Override the data root directory (default: <cwd>/data). */
+  dataDir?: string;
 }
 
 /** Run a named step, catching errors and returning true on success. */
@@ -82,12 +84,12 @@ function runStep(name: string, fn: () => void): boolean {
 }
 
 /** Print a helpful error when the data directory can't be found. */
-function printDataDirNotFound(config: GamePlatformConfig): void {
+function printDataDirNotFound(config: GamePlatformConfig, dataRoot: string): void {
   console.error(
-    `Could not find game data under: ${config.dataDirs.map((d) => resolve('data', d)).join(', ')}`,
+    `Could not find game data under: ${config.dataDirs.map((d) => resolve(dataRoot, d)).join(', ')}`,
   );
   console.error(
-    `Place your game files anywhere inside data/${config.game}/${config.platform}/ — files may be`,
+    `Place your game files anywhere inside ${dataRoot}/${config.game}/${config.platform}/ — files may be`,
   );
   console.error(`flat, in a subfolder, or nested however you like. Looked for:`);
   if (config.executable) console.error(`  - executable: ${config.executable}`);
@@ -131,9 +133,9 @@ export function runPipeline(configs: GameConfig[], options: PipelineOptions = {}
       const config = getGameConfig(configs, gameId, platformId) as GameConfig | undefined;
       if (!config || !config.supported) continue;
 
-      const dataDir = resolveDataDir(config);
+      const dataDir = resolveDataDir(config, options.dataDir);
       if (!dataDir) {
-        printDataDirNotFound(config);
+        printDataDirNotFound(config, options.dataDir ?? resolve('data'));
         results.push({ game: gameId, platform: platformId, steps: [] });
         continue;
       }

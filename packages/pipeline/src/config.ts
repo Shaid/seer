@@ -122,10 +122,17 @@ export function findFileCI(dir: string, name: string): string {
  * executable or any expected file, matched case-insensitively. Returns
  * undefined if no base yields a match. This tolerates any user-organised
  * layout: flat files, nested subfolders, extracted disk images, etc.
+ *
+ * @param dataRoot - Root directory under which `config.dataDirs` are
+ *   searched. Defaults to `<cwd>/data`. Pass an explicit path to override
+ *   (e.g. for `--data-dir` CLI support).
  */
-export function resolveDataDir(config: GamePlatformConfig): string | undefined {
+export function resolveDataDir(
+  config: GamePlatformConfig,
+  dataRoot = resolve('data'),
+): string | undefined {
   for (const base of config.dataDirs) {
-    const root = resolve('data', base);
+    const root = resolve(dataRoot, base);
     if (!existsSync(root)) continue;
 
     const queue: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }];

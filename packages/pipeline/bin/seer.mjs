@@ -32,9 +32,9 @@ try {
       cli.cmdHexDump(args.slice(1));
       break;
     case 'extract': {
-      const { game, platform } = cli.parseArgs(process.argv);
+      const { game, platform, dataDir } = cli.parseArgs(process.argv);
       const configs = await cli.loadConfig(process.cwd());
-      cli.cmdExtract(configs, game, platform);
+      cli.cmdExtract(configs, game, platform, dataDir);
       break;
     }
     case 'doctor': {
