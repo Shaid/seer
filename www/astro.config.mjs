@@ -26,6 +26,12 @@ export default defineConfig({
           label: 'Design',
           items: [{ label: 'Framework Plan', slug: 'framework-plan' }],
         },
+        {
+          label: 'Migration',
+          items: [
+            { label: 'Middilgard Migration', slug: 'middilgard-migration' },
+          ],
+        },
       ],
     }),
   ],
