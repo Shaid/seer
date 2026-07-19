@@ -7,3 +7,4 @@
  */
 export * from './binary.ts';
 export * from './binary-reader.ts';
+export * from './assets.ts';

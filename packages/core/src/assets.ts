@@ -1,6 +1,13 @@
 /**
  * Generic runtime asset loader — fetch preprocessed JSON (and optionally
- * binary) assets produced by the offline pipeline.
+ * binary) assets produced by the offline pipeline (@seer/pipeline) at
+ * runtime, in the browser.
+ *
+ * This deliberately lives in @seer/core (browser-safe, zero deps) rather
+ * than @seer/pipeline (Node-only — uses node:fs, never imported by
+ * browser-bundled code, see docs/architecture-overview.md §8). Bundling
+ * this loader together with pipeline's Node-only code would pull fs/pngjs
+ * into the browser build the moment a consumer's runtime code calls it.
  *
  * Two entry points:
  *   - `loadAssets(basePath, schema)` — one-shot: define a schema, get typed

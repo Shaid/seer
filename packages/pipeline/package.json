@@ -13,10 +13,13 @@
   },
   "scripts": {
     "test": "vitest run",
-    "lint": "eslint src/ ../bin/"
+    "lint": "eslint src/ bin/"
   },
   "peerDependencies": {
     "pngjs": "^7.0.0"
+  },
+  "dependencies": {
+    "@types/pngjs": "^6.0.5"
   },
   "devDependencies": {
     "@types/node": "^26.0.1",

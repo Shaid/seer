@@ -289,15 +289,56 @@ separation also becomes structural: `@seer/pipeline` imports `node:fs`,
 `@seer/engine` never can, and that's enforced at install time rather than
 by convention.
 
-Suggested package layout:
+As-built package layout (updated post-implementation — see note below on the
+one deliberate deviation from the originally suggested layout):
 
 | Package | Environment | Contains |
 |---|---|---|
-| `@seer/core` | browser-safe | `BinaryReader`, `binary.ts`, `pixi-helpers.ts` |
-| `@seer/engine` | browser-safe | `Camera`, `InputManager`, `DisplayMode`, `Game` (peer dep: PixiJS) |
-| `@seer/pipeline` | Node-only | `resolveDataDir`, `defineGameConfig`, `createAssetLoader`, CLI binary, hex-dump |
+| `@seer/core` | browser-safe | `BinaryReader`, `binary.ts`, `loadAssets`/`createAssetLoader` |
+| `@seer/engine` | browser-safe | `Camera`, `InputManager`, `DisplayMode`, `Game`, `createGame`, `pixi-helpers.ts` (peer dep: PixiJS) |
+| `@seer/pipeline` | Node-only | `resolveDataDir`, `defineGameConfig`, `runPipeline`, CLI binary, hex-dump |
 | `@seer/iff` | Node-only | IFF-85 parser, resource-fork decoder (optional: install only if your target uses IFF containers) |
 | `@seer/smus` | Node-only | SMUS interpreter (optional: install only if your target uses SMUS audio) |
+
+**Deviation from the originally suggested layout:** `createAssetLoader`
+(§5) was initially placed in `@seer/pipeline` per the table above, following
+this document's own original wording literally. This was a mistake caught
+during implementation review — `@seer/pipeline` is Node-only and must never
+be imported by browser-bundled code (see §8 above), but `createAssetLoader`
+is called from the consumer's *browser* runtime code (`src/data/
+AssetLoader.ts`) to fetch preprocessed assets at play time. Verified by
+actually wiring it up and rebuilding: bundling `@seer/pipeline` into the
+browser build pulled in `pngjs` and forced Vite to externalize several
+Node built-ins. Moved to `@seer/core` instead, which is genuinely
+browser-safe and has zero dependencies. `pixi-helpers.ts` similarly ended
+up in `@seer/engine` rather than `@seer/core` as originally suggested,
+since it needs PixiJS types and `@seer/core` is meant to stay
+dependency-free — this one was caught before implementation, not after.
+
+**Pipeline steps may be sync or async.** `PipelineStep` is typed as
+`(config, dataDir) => void | Promise<void>`, and `runPipeline`/`runStep`
+`await` every step call before checking success. This matters because a
+consumer's `exportGameData`/`buildAssets` implementation will often need to
+`await` disk I/O — an earlier draft of the orchestrator called steps
+without awaiting, which meant an error thrown *after* an `await` inside an
+async step became an unhandled rejection instead of being caught and
+reported as a failed step.
+
+**Config shape is a flat array, not nested `{ games: [{ platforms }] }`.**
+The worked examples in §2/§3 above show a nested shape (`games` array, each
+with a `platforms` array and a shared `pipeline` block). The actual
+implementation instead uses a flat array of one entry per game+platform
+combination (`GameConfig[]`, each entry carrying its own `game`, `platform`,
+`exportGameData`, `buildAssets`, etc.) — this was a straightforward carry-
+over of the pre-existing `GamePlatformConfig` shape rather than a deliberate
+re-design, but it's been kept because it's simpler for `resolveDataDir`/
+`getGameConfig`/`getSupportedPlatforms` (which all operate on a flat array)
+and requires no separate "look up which game a platform belongs to" step in
+`runPipeline`. The tradeoff: a multi-platform game must repeat its
+`exportGameData`/`buildAssets` registration (or share a function reference)
+across each platform's entry, rather than defining it once at the game
+level. Worth reconsidering if that repetition becomes a real pain point in
+practice.
 
 **Always scaffold multi-game/multi-platform, with one game/platform
 pre-configured.** The scaffolded `seer.config.ts` ships with a single

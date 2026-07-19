@@ -34,12 +34,13 @@ try {
     case 'extract': {
       const { game, platform, dataDir } = cli.parseArgs(process.argv);
       const configs = await cli.loadConfig(process.cwd());
-      cli.cmdExtract(configs, game, platform, dataDir);
+      await cli.cmdExtract(configs, game, platform, dataDir);
       break;
     }
     case 'doctor': {
+      const { dataDir } = cli.parseArgs(process.argv);
       const configs = await cli.loadConfig(process.cwd());
-      cli.cmdDoctor(configs);
+      cli.cmdDoctor(configs, dataDir);
       break;
     }
     default:

@@ -27,9 +27,10 @@ import {
 /**
  * A single reusable pipeline step — a function that takes a game+platform
  * config and the resolved data directory, and does one stage of work.
- * Thrown exceptions are caught and reported by the orchestrator.
+ * May be sync or async; thrown exceptions (or rejected promises) are caught
+ * and reported by the orchestrator.
  */
-export type PipelineStep = (config: GamePlatformConfig, dataDir: string) => void;
+export type PipelineStep = (config: GamePlatformConfig, dataDir: string) => void | Promise<void>;
 
 /** Pipeline result for a single game+platform combination. */
 export interface PipelineResult {
@@ -71,11 +72,16 @@ interface PipelineOptions {
   dataDir?: string;
 }
 
-/** Run a named step, catching errors and returning true on success. */
-function runStep(name: string, fn: () => void): boolean {
+/**
+ * Run a named step, catching errors (sync throws or rejected promises) and
+ * returning true on success. Always awaits `fn()` — required so that
+ * exceptions thrown after an `await` inside an async step are actually
+ * caught here rather than becoming an unhandled rejection.
+ */
+async function runStep(name: string, fn: () => void | Promise<void>): Promise<boolean> {
   try {
     console.log(`\n── ${name} ──`);
-    fn();
+    await fn();
     return true;
   } catch (e) {
     console.error(`  ✗ ${name} failed: ${(e as Error).message}`);
@@ -110,7 +116,10 @@ function printDataDirNotFound(config: GamePlatformConfig, dataRoot: string): voi
  * @returns Results for each step that ran, suitable for a summary printout
  *   or programmatic checking.
  */
-export function runPipeline(configs: GameConfig[], options: PipelineOptions = {}): PipelineResult[] {
+export async function runPipeline(
+  configs: GameConfig[],
+  options: PipelineOptions = {},
+): Promise<PipelineResult[]> {
   const game = options.game ?? configs[0]?.game;
   const platform = options.platform ?? configs[0]?.platform;
 
@@ -154,9 +163,10 @@ export function runPipeline(configs: GameConfig[], options: PipelineOptions = {}
             throwIfNoEntry: false,
           });
         if (hasExe) {
-          steps.push(['export-game-data', runStep('Export game data', () => {
-            config.exportGameData!(config, dataDir);
-          })]);
+          steps.push([
+            'export-game-data',
+            await runStep('Export game data', () => config.exportGameData!(config, dataDir)),
+          ]);
         } else {
           console.log('\n── export-game-data ──');
           console.warn(`  ⚠ ${config.executable ?? 'executable'} not found — skipping`);
@@ -169,9 +179,10 @@ export function runPipeline(configs: GameConfig[], options: PipelineOptions = {}
       }
 
       if (config.buildAssets) {
-        steps.push(['build-assets', runStep('Build assets', () => {
-          config.buildAssets!(config, dataDir);
-        })]);
+        steps.push([
+          'build-assets',
+          await runStep('Build assets', () => config.buildAssets!(config, dataDir)),
+        ]);
       } else {
         console.log('\n── build-assets ──');
         console.warn('  ⚠ not registered in config — skipping');

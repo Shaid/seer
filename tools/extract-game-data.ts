@@ -89,7 +89,7 @@ export function parseArgs(argv: string[]): Options {
   return { game: resolvedGame, platform: resolvedPlatform, exportOnly, assetsOnly };
 }
 
-function main() {
+async function main() {
   const opts = parseArgs(process.argv);
 
   // 'all' expansion: runPipeline handles iteration, but we need to expand
@@ -105,7 +105,7 @@ function main() {
         : [opts.platform];
 
     for (const platform of platforms) {
-      const pipelineResults = runPipeline(GAME_PLATFORMS, { game, platform });
+      const pipelineResults = await runPipeline(GAME_PLATFORMS, { game, platform });
       const first = pipelineResults[0];
       const ok = first ? first.steps.every(([, s]) => s) : false;
       results.push({ game, platform, ok });
