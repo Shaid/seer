@@ -24,7 +24,21 @@ See:
   turning `packages/*` into a properly versioned, independently-installable
   framework rather than a workspace-local convenience split.
 
-## Getting started
+## Creating a new project
+
+The fastest way to start a new Seer project is with the `create-seer` CLI:
+
+```bash
+npx create-seer my-project
+npx create-seer my-project --game zonx --platform amiga --display-name "Zonx"
+```
+
+This scaffolds a complete project with multi-game/multi-platform support
+pre-configured, one working example filled in, and all pipeline tooling
+wired up. See [`packages/create-seer/README.md`](packages/create-seer/README.md)
+for details.
+
+## Getting started (from this repo)
 
 ```bash
 npm install
