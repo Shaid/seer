@@ -21,9 +21,10 @@ Options:
   --game <id>          Game ID (default: mygame)
   --platform <id>      Platform ID (default: amiga)
   --display-name <n>   Human-readable game name
+  --viewer             Include the asset viewer tool
 
 Example:
-  npx create-seer my-rpg --game myrpg --platform amiga`);
+  npx create-seer my-rpg --game myrpg --platform amiga --viewer`);
   process.exit(0);
 }
 
@@ -31,11 +32,13 @@ Example:
 let game;
 let platform;
 let displayName;
+let viewer = false;
 const args = process.argv.slice(3);
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--game' && args[i + 1]) game = args[++i];
   else if (args[i] === '--platform' && args[i + 1]) platform = args[++i];
   else if (args[i] === '--display-name' && args[i + 1]) displayName = args[++i];
+  else if (args[i] === '--viewer') viewer = true;
 }
 
 const targetDir = resolve(process.cwd(), projectName);
@@ -45,7 +48,7 @@ if (existsSync(targetDir)) {
 }
 
 try {
-  scaffold(targetDir, { game, platform, displayName });
+  scaffold(targetDir, { game, platform, displayName, viewer });
 } catch (e) {
   console.error(`Error: ${e.message}`);
   process.exit(1);
