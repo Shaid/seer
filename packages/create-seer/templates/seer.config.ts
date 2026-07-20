@@ -1,0 +1,18 @@
+import { defineGameConfig } from '@seer/pipeline';
+
+export default defineGameConfig([{
+  id: '<%= it.game %>',
+  displayName: '<%= it.displayName %>',
+  platforms: [{
+    platform: '<%= it.platform %>',
+    dataDirs: ['<%= it.game %>/<%= it.platform %>'],
+    executable: undefined,
+    expectedFiles: [],
+    supported: false,
+    assetDir: '<%= it.game %>',
+    features: {},
+    // Register pipeline steps here once implemented:
+    // exportGameData: (cfg, dataDir) => { ... },
+    // buildAssets:    (cfg, dataDir) => { ... },
+  }],
+}]);

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= it.displayName %> — Asset Viewer</title>
+  <link rel="stylesheet" href="viewer.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="sidebar">
+      <div id="sidebar-header">
+        <h1><%= it.displayName %> — Asset Viewer</h1>
+        <input id="search" type="text" placeholder="Search assets…" />
+      </div>
+      <div id="list-meta"></div>
+      <div id="list"></div>
+    </div>
+    <div id="main">
+      <div id="toolbar">
+        <span id="title">No asset selected</span>
+        <span id="meta"></span>
+        <span id="frame-info"></span>
+        <label>Zoom
+          <select id="zoom">
+            <option value="1">1×</option>
+            <option value="2">2×</option>
+            <option value="3" selected>3×</option>
+            <option value="4">4×</option>
+            <option value="6">6×</option>
+            <option value="8">8×</option>
+          </select>
+        </label>
+        <label>Background
+          <select id="bg">
+            <option value="checker" selected>Checkered</option>
+            <option value="black">Black</option>
+            <option value="white">White</option>
+          </select>
+        </label>
+      </div>
+      <div id="canvas-wrap"></div>
+      <div id="frame-strip" class="hidden">
+        <input id="frame-slider" type="range" min="0" max="0" value="0" />
+        <span id="frame-label">Sprite 0 / 0</span>
+      </div>
+      <div id="palette-bar" class="hidden"></div>
+    </div>
+  </div>
+  <script type="module" src="viewer.ts"></script>
+</body>
+</html>
