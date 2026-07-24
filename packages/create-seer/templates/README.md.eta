@@ -48,4 +48,4 @@ seer.config.ts       Pipeline configuration
 
 - [Architecture overview](docs/architecture-overview.md) — how the project is structured
 - [Boilerplate guide](docs/boilerplate-guide.md) — what's template vs. what you build
-- [Framework plan](docs/framework-plan.md) — roadmap toward installable npm packages
+
