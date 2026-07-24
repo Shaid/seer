@@ -4,6 +4,7 @@
  *
  * Run via: npx create-seer <project-name>
  */
+import 'tsx/esm';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
@@ -50,6 +51,6 @@ if (existsSync(targetDir)) {
 try {
   scaffold(targetDir, { game, platform, displayName, viewer });
 } catch (e) {
-  console.error(`Error: ${e.message}`);
+  console.error('Error:', e);
   process.exit(1);
 }

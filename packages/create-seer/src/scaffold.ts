@@ -65,42 +65,42 @@ export function scaffold(targetDir: string, options: ScaffoldOptions = {}): void
 
   // ── Root config files ──────────────────────────────────────────────
 
-  write(p('package.json'), renderTemplate('package.json', ctx));
-  write(p('tsconfig.json'), renderTemplate('tsconfig.json', ctx));
-  write(p('vite.config.ts'), renderTemplate('vite.config.ts', ctx));
-  write(p('eslint.config.js'), renderTemplate('eslint.config.js', ctx));
-  write(p('.prettierrc'), renderTemplate('.prettierrc', ctx));
-  write(p('index.html'), renderTemplate('index.html', ctx));
-  write(p('.gitignore'), renderTemplate('.gitignore', ctx));
+  write(p('package.json'), renderTemplate('package.json.eta', ctx));
+  write(p('tsconfig.json'), renderTemplate('tsconfig.json.eta', ctx));
+  write(p('vite.config.ts'), renderTemplate('vite.config.ts.eta', ctx));
+  write(p('eslint.config.js'), renderTemplate('eslint.config.js.eta', ctx));
+  write(p('.prettierrc'), renderTemplate('.prettierrc.eta', ctx));
+  write(p('index.html'), renderTemplate('index.html.eta', ctx));
+  write(p('.gitignore'), renderTemplate('.gitignore.eta', ctx));
 
   // ── src/ ───────────────────────────────────────────────────────────
 
-  write(p('src/game-id.ts'), renderTemplate('src/game-id.ts', ctx));
-  write(p('src/main.ts'), renderTemplate('src/main.ts', ctx));
-  write(p('src/data/GameData.ts'), renderTemplate('src/data/GameData.ts', ctx));
-  write(p('src/data/AssetLoader.ts'), renderTemplate('src/data/AssetLoader.ts', ctx));
+  write(p('src/game-id.ts'), renderTemplate('src/game-id.ts.eta', ctx));
+  write(p('src/main.ts'), renderTemplate('src/main.ts.eta', ctx));
+  write(p('src/data/GameData.ts'), renderTemplate('src/data/GameData.ts.eta', ctx));
+  write(p('src/data/AssetLoader.ts'), renderTemplate('src/data/AssetLoader.ts.eta', ctx));
 
   // ── tools/ ─────────────────────────────────────────────────────────
 
-  write(p('tools/shared/game-config.ts'), renderTemplate('tools/shared/game-config.ts', ctx));
-  write(p('tools/shared/__tests__/game-config.test.ts'), renderTemplate('tools/shared/__tests__/game-config.test.ts', ctx));
-  write(p('tools/extract-game-data.ts'), renderTemplate('tools/extract-game-data.ts', ctx));
-  write(p('tools/' + game + '/export-game-data.ts'), renderTemplate('tools/game/export-game-data.ts', ctx));
-  write(p('tools/' + game + '/build-assets.ts'), renderTemplate('tools/game/build-assets.ts', ctx));
+  write(p('tools/shared/game-config.ts'), renderTemplate('tools/shared/game-config.ts.eta', ctx));
+  write(p('tools/shared/__tests__/game-config.test.ts'), renderTemplate('tools/shared/__tests__/game-config.test.ts.eta', ctx));
+  write(p('tools/extract-game-data.ts'), renderTemplate('tools/extract-game-data.ts.eta', ctx));
+  write(p('tools/' + game + '/export-game-data.ts'), renderTemplate('tools/game/export-game-data.ts.eta', ctx));
+  write(p('tools/' + game + '/build-assets.ts'), renderTemplate('tools/game/build-assets.ts.eta', ctx));
 
   // ── Viewer (optional) ──────────────────────────────────────────────
 
   if (viewer) {
-    write(p('tools/viewer/index.html'), renderTemplate('tools/viewer/index.html', ctx));
-    write(p('tools/viewer/viewer.ts'), renderTemplate('tools/viewer/viewer.ts', ctx));
-    write(p('tools/viewer/viewer.css'), renderTemplate('tools/viewer/viewer.css', ctx));
-    write(p('tools/viewer/shared.ts'), renderTemplate('tools/viewer/shared.ts', ctx));
+    write(p('tools/viewer/index.html'), renderTemplate('tools/viewer/index.html.eta', ctx));
+    write(p('tools/viewer/viewer.ts'), renderTemplate('tools/viewer/viewer.ts.eta', ctx));
+    write(p('tools/viewer/viewer.css'), renderTemplate('tools/viewer/viewer.css.eta', ctx));
+    write(p('tools/viewer/shared.ts'), renderTemplate('tools/viewer/shared.ts.eta', ctx));
   }
 
   // ── Config & docs ──────────────────────────────────────────────────
 
-  write(p('seer.config.ts'), renderTemplate('seer.config.ts', ctx));
-  write(p('README.md'), renderTemplate('README.md', ctx));
+  write(p('seer.config.ts'), renderTemplate('seer.config.ts.eta', ctx));
+  write(p('README.md'), renderTemplate('README.md.eta', ctx));
 
   console.log('Scaffolded ' + displayName + ' project at ' + targetDir);
   console.log('  Next steps:');
