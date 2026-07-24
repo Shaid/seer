@@ -1,6 +1,6 @@
 # <%= it.displayName %>
 
-A [Seer](https://github.com/Shaid/seer) project for reverse-engineering
+A Seer project for reverse-engineering
 <%= it.displayName %> (<%= it.game %>) data files into a browser-playable implementation.
 
 ## Getting started
@@ -46,6 +46,6 @@ seer.config.ts       Pipeline configuration
 
 ## Learn more
 
-- [Seer architecture overview](https://github.com/Shaid/seer/blob/main/docs/architecture-overview.md)
-- [Boilerplate guide](https://github.com/Shaid/seer/blob/main/docs/boilerplate-guide.md)
-- [`@seer/pipeline` docs](https://github.com/Shaid/seer/blob/main/packages/pipeline/README.md)
+- [Architecture overview](docs/architecture-overview.md) — how the project is structured
+- [Boilerplate guide](docs/boilerplate-guide.md) — what's template vs. what you build
+- [Framework plan](docs/framework-plan.md) — roadmap toward installable npm packages

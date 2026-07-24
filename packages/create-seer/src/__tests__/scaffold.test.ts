@@ -78,6 +78,17 @@ describe('scaffold', () => {
     expect(pkg).toContain('"name": "testgame"');
   });
 
+  it('creates documentation files', () => {
+    run('docs-test');
+    const dir = resolve(TMP, 'docs-test');
+    expect(existsSync(resolve(dir, 'docs/architecture-overview.md'))).toBe(true);
+    expect(existsSync(resolve(dir, 'docs/boilerplate-guide.md'))).toBe(true);
+    expect(existsSync(resolve(dir, 'docs/framework-plan.md'))).toBe(true);
+    const readme = readFileSync(resolve(dir, 'README.md'), 'utf-8');
+    expect(readme).toContain('docs/architecture-overview.md');
+    expect(readme).not.toContain('github.com/Shaid/seer');
+  });
+
   it('renders templates with the context variables', () => {
     run('template-vars', { game: 'demo', platform: 'amiga' });
     const pkg = readFileSync(resolve(TMP, 'template-vars/package.json'), 'utf-8');

@@ -50,6 +50,7 @@ export function scaffold(targetDir: string, options: ScaffoldOptions = {}): void
 
   for (const dir of [
     '',
+    'docs',
     'src/data',
     'src/engine',
     'data/' + game + '/' + platform,
@@ -101,6 +102,9 @@ export function scaffold(targetDir: string, options: ScaffoldOptions = {}): void
 
   write(p('seer.config.ts'), renderTemplate('seer.config.ts.eta', ctx));
   write(p('README.md'), renderTemplate('README.md.eta', ctx));
+  write(p('docs/architecture-overview.md'), renderTemplate('docs/architecture-overview.md.eta', ctx));
+  write(p('docs/boilerplate-guide.md'), renderTemplate('docs/boilerplate-guide.md.eta', ctx));
+  write(p('docs/framework-plan.md'), renderTemplate('docs/framework-plan.md.eta', ctx));
 
   console.log('Scaffolded ' + displayName + ' project at ' + targetDir);
   console.log('  Next steps:');
