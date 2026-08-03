@@ -1,7 +1,27 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { readBinary, writePNG, writeJson, resolveDataFile, scanFilesByExtension } from '../io.ts';
+import {
+  readBinary,
+  writePNG,
+  writeJson,
+  writeIndexedPNG,
+  writeWav,
+  resolveDataFile,
+  scanFilesByExtension,
+} from '../io.ts';
+
+/** Read a 4-byte little-endian u32 out of a raw file buffer. */
+function u32le(buf: Buffer, off: number): number {
+  return buf.readUInt32LE(off);
+}
+
+/** Read a PNG's raw RGBA pixel buffer back out (pngjs round-trip). */
+async function readPngRgba(path: string): Promise<{ width: number; height: number; data: Buffer }> {
+  const { PNG } = await import('pngjs');
+  const png = PNG.sync.read(readFileSync(path));
+  return { width: png.width, height: png.height, data: png.data };
+}
 
 const TMP = join(import.meta.dirname, '__tmp__');
 
@@ -90,5 +110,73 @@ describe('scanFilesByExtension', () => {
 
     const result = scanFilesByExtension(TMP, 'dat');
     expect(result).toEqual(['B.DAT', 'a.dat']);
+  });
+});
+
+describe('writeIndexedPNG', () => {
+  it('defaults index 0 to transparent, everything else opaque', async () => {
+    const path = join(TMP, 'indexed.png');
+    // 2x1: index 0 (should key out), index 5 (should stay opaque)
+    writeIndexedPNG(path, new Uint8Array([0, 5]), 2, 1);
+
+    const { data } = await readPngRgba(path);
+    expect(data[3]).toBe(0); // pixel 0 alpha
+    expect(data[0]).toBe(0); // pixel 0 red (index value)
+    expect(data[7]).toBe(255); // pixel 1 alpha
+    expect(data[4]).toBe(5); // pixel 1 red (index value)
+  });
+
+  it('treats index 0 as opaque when transparentIndex is null', async () => {
+    const path = join(TMP, 'indexed-opaque.png');
+    writeIndexedPNG(path, new Uint8Array([0, 5]), 2, 1, { transparentIndex: null });
+
+    const { data } = await readPngRgba(path);
+    expect(data[3]).toBe(255); // pixel 0 alpha — no longer keyed out
+    expect(data[7]).toBe(255); // pixel 1 alpha
+  });
+
+  it('keys out a caller-chosen index instead of 0', async () => {
+    const path = join(TMP, 'indexed-custom-key.png');
+    writeIndexedPNG(path, new Uint8Array([0, 5]), 2, 1, { transparentIndex: 5 });
+
+    const { data } = await readPngRgba(path);
+    expect(data[3]).toBe(255); // index 0 now opaque
+    expect(data[7]).toBe(0); // index 5 is the keyed-out one
+  });
+});
+
+describe('writeWav', () => {
+  it('writes mono 8-bit unsigned PCM byte-for-byte with no scaling', () => {
+    const path = join(TMP, 'mono8.wav');
+    writeWav(path, [new Uint8Array([0, 128, 255])], { sampleRate: 8000, bits: 8 });
+
+    const buf = readFileSync(path);
+    expect(buf.toString('ascii', 0, 4)).toBe('RIFF');
+    expect(buf.toString('ascii', 8, 12)).toBe('WAVE');
+    expect(buf.readUInt16LE(22)).toBe(1); // numChannels
+    expect(u32le(buf, 24)).toBe(8000); // sampleRate
+    expect(buf.readUInt16LE(34)).toBe(8); // bitsPerSample
+    expect(u32le(buf, 40)).toBe(3); // dataSize (3 samples x 1 byte)
+    expect(Array.from(buf.subarray(44, 47))).toEqual([0, 128, 255]);
+  });
+
+  it('writes stereo 16-bit signed PCM, quantized and clamped from [-1, 1]', () => {
+    const path = join(TMP, 'stereo16.wav');
+    const left = new Float32Array([0, 1, -1, 2 /* out-of-range, clamps to 1 */]);
+    const right = new Float32Array([0, -1, 1, -2 /* clamps to -1 */]);
+    writeWav(path, [left, right], { sampleRate: 44100 });
+
+    const buf = readFileSync(path);
+    expect(buf.readUInt16LE(22)).toBe(2); // numChannels
+    expect(buf.readUInt16LE(34)).toBe(16); // bitsPerSample (default)
+    expect(u32le(buf, 40)).toBe(4 * 2 * 2); // 4 samples x 2 channels x 2 bytes
+
+    const dataOff = 44;
+    expect(buf.readInt16LE(dataOff + 0)).toBe(0); // L[0]
+    expect(buf.readInt16LE(dataOff + 2)).toBe(0); // R[0]
+    expect(buf.readInt16LE(dataOff + 4)).toBe(32767); // L[1]
+    expect(buf.readInt16LE(dataOff + 6)).toBe(-32767); // R[1]
+    expect(buf.readInt16LE(dataOff + 12)).toBe(32767); // L[3] clamped from 2
+    expect(buf.readInt16LE(dataOff + 14)).toBe(-32767); // R[3] clamped from -2
   });
 });

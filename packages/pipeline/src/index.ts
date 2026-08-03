@@ -21,6 +21,7 @@ export {
   readBinary,
   writePNG,
   writeIndexedPNG,
+  writeWav,
   writeJson,
   resolveDataFile,
   scanFilesByExtension,
