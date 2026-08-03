@@ -7,7 +7,7 @@ web-native assets, and then a browser engine that consumes the preprocessed
 output.
 
 Structured as an npm workspace: genuinely reusable, game-agnostic code lives
-in scoped `packages/*` (`@seer/core`, `@seer/engine`, `@seer/pipeline`,
+in scoped `packages/*` (`@seer/core`, `@seer/engine-2d`, `@seer/pipeline`,
 `@seer/iff`, `@seer/smus`). Everything at the project root (`src/`, `tools/`)
 is your project — templates and placeholders you edit and diverge from
 freely.

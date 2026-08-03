@@ -1,4 +1,4 @@
-# @seer/engine
+# @seer/engine-2d
 
 PixiJS-based 2D runtime engine with camera, input, and display management.
 
@@ -8,10 +8,16 @@ Intentionally minimal — it demonstrates the *shape* of a runtime engine
 without assuming your game is a side-scroller, strategy map, or anything
 else.
 
+Named `-2d` to sit alongside a future `@seer/engine-3d` (a Three.js-based
+counterpart for games with true 3D/vector models, prototyped in the sibling
+`hunter` project) as a separate package rather than a subpath of one —
+each pulls in a different heavy rendering dependency (`pixi.js` here,
+`three` there), and most consuming projects only ever need one of the two.
+
 ## Installation
 
 ```bash
-npm install @seer/engine pixi.js
+npm install @seer/engine-2d pixi.js
 ```
 
 Requires `pixi.js ^8.9.0` as a peer dependency.
@@ -19,7 +25,7 @@ Requires `pixi.js ^8.9.0` as a peer dependency.
 ## Usage
 
 ```ts
-import { createGame } from '@seer/engine';
+import { createGame } from '@seer/engine-2d';
 
 const game = await createGame({
   container: document.getElementById('game-container')!,
@@ -69,13 +75,13 @@ click/drag-to-scroll, wheel zoom, and key action bindings.
 | `onKeyAction(key, action)` | Bind a key to a callback |
 | `update()` | Poll input state (called automatically each frame) |
 
-### PixiJS Helpers (`@seer/engine/pixi-helpers`)
+### PixiJS Helpers (`@seer/engine-2d/pixi-helpers`)
 
 Import from the separate entry point to avoid pulling PixiJS into
 non-rendering code:
 
 ```ts
-import { sliceAtlas, screenToWorld } from '@seer/engine/pixi-helpers';
+import { sliceAtlas, screenToWorld } from '@seer/engine-2d/pixi-helpers';
 ```
 
 | Function | Description |

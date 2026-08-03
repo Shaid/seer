@@ -1,5 +1,5 @@
 {
-  "name": "@seer/engine",
+  "name": "@seer/engine-2d",
   "version": "0.1.0",
   "description": "PixiJS-based 2D runtime engine with camera, input, and display management",
   "type": "module",
