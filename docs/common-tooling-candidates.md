@@ -38,6 +38,11 @@ contradicts, or adds to those.
 > was also renamed to `@seer/engine-2d` since this was written (ahead of a
 > future `@seer/engine-3d` — see `docs/engine-3d-proposal.md`). Everything
 > else below is left as-written, not re-verified against current state.
+> **A seventh consumer joined since this survey was written**: `ceres`
+> (SNES/FFVI-V-IV, not one of the original six). It independently rediscovered
+> §13a/§13b's core finding on its own ("don't build a third player, `@seer/tracker`
+> and `@seer/smus` already do this") and adds a forward-looking architecture
+> note for SNES audio, not yet RE'd anywhere — see §19.
 
 ---
 
@@ -1100,6 +1105,7 @@ Order matters: §2 unblocks §1, §3 and §8; §7 unblocks §13b.
 | 5 | `defineNarrowedConfig` factory | `@seer/pipeline` | Touches a documented decision (`architecture-overview.md` §5) |
 | 15 | Link-don't-copy framework docs; document `build/cache/` as a fifth zone; relocate `walker.md` | `docs/` + templates | Cheap, but no forcing function |
 | 11 | Musashi 68k harness as a scaffoldable template | `create-seer` | Real value, only 2 consumers, C toolchain cost |
+| 19 | `ceres` SNES N-SPC → likely extends `@seer/smus`'s instrument shape | `@seer/smus` | Blocked on `ceres` RE'ing N-SPC's sequence format first — not started anywhere |
 
 ### Not worth it
 
@@ -1119,6 +1125,51 @@ Order matters: §2 unblocks §1, §3 and §8; §7 unblocks §13b.
 - **Implementing `weaknesses.md` §1's missing engine stubs** — five of six
   repos have an empty `src/engine/`; there is no demand. Mark
   `architecture-overview.md` §8 as target architecture instead.
+
+---
+
+## 19. Forward-looking: a seventh consumer (`ceres`, SNES) and the N-SPC question
+
+Not part of the original six-repo survey — added 2026-08-03 when `ceres`
+(a seer-framework project reverse-engineering FFVI/V/IV on SNES) hit the same
+"do we need a new player" question §13a/§13b already answered, independently,
+before this document was pointed out to it.
+
+**What `ceres` confirmed on its own, matching this survey:** real WebAudio
+playback already exists in `@seer/tracker` (MOD) and `@seer/smus` (SMUS) —
+neither is parse-only. No third player is planned.
+
+**The open question this survey doesn't yet have an answer to, because the
+underlying format hasn't been RE'd anywhere in any of these repos:** FFVI/V/IV
+music lives on the SNES's SPC700+DSP sound coprocessor, not in a static
+on-ROM format the way MOD/SMUS data is. `ceres/docs/ff{vi,v,iv}/TODO.md`'s
+`*-music-sound` rows record two candidate approaches (SPC700 RAM-snapshot
+dump + WASM emulator playback, vs. RE'ing the sequence/instrument data into
+structured notes) and, for the second path, a structural hunch worth
+recording here since it bears directly on where that work would land in this
+package graph: the SNES DSP's 8 sample-voices-with-hardware-ADSR-and-echo
+model reads as much closer to `@seer/smus`'s Sonix-derived `Instrument` shape
+(ADSR + filter + LFO + sample, per §13b/`sampled-sound.ts`) than to
+`@seer/tracker`'s flat-sample-no-envelope MOD model — so *if* that RE work
+happens and confirms the format is tractable, extending `@seer/smus` looks
+like the likely target, not a new package or a new format designed from
+scratch.
+
+**What's genuinely unverified, not just unimplemented:** whether N-SPC's
+sequence data (the note/pattern data itself, as opposed to the instrument
+model) is a free-running per-track event stream — matching SMUS's shape,
+§ above — or a fixed-grid pattern sequence — matching MOD's shape. Nobody
+has RE'd this yet in any of these repos. That answer determines whether
+`@seer/smus`'s existing stream-based event model extends cleanly or needs
+real rework, and it can't be settled from this survey's read-only pass —
+it needs an actual RE session against a ROM.
+
+*Verdict: not actionable yet — nothing to extract or adopt today.* Recorded
+here so the eventual SNES RE work starts from this hypothesis instead of
+re-deriving it, and so this document — not a single game repo's `docs/` —
+stays the place that answer eventually gets written down, per §15c's point
+about cross-cutting framework knowledge belonging here rather than scattered
+per-consumer.
 
 ---
 

@@ -271,12 +271,24 @@ the static corridor frame". I decoded it directly out of
 All `4EBA` displacements resolve to `CODE+0x3d72` = `DrawMazePiece`,
 confirming the decode.
 
-**The full sequence, `(srcIdx, mode, dstIdx)`:**
+**The full sequence, `(srcIdx, mode, dstIdx)`, in actual program order**
+(**correction, 2026-08-03**: an earlier pass of this doc had the two
+wall-triple groups reversed; the real order at `CODE+0x6372`-`0x63dc`
+is right-then-left, verified against the disassembly. Harmless for a
+byte-exact render since both triples are `mode=1` — bitwise OR is
+commutative — and the two groups don't overlap on screen (dest px
+104/128/144 vs 192/176/168), but a golden-file author should encode
+the real order, not this table's prior wrong one. Push order at the
+call site is `dstIdx, mode, srcIdx`, srcIdx last, at `8(A5)`.
+**Trap:** `srcIdx == dstIdx` (the ceiling/floor triples below) is
+*still* the mirrored path — `DrawMazePiece` dispatches on
+`dstIdx == 0xFFFF`, not on `srcIdx == dstIdx`, so these are drawn
+horizontally mirrored onto their own placement, not copied as-is.):**
 
 ```
 (123, 1, 123)  (124, 1, 124)  (125, 1, 125)      ; ceiling strips, mirrored in place
-( 16, 1,  20)  ( 17, 1,  21)  ( 18, 1,  22)      ; right wall drawn from left art
 ( 20, 1,  16)  ( 21, 1,  17)  ( 22, 1,  18)      ; left wall drawn from right art
+( 16, 1,  20)  ( 17, 1,  21)  ( 18, 1,  22)      ; right wall drawn from left art
 (151, 1, 151)  (152, 1, 152)  (153, 1, 153)      ; floor strips, mirrored in place
 ( 25, 0, 0xFFFF)  ( 28, 0, 0xFFFF)               ; far-wall / doorway, replace mode
 ( 31, 0, 0xFFFF)  ( 34, 0, 0xFFFF)
@@ -1014,10 +1026,34 @@ frame  = `mazedata_dir${dirIndex.pad(3)}`
 skip if widthBytes === 0
 ```
 
-A mirrored call `DrawMazePiece(src, mode, dst)` with `dst != 0xFFFF`
-becomes: art fields from `composeList[src]`, placement fields from
-`composeList[dst]`, `mirrorX: true`. A direct call
-(`dst === 0xFFFF`) takes everything from `composeList[src]`.
+**Correction, 2026-08-03:** the paragraph originally here said a
+mirrored call takes "art fields from `composeList[src]`, placement
+fields from `composeList[dst]`" — that's wrong in a way that would
+corrupt pixels if implemented literally (it mis-windows every mirrored
+piece, which is 12 of the 16 static-corridor calls in §2.7). Traced
+directly from `DrawMazePiece`'s mirrored path at `CODE+0x3efe`
+(`sorcery/docs/wizardry6/amiga/disasm/Bane.asm:5621+`): only `dirIndex`
+comes from `composeList[src]`. `srcClip` and `widthBytes` — both
+source-side fields — come from the **placement** record
+(`composeList[dst]`), not the art record. The real derivation, with
+`art = directory[composeList[src].dirIndex]` and `p = composeList[dst]`:
+
+```
+srcX    = (art.widthUnits - p.srcClip - p.widthBytes) * 8   ; window measured from the RIGHT edge
+srcW    = p.widthBytes * 8
+srcY    = 0
+srcH    = art.heightRows            ; height & row-stride come from the ART record
+destX   = (p.destXByte + p.srcClip) * 8
+destY   = p.destY
+mirrorX = true
+```
+
+(Register trace, for anyone re-verifying against the binary: `A2 = &directory[composeList[srcIdx].dirIndex]`;
+`A3 = (A2) + A2[4]-1 - A0[3]` where `A0 = &composeList[dstIdx]`; loop
+count `D3 = A0[4]-1`; row count `D4 = A2[5]`; row stride `A2[4]`.)
+
+A direct call (`dst === 0xFFFF`) takes everything from
+`composeList[src]`, unchanged from the original text above.
 
 **M1 emits only the `staticSlots` array** — the 16 entries of §2.7 plus
 the 6 icons — which requires no wall semantics at all. The keyed `slots`
