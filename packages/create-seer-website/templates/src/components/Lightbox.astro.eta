@@ -1,0 +1,92 @@
+---
+/**
+ * Lightbox — click-to-enlarge modal for gallery sprites/images.
+ *
+ * Drop <Lightbox /> once per page that has any `data-lightbox` elements (not
+ * once per gallery -- it renders a single modal with a fixed id, so more than
+ * one on a page would collide). Any element anywhere on that page with a
+ * `data-lightbox` attribute becomes clickable: clicking it opens a full-screen
+ * modal showing an enlarged version, then closes on Escape, the close button,
+ * or a click outside the image. Uses event delegation
+ * (src/scripts/lightbox.js), so it works for elements added, or shown/hidden
+ * (e.g. by a search filter), after this component's own script runs -- no
+ * per-gallery re-init needed.
+ *
+ * See src/scripts/lightbox.js's docblock for the two supported trigger
+ * shapes (`<img data-lightbox>`, or a `data-lightbox` element with an inline
+ * CSS background-image crop) and the optional `data-lightbox-label` caption.
+ */
+---
+
+<div id="lightbox-overlay" class="lightbox-overlay">
+	<div class="lightbox-panel">
+		<button type="button" class="lightbox-close" aria-label="Close">&times;</button>
+		<div class="lightbox-stage">
+			<img class="lightbox-image" alt="" />
+			<div class="lightbox-crop"></div>
+		</div>
+		<p class="lightbox-caption"></p>
+	</div>
+</div>
+
+<script>
+	import { initLightbox } from '../scripts/lightbox.js';
+	initLightbox();
+</script>
+
+<style>
+	.lightbox-overlay {
+		align-items: center;
+		background: rgba(0, 0, 0, 0.85);
+		display: none;
+		inset: 0;
+		justify-content: center;
+		position: fixed;
+		z-index: 999;
+	}
+	.lightbox-overlay.lightbox-open {
+		display: flex;
+	}
+	.lightbox-panel {
+		align-items: center;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		max-height: 90vh;
+		max-width: 90vw;
+		position: relative;
+	}
+	.lightbox-close {
+		background: var(--sl-color-gray-6, #222);
+		border: 1px solid var(--sl-color-gray-5, #444);
+		border-radius: 50%;
+		color: var(--sl-color-white, #fff);
+		cursor: pointer;
+		font-size: 1.4rem;
+		height: 2.25rem;
+		line-height: 1;
+		position: absolute;
+		right: -0.75rem;
+		top: -0.75rem;
+		width: 2.25rem;
+		z-index: 1;
+	}
+	.lightbox-stage {
+		align-items: center;
+		display: flex;
+		justify-content: center;
+	}
+	.lightbox-image,
+	.lightbox-crop {
+		image-rendering: pixelated;
+	}
+	.lightbox-caption {
+		color: var(--sl-color-white, #fff);
+		font-size: 0.9rem;
+		margin: 0;
+		text-align: center;
+	}
+	.lightbox-caption:empty {
+		display: none;
+	}
+</style>

@@ -82,6 +82,7 @@ export function scaffoldWebsite(targetDir: string, ctx: WebsiteContext = {}): vo
     '',
     'scripts',
     'src/components',
+    'src/scripts',
     'src/content/docs/' + game,
     'public',
   ]) {
@@ -108,6 +109,8 @@ export function scaffoldWebsite(targetDir: string, ctx: WebsiteContext = {}): vo
 
   write(p('src/content.config.ts'), renderTemplate('src/content.config.ts.eta', data));
   write(p('src/components/SpriteGallery.astro'), renderTemplate('src/components/SpriteGallery.astro.eta', data));
+  write(p('src/components/Lightbox.astro'), renderTemplate('src/components/Lightbox.astro.eta', data));
+  write(p('src/scripts/lightbox.js'), renderTemplate('src/scripts/lightbox.js.eta', data));
   write(p('src/content/docs/index.mdx'), renderTemplate('src/content/docs/index.mdx.eta', data));
   write(p('src/content/docs/' + game + '/index.mdx'), renderTemplate('src/content/docs/game/index.mdx.eta', data));
   write(p('src/content/docs/' + game + '/getting-started.md'), renderTemplate('src/content/docs/game/getting-started.md.eta', data));

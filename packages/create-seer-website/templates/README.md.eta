@@ -106,6 +106,38 @@ import SpriteGallery from '../../../components/SpriteGallery.astro';
   built-in knowledge of any name-lookup file format — it only ever calls
   `labels.get(frame.name)` and falls back to the raw frame name.
 
+`SpriteGallery`'s plain and hover-swap cards already carry the `data-lightbox`
+attribute `Lightbox` (below) looks for — add `<Lightbox />` once to any page
+using `SpriteGallery` and cards become click-to-enlarge automatically, no
+further wiring needed.
+
+## `Lightbox`
+
+`src/components/Lightbox.astro` is a click-to-enlarge modal. Drop it once per
+page (not once per gallery — it renders a single modal with a fixed id):
+
+```mdx
+import Lightbox from '../../../components/Lightbox.astro';
+
+<Lightbox />
+```
+
+Any element anywhere on that page with a `data-lightbox` attribute becomes
+clickable — opens a full-screen modal with an enlarged view, closes on
+Escape, the close button, or a click outside the image. Two trigger shapes
+are auto-detected (see `src/scripts/lightbox.js`'s docblock):
+
+- `<img data-lightbox>` — enlarges that image's own `src`.
+- Any other element with `data-lightbox` and an inline CSS
+  `background-image`/`background-position`/`background-size` (the exact
+  pattern `SpriteGallery` uses to crop one frame from a shared atlas) —
+  enlarges that specific crop, scaled up, rather than the whole atlas.
+
+Add an optional `data-lightbox-label="..."` for a caption. Because it uses
+event delegation on `document`, it works for elements added, or shown/hidden
+by a search filter, after the page loads — no re-init needed when a
+gallery's own content changes.
+
 ## Pointing the favicon at a real sprite
 
 `scripts/build.mjs` calls `scripts/generate_favicon.mjs <atlasDir> <manifest>

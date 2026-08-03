@@ -43,6 +43,15 @@ describe('scaffoldWebsite', () => {
     expect(existsSync(resolve(dir, 'src/content/docs/foobar/_sidebar.json'))).toBe(true);
   });
 
+  it('creates the Lightbox component and its client script', () => {
+    run('lightbox/www');
+    const dir = resolve(TMP, 'lightbox/www');
+    expect(existsSync(resolve(dir, 'src/components/Lightbox.astro'))).toBe(true);
+    expect(existsSync(resolve(dir, 'src/scripts/lightbox.js'))).toBe(true);
+    const gallery = readFileSync(resolve(dir, 'src/components/SpriteGallery.astro'), 'utf-8');
+    expect(gallery).toContain('data-lightbox');
+  });
+
   it('copies a placeholder favicon', () => {
     run('favicon/www');
     const favicon = resolve(TMP, 'favicon/www/public/favicon.png');
