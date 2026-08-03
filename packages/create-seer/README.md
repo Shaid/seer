@@ -43,7 +43,12 @@ The scaffolded project includes:
 With `--viewer`, the following is also included:
 
 - **`tools/viewer/`** — Asset viewer for browsing built sprites, atlases,
-  and palettes in the browser
+  and palettes in the browser. Data-driven game/platform selectors (from a
+  build-emitted `games.json`, so growing to more platforms later needs no
+  template changes), asset-type filter tabs derived from whatever's in the
+  manifest, animation autoplay, and a generic indexed-texture + palette
+  WebGL2 shader with a live palette editor and color-cycling control. See
+  [`docs/viewer.md`](../../docs/viewer.md) for the full architecture.
 
 ### Generated directory structure
 

@@ -86,12 +86,33 @@ Parses three `.instr` variants and `.ss` multi-octave sample files:
 - Multi-octave `.ss` sample playback
 
 ```ts
-import { SmusEngine } from '@seer/smus';
+import {
+  SmusEngine,
+  parseSmusScore,
+  parseInstr,
+  instrumentFromSynth,
+  defaultInstrument,
+  type Instrument,
+} from '@seer/smus';
 
-const engine = new SmusEngine(sampleRate);
-const pcm = engine.render(song);
-// pcm is stereo Float32Array
+const score = parseSmusScore(smusFileBuffer);
+
+// Build the register -> Instrument map the score's INS1 chunks reference.
+// (Load each referenced .instr file's bytes and parse via parseInstr(),
+// then convert with instrumentFromSynth/instrumentFromSampled/instrumentFrom8svx
+// depending on parseInstr's returned variant — see sampled-sound.ts.)
+const instruments = new Map<number, Instrument>();
+instruments.set(0, defaultInstrument());
+
+const engine = new SmusEngine(score, instruments, 44100, 0.35);
+const [left, right] = engine.renderAll(); // stereo Float32Array, [-1, 1]
 ```
+
+`SmusEngine`'s constructor is `(score, instruments, sampleRate = 44100,
+masterVolume = 0.35)`. `renderAll(maxSeconds = 300)` runs the full score to
+completion (trimming trailing silence) and returns `[left, right]`;
+`renderBlock(n)` renders exactly `n` samples per call, for streaming/
+real-time playback instead of an offline render.
 
 ## Testing
 

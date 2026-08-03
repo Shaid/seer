@@ -78,17 +78,19 @@ const results = await runPipeline(configs, { game: 'mygame', platform: 'amiga' }
 | `flattenConfigs(configs)` | Flatten nested `GameConfig[]` to `PlatformConfig[]` |
 | `resolveDataDir(platformConfig, dataDir?)` | Find the data directory on disk |
 | `findFileCI(dir, name)` | Case-insensitive filename lookup |
-| `resType(filename)` | Get a type code from a filename extension |
+| `resType(platformConfig, logical)` | Map a logical resource type (e.g. `'imag'`) to its platform-specific code via `platformConfig.typeCodes`, uppercased fallback if unmapped |
 
 ## File I/O
 
 | Function | Description |
 | --- | --- |
 | `readBinary(path)` | Read a file as `Uint8Array` |
-| `writeJson(path, data)` | Write data as formatted JSON |
-| `writePNG(path, png)` | Write a PNG image (from `pngjs`) |
-| `writeIndexedPNG(path, pixels, palette, w, h)` | Write indexed-color PNG |
-| `scanFilesByExtension(dir, ext)` | Recursively find files by extension |
+| `writeJson(path, data, pretty?)` | Write data as formatted JSON |
+| `writePNG(path, rgba, width, height)` | Write an RGBA PNG image |
+| `writeIndexedPNG(path, indices, width, height, opts?)` | Write a palette-indexed PNG (index value in the R channel — not resolved colors). `opts.transparentIndex` (default `0`) picks which index renders transparent; pass `null` to make every index opaque |
+| `writeWav(path, channels, opts)` | Write PCM samples as a RIFF/WAVE file. `channels` is one array per channel (`[mono]` or `[left, right]`); `opts.bits: 8` expects raw `Uint8Array` samples copied byte-for-byte, `opts.bits: 16` (default) expects normalized `Float32Array` samples in `[-1, 1]`, quantized to 16-bit PCM |
+| `resolveDataFile(dataDir, candidates)` | First matching filename from a list of casing candidates, or the first candidate if none exist |
+| `scanFilesByExtension(dir, ext)` | Find files by extension, case-insensitive, sorted |
 
 ## Testing
 

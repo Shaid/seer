@@ -67,10 +67,10 @@ Lives in `@seer/core` (not `@seer/pipeline`) to prevent Node-only
 dependencies from leaking into browser bundles.
 
 ```ts
-import { loadAssets } from '@seer/core';
+import { loadAssets, type AtlasMeta } from '@seer/core';
 
 interface MyAssets {
-  atlas: { cellWidth: number; cellHeight: number };
+  atlas: AtlasMeta;
   map: { cols: number };
 }
 
@@ -87,6 +87,43 @@ import { createAssetLoader } from '@seer/core';
 
 const load = createAssetLoader('/assets/mygame/amiga');
 const assets = await load<MyAssets>({ atlas: 'atlas.json', map: 'map.json' });
+```
+
+### `atlas.ts` — Shared texture-atlas metadata
+
+The one canonical `AtlasMeta`/`AtlasFrame` shape written by every offline
+build-assets pipeline and read by both browser runtime and viewer tooling —
+a shelf-packed atlas (arbitrarily positioned/sized frames), not a uniform
+grid, since real extracted sprite art is essentially never uniformly sized.
+
+```ts
+import type { AtlasFrame, AtlasMeta } from '@seer/core';
+
+const atlas: AtlasMeta = {
+  width: 256,
+  height: 256,
+  frames: [{ name: 'hero_idle', x: 0, y: 0, w: 32, h: 48 }],
+};
+```
+
+| Type | Description |
+| --- | --- |
+| `AtlasFrame` | `{ name, x, y, w, h }` — one packed sprite's position/size |
+| `AtlasMeta` | `{ frames: AtlasFrame[], width, height }` — one atlas image |
+
+### `palette.ts` — Palette-cycling utility
+
+`cyclePalette(colors, start, end, direction)` rotates a contiguous
+sub-range of a color array by one step, wrapping within that range only —
+the classic 8/16-bit-era "colour cycling" animation trick (VGA palette
+rotation, Amiga copper-list swaps). Generic over `T`, no DOM/WebGL/canvas
+dependency; the caller owns how the result gets drawn or uploaded.
+
+```ts
+import { cyclePalette } from '@seer/core';
+
+// Rotate indices 10-13 forward by one step, e.g. once per animation frame.
+cyclePalette(paletteColors, 10, 13, 1);
 ```
 
 ## Testing
