@@ -1,5 +1,13 @@
 # Generic first-person dungeon walker — architecture & implementation plan
 
+> **Note (2026-08-03):** `@seer/engine` was renamed to `@seer/engine-2d`
+> after this plan was written (ahead of a future `@seer/engine-3d`) — every
+> `@seer/engine` reference below refers to what is now `@seer/engine-2d`,
+> and `packages/engine/` paths are now `packages/engine-2d/`. Not renamed in
+> place throughout to avoid touching a large, precise planning document
+> line-by-line without re-verifying every citation; the substance of every
+> claim below is unaffected by the rename.
+
 **Status:** plan only, nothing implemented. Written 2026-08-02. Lives in
 this repo (`seer/docs/walker.md`) rather than the consumer project's
 repo because it targets a new framework package (`@seer/dungeon`, §4);

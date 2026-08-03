@@ -11,17 +11,24 @@ to be a useful stress test. Full context: `docs/walker.md` §3.3,
 Each item below cites the exact file/line it was verified against —
 these are read findings, not impressions.
 
-> **Status update (2026-08-03).** Two items below are now resolved:
-> §6 (conflicting `AtlasMeta` definitions) — fixed by moving a single
-> canonical `AtlasMeta`/`AtlasFrame` into `@seer/core`, both scaffold
-> templates now import it instead of redeclaring (commit `7b931e0`). §7
-> (`writeIndexedPNG` hardcoding index 0 as transparent) — fixed with the
-> exact `opts.transparentIndex` parameter recommended below, defaulting to
-> `0` for backward compatibility (commit `efb3cca`). Also note `@seer/engine`
-> was renamed to `@seer/engine-2d` after this review was written (ahead of a
-> future `@seer/engine-3d`) — mentions of `@seer/engine` below refer to what
-> is now `@seer/engine-2d`. The rest of this document is left as-written,
-> not re-verified against current state.
+> **Status update (2026-08-03).** Two items below are now resolved: §6
+> (conflicting `AtlasMeta` definitions) — fixed by moving a single canonical
+> `AtlasMeta`/`AtlasFrame` into `@seer/core`, both scaffold templates now
+> import it instead of redeclaring (commit `7b931e0`). §7 (`writeIndexedPNG`
+> hardcoding index 0 as transparent) — fixed with the exact
+> `opts.transparentIndex` parameter recommended below, defaulting to `0` for
+> backward compatibility (commit `efb3cca`). §5 is **partially** resolved:
+> the atlas-shape half of "no atlas, palette, manifest... types anywhere in
+> any `@seer/*` package" is fixed by the same §6 work, and a `cyclePalette()`
+> utility was also added to `@seer/core`, but there's still no canonical
+> `PaletteData` type there (still locally declared per-project) and no
+> `fetchBinary`/`.bin` path on `loadAssets` — both still open. Also note
+> `@seer/engine` was renamed to `@seer/engine-2d` after this review was
+> written (ahead of a future `@seer/engine-3d`) — mentions of `@seer/engine`
+> below refer to what is now `@seer/engine-2d`; file paths citing
+> `packages/engine/` have been updated to `packages/engine-2d/` in place
+> since those are just pointers, not findings. The rest of this document is
+> left as-written, not re-verified against current state.
 
 ## 1. `docs/architecture-overview.md` §8 describes components that don't exist
 
@@ -29,7 +36,7 @@ The doc's ASCII diagram (`docs/architecture-overview.md:291-299`) lists
 `Game / Camera / InputManager / AssetLoader / SceneRenderer /
 EntityManager / AudioManager` as the browser runtime engine's structure.
 **`SceneRenderer`, `EntityManager`, and `AudioManager` do not exist
-anywhere in `@seer/engine` or any other package.** `packages/engine/src/index.ts`
+anywhere in `@seer/engine` or any other package.** `packages/engine-2d/src/index.ts`
 is 19 lines — 13 values and 8 types, the entire package surface — and
 none of those three names appear.
 
@@ -47,7 +54,7 @@ the same false claim.
 
 ## 2. `Camera` is unusable for anything that isn't a 2D pan/zoom map
 
-`packages/engine/src/Camera.ts:16-189`. `CameraState = {x, y, zoom}` —
+`packages/engine-2d/src/Camera.ts:16-189`. `CameraState = {x, y, zoom}` —
 no orientation field of any kind, so it cannot represent a facing.
 
 More importantly, `_clamp()` (`Camera.ts:173-188`) is called
@@ -78,7 +85,7 @@ it that if the clamp behavior stays mandatory, so its scope is honest.
 
 ## 3. `InputManager` has no held-key state, and hardwires movement to camera pan
 
-`packages/engine/src/InputManager.ts:28-197`. WASD/arrows are wired
+`packages/engine-2d/src/InputManager.ts:28-197`. WASD/arrows are wired
 directly to `camera.pan(dx,dy)` (`:93-96`), RTS edge-scrolling to the
 same (`:99-107`), wheel to `camera.zoomAt` (`:159-166`), drag to pan
 (`:146-157`). `onKey` (`:83`) fires once per keydown — fine for menu
