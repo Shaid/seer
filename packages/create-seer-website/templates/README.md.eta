@@ -37,6 +37,26 @@ When the repo's extracted assets change, re-run `npm run dev` or
 `npm run build` here to refresh the mirror, then commit whatever changed
 under `public/assets/<%= it.game %>`.
 
+### Curating what gets committed
+
+By default `build.mjs` mirrors the *entire* `public/assets/<%= it.game %>`
+tree. That's fine if your project's full extracted output is already meant to
+be public — but most extraction pipelines produce far more than any one
+curated page renders (raw per-frame dumps, scene data, whatever else the
+pipeline happens to emit), and this site has no business committing all of
+that just because one page needs one sprite atlas.
+
+Once you know which files your pages actually use, set `ASSET_FILES` in
+`scripts/build.mjs` to an explicit list of relative paths (files or whole
+subdirectories) instead of leaving it empty:
+
+```js
+const ASSET_FILES = ['amiga/icons.json', 'amiga/icons.png'];
+```
+
+Re-run the build — only those paths get copied and are what you should
+commit under `public/assets/<%= it.game %>` from then on.
+
 ## Adding a new curated page
 
 1. Add a `.md` or `.mdx` file under `src/content/docs/<%= it.game %>/`.

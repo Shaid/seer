@@ -27,6 +27,18 @@ const FAVICON_FRAME = '<%= it.faviconFrame %>';
 const FAVICON_ATLAS_DIR = '<%= it.faviconAtlasDir %>';
 const FAVICON_MANIFEST = '<%= it.faviconManifest %>';
 
+// Which files under public/assets/<%= it.game %>/ this site actually needs
+// committed (see README.md "Curating what gets committed"). Empty array
+// (the default) copies the whole tree, which is fine for a project whose
+// full extracted output is already meant to be public/reviewed -- but most
+// projects extract far more than any one curated page renders (raw scene
+// frames, per-level dumps, etc.), and committing all of it just because one
+// page needs one atlas is exactly how a docs site's asset mirror balloons
+// with content nobody asked to publish. List explicit relative paths (files
+// or whole subdirectories) once you know what your pages actually use, e.g.
+// ['amiga/icons.json', 'amiga/icons.png'].
+const ASSET_FILES = [];
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repo = resolve(root, '..');
 
@@ -41,8 +53,18 @@ const OUT_SIDEBAR = join(OUT_DIR, 'sidebar.mjs');
 mkdirSync(join(root, 'public', 'assets'), { recursive: true });
 if (existsSync(ASSET_SRC)) {
 	rmSync(ASSET_DST, { recursive: true, force: true });
-	cpSync(ASSET_SRC, ASSET_DST, { recursive: true });
-	console.log(`Copied assets: ${ASSET_SRC} -> ${ASSET_DST}`);
+	if (ASSET_FILES.length === 0) {
+		cpSync(ASSET_SRC, ASSET_DST, { recursive: true });
+		console.log(`Copied assets: ${ASSET_SRC} -> ${ASSET_DST}`);
+	} else {
+		for (const rel of ASSET_FILES) {
+			const from = join(ASSET_SRC, rel);
+			const to = join(ASSET_DST, rel);
+			mkdirSync(dirname(to), { recursive: true });
+			cpSync(from, to, { recursive: true });
+		}
+		console.log(`Copied ${ASSET_FILES.length} curated asset path(s) from ${ASSET_SRC} -> ${ASSET_DST}`);
+	}
 } else if (existsSync(ASSET_DST)) {
 	console.log(`Using committed site assets in ${ASSET_DST}`);
 } else {
