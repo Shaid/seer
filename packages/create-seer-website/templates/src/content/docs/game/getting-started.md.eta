@@ -1,0 +1,18 @@
+---
+title: Getting Started
+---
+
+This is a starter page. A fresh scaffold ships with just this page and the
+[Home](/<%= it.game %>/) page, listed in
+`src/content/docs/<%= it.game %>/_sidebar.json`.
+
+## Adding a page
+
+1. Add a `.md` or `.mdx` file under `src/content/docs/<%= it.game %>/`.
+2. Add a matching `{ "label": ..., "slug": "<%= it.game %>/your-page" }` entry
+   to `_sidebar.json` (or nest it under a group with `"items"`).
+3. Re-run `npm run dev` or `npm run build` — the sidebar is regenerated from
+   that manifest on every build (see `scripts/build.mjs`).
+
+See the project README for the asset-copy convention and the `SpriteGallery`
+component, which renders a searchable grid from a packed-frames sprite atlas.

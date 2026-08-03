@@ -1,7 +1,7 @@
 {
-  "name": "create-seer",
+  "name": "create-seer-website",
   "version": "0.1.0",
-  "description": "Scaffold a new seer project",
+  "description": "Scaffold a standalone Astro + Starlight docs site for a seer project",
   "type": "module",
   "main": "./src/scaffold.ts",
   "types": "./src/scaffold.ts",
@@ -9,7 +9,7 @@
     ".": "./src/scaffold.ts"
   },
   "bin": {
-    "create-seer": "./bin/seer-create.mjs"
+    "create-seer-website": "./bin/create-seer-website.mjs"
   },
   "scripts": {
     "test": "vitest run",
@@ -21,8 +21,6 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^8.5.2",
-    "create-seer-viewer": "*",
-    "create-seer-website": "*",
     "eta": "^4.6.0",
     "tsx": "^4.20.0"
   }

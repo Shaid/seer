@@ -1,0 +1,19 @@
+// @ts-check
+import { defineConfig } from 'astro/config';
+import mdx from '@astrojs/mdx';
+import starlight from '@astrojs/starlight';
+import { sidebar } from './generated/sidebar.mjs';
+
+// https://astro.build/config
+export default defineConfig({
+	site: <%~ it.siteLiteral %>,
+	integrations: [
+		starlight({
+			title: '<%= it.displayName %> — Data Formats',
+			favicon: '/favicon.png',
+			description: '<%= it.description %>',
+			sidebar,
+		}),
+		mdx(),
+	],
+});

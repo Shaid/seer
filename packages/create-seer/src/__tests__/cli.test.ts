@@ -33,6 +33,12 @@ describe('parseFlags', () => {
     expect(result).toEqual({ viewer: true });
   });
 
+  it('sets docsSite to true when --docs-site is present', async () => {
+    const { parseFlags } = await import('../cli.ts');
+    const result = parseFlags(['node', 'seer', 'my-game', '--docs-site']);
+    expect(result).toEqual({ docsSite: true });
+  });
+
   it('returns empty object when no flags given', async () => {
     const { parseFlags } = await import('../cli.ts');
     const result = parseFlags(['node', 'seer', 'my-game']);
@@ -96,6 +102,24 @@ describe('main', () => {
 
     const pkg = JSON.parse(await import('node:fs').then(m => m.readFileSync(resolve(projectDir, 'package.json'), 'utf-8')));
     expect(pkg.name).toBe('testg');
+
+    process.cwd = origCwd;
+  });
+
+  it('scaffolds a docs site when --docs-site is passed', async () => {
+    const { main } = await import('../cli.ts');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const projectDir = resolve(TMP, 'docs-site-test');
+    const origCwd = process.cwd;
+    process.cwd = () => TMP;
+
+    await main(['node', 'seer', 'docs-site-test', '--game', 'testg', '--docs-site']);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(existsSync(resolve(projectDir, 'www/package.json'))).toBe(true);
+    expect(existsSync(resolve(projectDir, '.github/workflows/deploy.yml'))).toBe(true);
 
     process.cwd = origCwd;
   });

@@ -135,4 +135,18 @@ describe('scaffold', () => {
     expect(existsSync(resolve(TMP, 'defaults/data/mygame/amiga'))).toBe(true);
     expect(existsSync(resolve(TMP, 'defaults/tools/mygame/export-game-data.ts'))).toBe(true);
   });
+
+  it('creates a docs site (delegated to create-seer-website) when docsSite is true', () => {
+    run('with-docs-site', { docsSite: true, game: 'demo' });
+    const dir = resolve(TMP, 'with-docs-site');
+    expect(existsSync(resolve(dir, 'www/package.json'))).toBe(true);
+    expect(existsSync(resolve(dir, 'www/astro.config.mjs'))).toBe(true);
+    expect(existsSync(resolve(dir, 'www/src/content/docs/demo/index.mdx'))).toBe(true);
+    expect(existsSync(resolve(dir, '.github/workflows/deploy.yml'))).toBe(true);
+  });
+
+  it('does not create a docs site when docsSite is false', () => {
+    run('no-docs-site', { docsSite: false });
+    expect(existsSync(resolve(TMP, 'no-docs-site/www'))).toBe(false);
+  });
 });

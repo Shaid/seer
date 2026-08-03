@@ -10,6 +10,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Eta } from 'eta';
+import { scaffoldViewer } from 'create-seer-viewer';
+import { scaffoldWebsite } from 'create-seer-website';
 
 export interface ScaffoldOptions {
   /** Game ID for the pre-configured entry (default: 'mygame'). */
@@ -18,8 +20,10 @@ export interface ScaffoldOptions {
   platform?: string;
   /** Human-readable game name (default: derived from game ID). */
   displayName?: string;
-  /** Include the asset viewer tool. */
+  /** Include the asset viewer tool (delegates to create-seer-viewer). */
   viewer?: boolean;
+  /** Include the Astro + Starlight docs site (delegates to create-seer-website). */
+  docsSite?: boolean;
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -47,6 +51,7 @@ export function scaffold(targetDir: string, options: ScaffoldOptions = {}): void
   const platform = options.platform ?? 'amiga';
   const displayName = options.displayName ?? capitalize(game);
   const viewer = options.viewer ?? false;
+  const docsSite = options.docsSite ?? false;
 
   for (const dir of [
     '',
@@ -56,7 +61,6 @@ export function scaffold(targetDir: string, options: ScaffoldOptions = {}): void
     'data/' + game + '/' + platform,
     'tools/shared/__tests__',
     'tools/' + game,
-    ...(viewer ? ['tools/viewer'] : []),
   ]) {
     mkdirSync(resolve(targetDir, dir), { recursive: true });
   }
@@ -103,13 +107,16 @@ export function scaffold(targetDir: string, options: ScaffoldOptions = {}): void
   write(p('tools/' + game + '/export-game-data.ts'), renderTemplate('tools/game/export-game-data.ts.eta', ctx));
   write(p('tools/' + game + '/build-assets.ts'), renderTemplate('tools/game/build-assets.ts.eta', ctx));
 
-  // ── Viewer (optional) ──────────────────────────────────────────────
+  // ── Viewer (optional, delegated to create-seer-viewer) ──────────────
 
   if (viewer) {
-    write(p('tools/viewer/index.html'), renderTemplate('tools/viewer/index.html.eta', ctx));
-    write(p('tools/viewer/viewer.ts'), renderTemplate('tools/viewer/viewer.ts.eta', ctx));
-    write(p('tools/viewer/viewer.css'), renderTemplate('tools/viewer/viewer.css.eta', ctx));
-    write(p('tools/viewer/shared.ts'), renderTemplate('tools/viewer/shared.ts.eta', ctx));
+    scaffoldViewer(p('tools/viewer'), { game, platform, displayName });
+  }
+
+  // ── Docs site (optional, delegated to create-seer-website) ──────────
+
+  if (docsSite) {
+    scaffoldWebsite(p('www'), { game, displayName });
   }
 
   // ── Config & docs ──────────────────────────────────────────────────

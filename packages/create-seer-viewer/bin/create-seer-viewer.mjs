@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * create-seer — scaffold a new seer project.
+ * create-seer-viewer — scaffold a standalone seer asset viewer.
  *
- * Run via: npx create-seer <project-name>
+ * Run via: npx create-seer-viewer <dir>
  */
 import 'tsx/esm';
 import { resolve, dirname } from 'node:path';
@@ -11,17 +11,15 @@ import { pathToFileURL } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const help = `Usage: npx create-seer <project-name> [options]
+const help = `Usage: npx create-seer-viewer <dir> [options]
 
 Options:
   --game <id>          Game ID (default: mygame)
   --platform <id>      Platform ID (default: amiga)
   --display-name <n>   Human-readable game name
-  --viewer             Include the asset viewer tool
-  --docs-site          Include the Astro + Starlight docs site
 
 Example:
-  npx create-seer my-rpg --game myrpg --platform amiga --viewer --docs-site`;
+  npx create-seer-viewer tools/viewer --game myrpg --platform amiga`;
 
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.log(help);

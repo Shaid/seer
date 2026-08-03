@@ -1,0 +1,260 @@
+---
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+interface SpriteFrame {
+	name: string;
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+}
+
+interface SpriteManifest {
+	width: number;
+	height: number;
+	frames: SpriteFrame[];
+}
+
+interface Props {
+	/** Sprite-sheet manifest name (without extension), read from `<assetPath>/sprites/<manifest>.json`. */
+	manifest: string;
+	/** Asset directory under `public/assets/`, e.g. `"mygame/amiga"`. */
+	assetPath: string;
+	label?: string;
+	/**
+	 * Frame-name pairs that should render as one card swapping to the second
+	 * frame on hover (e.g. a dim/activated icon pair). Optional — omit for no
+	 * hover-swap behavior.
+	 */
+	hoverPairs?: Record<string, string>;
+	/**
+	 * Frame-name chains that should render as one card, advancing to the next
+	 * frame in the chain on each click and latching on the last one. Optional
+	 * — omit for no click-to-cycle behavior.
+	 */
+	clickChains?: Record<string, string[]>;
+	/**
+	 * Display-name lookup, keyed by frame name. The caller loads whatever
+	 * name-lookup data it has (if any) and builds this map itself — this
+	 * component has no knowledge of any specific game's name-data shape.
+	 * Frames with no entry fall back to their raw frame name.
+	 */
+	labels?: Map<string, { visible: string; hover?: string }>;
+}
+
+const { manifest, assetPath, label = 'sprite', hoverPairs = {}, clickChains = {}, labels = new Map() } = Astro.props;
+const repoAssetRoot = resolve(process.cwd(), '..', 'public', 'assets', assetPath);
+const assetRoot = existsSync(repoAssetRoot)
+	? repoAssetRoot
+	: resolve(process.cwd(), 'public', 'assets', assetPath);
+const manifestPath = resolve(assetRoot, 'sprites', `${manifest}.json`);
+const spriteManifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as SpriteManifest;
+const imagePath = `/assets/${assetPath}/sprites/${manifest}.png`;
+
+const hiddenFrameNames = new Set([
+	...Object.values(hoverPairs),
+	...Object.values(clickChains).flatMap((chain) => chain.slice(1)),
+]);
+
+const galleryId = `sprite-gallery-${manifest}`;
+const searchId = `${galleryId}-search`;
+
+// Every card's image area shares one slot size (the largest stage needed by
+// any visible frame in this manifest), so cards are equal height and
+// names/captions align across a grid row -- otherwise a manifest whose
+// frames vary a lot in size leaves shorter cards with a ragged caption
+// position.
+const slotSize = Math.max(
+	1,
+	...spriteManifest.frames
+		.filter((frame) => !hiddenFrameNames.has(frame.name))
+		.map((frame) => Math.min(3, 160 / frame.w, 160 / frame.h) * Math.max(frame.w, frame.h)),
+);
+---
+
+<div class="gallery-toolbar">
+	<label for={searchId}>Filter {label}s</label>
+	<input id={searchId} data-sprite-search={manifest} type="search" placeholder={`Search ${label}s`} />
+	<span>{spriteManifest.frames.length} frames</span>
+</div>
+
+<div id={galleryId} class="sprite-gallery" data-sprite-gallery={manifest}>
+	{spriteManifest.frames.map((frame, index) => {
+		// The non-first half of a hover pair or click chain isn't its own
+		// card -- it's folded into its named twin below.
+		if (hiddenFrameNames.has(frame.name)) return null;
+
+		const hoverName = hoverPairs[frame.name];
+		const hoverFrame = hoverName ? spriteManifest.frames.find((f) => f.name === hoverName) : undefined;
+
+		const chainNames = clickChains[frame.name];
+		const chainFrames = chainNames
+			?.map((name) => spriteManifest.frames.find((f) => f.name === name))
+			.filter((f): f is SpriteFrame => f !== undefined);
+
+		const frameInfo = labels.get(frame.name);
+		const frameLabel = frameInfo?.visible ?? frame.name;
+		const hoverLabel = frameInfo?.hover;
+		const scale = Math.min(3, 160 / frame.w, 160 / frame.h);
+		const width = Math.max(1, Math.round(frame.w * scale));
+		const height = Math.max(1, Math.round(frame.h * scale));
+		const searchText = `${frameLabel} ${frame.name} ${index + 1}`.toLowerCase();
+		const bgSize = `${Math.round(spriteManifest.width * scale)}px ${Math.round(spriteManifest.height * scale)}px`;
+		const posStr = (f: SpriteFrame) => `-${Math.round(f.x * scale)}px -${Math.round(f.y * scale)}px`;
+		return (
+			<article class="sprite-card" data-sprite-card={manifest} data-search={searchText}>
+				<div class="sprite-frame-slot" style={`width:${slotSize}px;height:${slotSize}px;`}>
+				<div class="sprite-stage" style={`width:${width}px;height:${height}px;`}>
+					{chainFrames && chainFrames.length > 1 ? (
+						<div
+							class="sprite-layer sprite-layer-click"
+							data-click-positions={chainFrames.map(posStr).join(';')}
+							data-click-index="0"
+							style={`background-image:url('${imagePath}');background-size:${bgSize};background-position:${posStr(chainFrames[0])};`}
+							role="img"
+							aria-label={frameLabel}
+							tabindex="0"
+						></div>
+					) : hoverFrame ? (
+						<div
+							class="sprite-layer sprite-layer-swap"
+							style={`background-image:url('${imagePath}');background-size:${bgSize};background-position:${posStr(frame)};--hover-pos:${posStr(hoverFrame)};`}
+							role="img"
+							aria-label={frameLabel}
+						></div>
+					) : (
+						<div
+							class="sprite-layer"
+							style={`background-image:url('${imagePath}');background-size:${bgSize};background-position:${posStr(frame)};`}
+							role="img"
+							aria-label={frameLabel}
+						></div>
+					)}
+				</div>
+				</div>
+				<strong title={hoverLabel}>{frameLabel}</strong>
+				<small>
+					#{String(index + 1).padStart(3, '0')} · {frame.w}×{frame.h}
+					{hoverFrame && <span class="activated-hint"> · hover to activate</span>}
+				</small>
+			</article>
+		);
+	})}
+</div>
+
+<script define:vars={{ manifest }}>
+	const input = document.querySelector(`[data-sprite-search="${manifest}"]`);
+	const cards = [...document.querySelectorAll(`[data-sprite-card="${manifest}"]`)];
+	input?.addEventListener('input', (event) => {
+		const query = event.target.value.trim().toLowerCase();
+		for (const card of cards) card.hidden = query !== '' && !card.dataset.search.includes(query);
+	});
+
+	// Click-to-cycle easter eggs: each click advances to the next state and
+	// latches on the last one.
+	const clickables = document.querySelectorAll(
+		`[data-sprite-gallery="${manifest}"] [data-click-positions]`,
+	);
+	for (const el of clickables) {
+		const positions = el.dataset.clickPositions.split(';');
+		const advance = () => {
+			const next = Math.min(Number(el.dataset.clickIndex) + 1, positions.length - 1);
+			el.dataset.clickIndex = String(next);
+			el.style.backgroundPosition = positions[next];
+		};
+		el.addEventListener('click', advance);
+		el.addEventListener('keydown', (event) => {
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault();
+				advance();
+			}
+		});
+	}
+</script>
+
+<style>
+	.gallery-toolbar {
+		align-items: center;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		margin: 1.5rem 0 1rem;
+	}
+	.gallery-toolbar label {
+		font-weight: 600;
+	}
+	.gallery-toolbar input {
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.35rem;
+		font: inherit;
+		min-width: min(20rem, 100%);
+		padding: 0.45rem 0.65rem;
+	}
+	.gallery-toolbar span {
+		color: var(--sl-color-gray-3);
+		font-size: 0.9rem;
+	}
+	.sprite-gallery {
+		display: grid;
+		gap: 0.8rem;
+		grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+	}
+	.sprite-card {
+		align-items: center;
+		background: var(--sl-color-gray-6);
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.45rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		min-height: 9rem;
+		padding: 0.75rem 0.45rem;
+		text-align: center;
+	}
+	.sprite-card[hidden] {
+		display: none;
+	}
+	.sprite-frame-slot {
+		align-items: center;
+		display: flex;
+		justify-content: center;
+	}
+	.sprite-stage {
+		position: relative;
+		margin: auto;
+	}
+	.sprite-layer {
+		position: absolute;
+		inset: 0;
+		background-repeat: no-repeat;
+		image-rendering: pixelated;
+	}
+	/* Hover swaps the icon outright (one image, repositioned), rather than
+	   crossfading a second image on top of it. */
+	.sprite-card:hover .sprite-layer-swap,
+	.sprite-card:focus-within .sprite-layer-swap {
+		background-position: var(--hover-pos) !important;
+	}
+	.sprite-layer-click {
+		cursor: pointer;
+	}
+	.sprite-layer-click:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+	.sprite-card strong {
+		font-size: 0.78rem;
+		line-height: 1.15;
+		max-width: 100%;
+		overflow-wrap: anywhere;
+	}
+	.sprite-card small {
+		color: var(--sl-color-gray-3);
+		font-size: 0.7rem;
+	}
+	.activated-hint {
+		color: var(--sl-color-accent-high, var(--sl-color-gray-2));
+		font-style: italic;
+	}
+</style>

@@ -1,0 +1,28 @@
+---
+title: <%= it.displayName %> Data Formats
+template: splash
+hero:
+  tagline: <%= it.description %>
+  actions:
+    - text: Enter the documentation
+      link: /<%= it.game %>/
+      icon: right-arrow
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+The documentation site for the <%= it.displayName %> reverse-engineering project.
+
+<CardGrid>
+	<Card title="Read the formats" icon="document">
+		Understand the file inventory, graphics formats, and data layout.
+		[Open the guide](/<%= it.game %>/)
+	</Card>
+	<Card title="See the extracted game" icon="image">
+		Browse individual sprites, screens, and other extracted assets once a
+		gallery page has been added — see the project README.
+	</Card>
+</CardGrid>
+
+The exhaustive source notes remain in `docs/<%= it.game %>/`; this site presents a
+more approachable version of that research.

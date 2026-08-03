@@ -1,0 +1,12 @@
+---
+title: <%= it.displayName %>
+---
+
+Welcome to the <%= it.displayName %> documentation.
+
+<%= it.description %>
+
+This page is the "Home" entry in `_sidebar.json` — replace this content with
+a real overview of the project once you have one. See
+[Getting Started](/<%= it.game %>/getting-started/) for how the site is wired
+up, and the project README for how to add more curated pages.

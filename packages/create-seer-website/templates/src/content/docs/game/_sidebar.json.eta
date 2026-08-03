@@ -1,0 +1,9 @@
+[
+	{
+		"label": "<%= it.displayName %>",
+		"items": [
+			{ "label": "Home", "slug": "<%= it.game %>" },
+			{ "label": "Getting Started", "slug": "<%= it.game %>/getting-started" }
+		]
+	}
+]

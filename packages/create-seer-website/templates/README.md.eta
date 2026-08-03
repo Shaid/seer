@@ -1,0 +1,103 @@
+# <%= it.displayName %> — Data Formats Site
+
+An Astro + [Starlight](https://starlight.astro.build) docs site for the
+<%= it.displayName %> reverse-engineering project. It presents curated,
+human-readable pages alongside searchable galleries of the game's extracted
+sprite/icon atlases, self-contained enough to deploy on its own (see
+`.github/workflows/deploy.yml`).
+
+## Getting started
+
+```bash
+npm install
+npm run dev
+```
+
+`npm run dev`/`npm run build`/`npm run start` all run `node scripts/build.mjs`
+first, which does two things (see the comment at the top of that file):
+
+1. copies `<repo-root>/public/assets/<%= it.game %>` into this site's own
+   `public/assets/<%= it.game %>`;
+2. regenerates `generated/sidebar.mjs` from
+   `src/content/docs/<%= it.game %>/_sidebar.json`.
+
+## The asset-copy-and-fallback convention
+
+`scripts/build.mjs` prefers the repo's live `public/assets/<%= it.game %>`
+(the output of the extraction pipeline) when it exists, and falls back to
+whatever is already committed under this site's own `public/assets/<%= it.game %>`
+when it doesn't. **Commit the site's copy of `public/assets/<%= it.game %>`
+even though the raw extraction output usually isn't committed at the repo
+root** — CI checks out this repo alone, never the original copyrighted game
+files, so it has no way to regenerate the assets from scratch. Committing the
+site's mirror is what lets CI build and deploy without ever touching the
+original data.
+
+When the repo's extracted assets change, re-run `npm run dev` or
+`npm run build` here to refresh the mirror, then commit whatever changed
+under `public/assets/<%= it.game %>`.
+
+## Adding a new curated page
+
+1. Add a `.md` or `.mdx` file under `src/content/docs/<%= it.game %>/`.
+2. Add a matching sidebar entry to
+   `src/content/docs/<%= it.game %>/_sidebar.json` — either a top-level
+   `{ "label", "slug" }` entry, or nested inside a group's `"items"` array.
+   Slugs are content file paths under `src/content/docs/` (the game's home
+   page slug is `<%= it.game %>`, not `<%= it.game %>/index`).
+3. Re-run the dev server or build — the sidebar is regenerated from that
+   manifest on every run, never hand-edit `generated/sidebar.mjs`.
+
+## `SpriteGallery`
+
+`src/components/SpriteGallery.astro` renders a searchable grid from a
+packed-frames sprite atlas — the same `{ frames: [{ name, x, y, w, h }],
+width, height }` shape used by the offline asset viewer
+(`create-seer-viewer`). Given `manifest="items"` and `assetPath="<%= it.game %>/amiga"`,
+it reads `public/assets/<%= it.game %>/amiga/sprites/items.json` and `.png`.
+
+```mdx
+import SpriteGallery from '../../../components/SpriteGallery.astro';
+
+<SpriteGallery
+  manifest="items"
+  assetPath="<%= it.game %>/amiga"
+  label="item"
+  hoverPairs={{ item010: 'item011' }}
+  clickChains={{ item020: ['item020', 'item021', 'item022'] }}
+  labels={new Map([['item010', { visible: 'Fire Wand', hover: 'Fire Wand (lit)' }]])}
+/>
+```
+
+- `hoverPairs` — frame name → frame name. Cards for the first frame swap to
+  the second on hover (e.g. a dim/activated icon pair). Omit entirely if the
+  manifest has none.
+- `clickChains` — frame name → ordered list of frame names. The card starts
+  on the first frame and advances one step per click (mouse or
+  Enter/Space), latching on the last frame. Omit for no click behavior.
+- `labels` — a `Map<frameName, { visible, hover? }>` built by the *calling
+  page*, however it wants (a static object, a JSON file it reads itself,
+  whatever the game's name data actually looks like). The component has no
+  built-in knowledge of any name-lookup file format — it only ever calls
+  `labels.get(frame.name)` and falls back to the raw frame name.
+
+## Pointing the favicon at a real sprite
+
+`scripts/build.mjs` calls `scripts/generate_favicon.mjs <atlasDir> <manifest>
+<frameName> <output>` to extract one sprite frame as `public/favicon.png`.
+Until you configure it, the build skips this step and uses the placeholder
+`public/favicon.png` shipped by this scaffold. To point it at a real sprite:
+
+1. Open `scripts/build.mjs` and set `FAVICON_FRAME` to the frame's `name`
+   (e.g. `"item042"`), and `FAVICON_ATLAS_DIR`/`FAVICON_MANIFEST` to the
+   sprite sheet it lives in (e.g. `"amiga/sprites"` and `"items.json"`).
+2. Re-run `npm run build` — it regenerates `public/favicon.png` from that
+   frame and updates `astro.config.mjs`'s `favicon` reference automatically
+   (it always points at `/favicon.png`).
+
+## Deploying
+
+`.github/workflows/deploy.yml` builds and deploys this site with
+[withastro/action](https://github.com/withastro/action) whenever `main` is
+pushed. It's already wired to this site's directory — no changes needed
+beyond enabling GitHub Pages for the repo.
