@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+.astro/
 
 # Generated/test PNG files in public root
 public/*.png
@@ -16,6 +17,15 @@ output/
 public/extracted/
 public/assets/
 data/extracted/
+
+# www's synced doc pages (regenerated from root docs/ and packages/*/README.md
+# by www/scripts/sync-docs.mjs, run automatically before dev/build/preview --
+# never hand-edit these directly, and never commit them: a committed copy
+# would immediately go stale the same way the old hand-copied ones did)
+www/src/content/docs/start-here/
+www/src/content/docs/packages/
+www/src/content/docs/guides/
+www/src/content/docs/roadmap/
 
 # IDE
 .vscode/
