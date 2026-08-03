@@ -2,6 +2,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 export default defineConfig({
+  site: 'https://seer.shaid.net',
   integrations: [
     starlight({
       title: 'Seer',
@@ -11,7 +12,7 @@ export default defineConfig({
         {
           icon: 'github',
           label: 'GitHub',
-          href: 'https://github.com/anomalyco/seer',
+          href: 'https://github.com/Shaid/seer',
         },
       ],
       // 'Start Here', 'Packages', 'Guides' and 'Roadmap' are populated by
