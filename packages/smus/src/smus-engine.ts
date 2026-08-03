@@ -344,8 +344,8 @@ export class SmusEngine {
     this.master = masterVolume;
     this.bpm = Math.max(score.tempo / 128.0, 1.0);
     this.beatSamples = (60.0 / this.bpm) * sampleRate;
-    this.tracks = score.tracks.map(() => ({
-      events: [],
+    this.tracks = score.tracks.map((t) => ({
+      events: t,
       index: 0,
       wait: 0,
       instrumentReg: 0,
@@ -355,10 +355,7 @@ export class SmusEngine {
     }));
     this.voices = [this._makeVoice(0), this._makeVoice(1), this._makeVoice(2), this._makeVoice(3)];
     this.scoreVolume = score.volume / 127.0;
-    for (let i = 0; i < Math.min(4, score.tracks.length); i++) {
-      this.tracks[i].events = score.tracks[i];
-      this._primeTrack(this.tracks[i]);
-    }
+    for (const tr of this.tracks) this._primeTrack(tr);
   }
 
   private _makeVoice(channel: number): VoiceState {
@@ -749,9 +746,10 @@ export class SmusEngine {
         }
         const i0 = Math.floor(idx);
         const frac = idx - i0;
-        const i1 = i0 + 1;
+        let i1 = i0 + 1;
 
         if (p >= le) {
+          if (i1 >= le) i1 = ls;
           const c0 = Math.min(Math.max(i0, ls), le - 1);
           const c1 = Math.min(i1, le - 1);
           out[i] =
@@ -835,7 +833,7 @@ export class SmusEngine {
   }
 
   get finished(): boolean {
-    const tracksDone = this.tracks.every((t) => t.done);
+    const tracksDone = this.tracks.every((t) => t.done || t.index >= t.events.length);
     const voicesIdle = this.voices.every((v) => !v.active);
     return tracksDone && voicesIdle;
   }
@@ -899,7 +897,11 @@ export function instrumentFromSynth(instr: InstrEmbedded, name: string): Instrum
 
   const modTableArr = new Float32Array(256);
   for (let i = 0; i < 256; i++) {
-    const v = i < 128 ? sd.shapingCurve[i] : sd.transferTable[i - 128];
+    // sd.shapingCurve is already a signed Int8Array (values -128..127); reading
+    // it back as a raw unsigned byte via `& 0xff` before re-applying the
+    // unsigned->signed transform avoids double-converting already-signed
+    // values (which corrupted the LFO modulation table for negative bytes).
+    const v = i < 128 ? sd.shapingCurve[i] & 0xff : sd.transferTable[i - 128];
     modTableArr[i] = (v & 0x80 ? v - 256 : v) / 128.0;
   }
 
@@ -981,7 +983,9 @@ export function instrumentFromSampled(instr: InstrExternal, ss: SsFile, name: st
   }
 
   const ep = instr.externalParams;
-  const effectiveVolume = ep.volume !== 0 ? ep.volume : ss.volume;
+  // The .instr's own volume override is authoritative — the driver never
+  // falls back to the .ss file's embedded volume field at playback time.
+  const effectiveVolume = Math.max(ep.volume, 1);
   const volume = effectiveVolume / 255.0;
   const sustain = ep.envelopeLevels[2] ? ep.envelopeLevels[2] / 255.0 : 0.0;
 
@@ -1041,7 +1045,7 @@ export function instrumentFrom8svx(instr: Instr8SVX, name: string): Instrument {
     loopStart: instr.oneShotHiSamples,
     loopEnd: instr.oneShotHiSamples + instr.repeatHiSamples,
     baseMidi: 60,
-    baseRate: instr.samplesPerSec,
+    baseRate: instr.samplesPerSec || 8363,
     volume: 1.0,
     filterBanks: null,
     modTable: null,

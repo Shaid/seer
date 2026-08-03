@@ -385,7 +385,11 @@ function parseEmbedded(data: Uint8Array): InstrEmbedded {
 }
 
 function parse8svx(data: Uint8Array): Instr8SVX {
-  const form = parseIff(data.buffer as ArrayBuffer);
+  // Slice to a tight buffer starting at byte 0 — `data` may be a view over a
+  // larger backing buffer (e.g. a pooled Node Buffer), and parseIff/BinaryReader
+  // read from the start of the ArrayBuffer they're given, ignoring byteOffset.
+  const buf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+  const form = parseIff(buf);
   if (!form || form.type !== '8SVX') {
     throw new Error('Expected IFF FORM 8SVX');
   }

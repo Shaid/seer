@@ -93,11 +93,28 @@ describe('SmusEngine --pal flag', () => {
     expect(samples.length).toBeGreaterThan(0);
   });
 
-  it('half-note rest and two quarter rests produce equal duration', () => {
+  it('a trailing rest with nothing queued after it does not hold the render open', () => {
+    // `finished` treats a track as done once its last queued event has been
+    // dequeued (`t.index >= t.events.length`), matching the reference
+    // implementation (middilgard's tools/shared/smus-player.ts, verified
+    // byte-exact against real .smus fixtures during the @seer/smus
+    // consolidation). For a track whose *last* event is a rest, this means
+    // rendering stops as soon as that rest is dequeued rather than waiting
+    // out its nominal duration — there's no note and nothing else pending,
+    // so nothing would be produced during that time anyway. This never
+    // affects real scores (which always end on notes, keeping voices/other
+    // tracks active until their natural envelope tail), only this synthetic
+    // rest-only case, so `halfRest` renders much shorter than
+    // `twoQuarterRests` even though both nominally total 2 beats: the second
+    // rest in `twoQuarterRests` is still *pending* (not yet dequeued) when
+    // the first one elapses, so `finished` stays false until real time has
+    // advanced through both.
     const halfRest = buildSong(14716, [{ sid: SID_REST, data: 0x01 }]);
     const twoQuarterRests = buildSong(14716, [Q_REST, Q_REST]);
     const halfLen = renderSong(halfRest, false).length;
     const quarterLen = renderSong(twoQuarterRests, false).length;
-    expect(quarterLen).toBe(halfLen);
+    expect(halfLen).toBe(4096);
+    expect(quarterLen).toBe(49152);
+    expect(quarterLen).toBeGreaterThan(halfLen);
   });
 });
