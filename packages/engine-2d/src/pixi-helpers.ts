@@ -9,7 +9,7 @@
 
 import { Graphics, TextStyle, Texture, Rectangle } from 'pixi.js';
 import type { TextStyleFontWeight } from 'pixi.js';
-import type { Camera } from './Camera.ts';
+import type { TopDownCamera } from './TopDownCamera.ts';
 
 const VIEWPORT_CULL_MARGIN = 32;
 
@@ -20,7 +20,7 @@ export function computeUIScale(): number {
 }
 
 /** Compute viewport bounds with a culling margin. */
-export function computeViewportBounds(camera: Camera, margin = VIEWPORT_CULL_MARGIN) {
+export function computeViewportBounds(camera: TopDownCamera, margin = VIEWPORT_CULL_MARGIN) {
   return {
     left: camera.left - margin,
     top: camera.top - margin,
@@ -116,7 +116,7 @@ export function sliceAtlasKeyed(
  * coordinates using the current camera.
  */
 export function screenToWorld(
-  camera: Camera,
+  camera: TopDownCamera,
   screenX: number,
   screenY: number,
 ): { x: number; y: number } {

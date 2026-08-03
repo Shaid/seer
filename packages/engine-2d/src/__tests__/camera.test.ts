@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Camera } from '../Camera.ts';
+import { TopDownCamera } from '../TopDownCamera.ts';
 import { DisplayMode } from '../DisplayMode.ts';
 
 const WORLD_W = 4352;
@@ -8,10 +8,17 @@ const VIEW_W = 1200;
 const VIEW_H = 800;
 
 function makeCamera(displayMode?: DisplayMode) {
-  return new Camera(WORLD_W, WORLD_H, VIEW_W, VIEW_H, displayMode ?? new DisplayMode());
+  return new TopDownCamera(WORLD_W, WORLD_H, VIEW_W, VIEW_H, displayMode ?? new DisplayMode());
 }
 
-describe('Camera', () => {
+describe('TopDownCamera', () => {
+  describe('kind', () => {
+    it("is 'top-down'", () => {
+      const cam = makeCamera();
+      expect(cam.kind).toBe('top-down');
+    });
+  });
+
   describe('constructor / initial state', () => {
     it('starts at (0, 0) with zoom 1', () => {
       const cam = makeCamera();
@@ -109,7 +116,7 @@ describe('Camera', () => {
     it('clamps to minZoom and does not shift position at the visual limit', () => {
       // Work around the effective minimum so we can test the full range.
       // Set a large world so minZoomToFill is below config.minZoom.
-      const bigCam = new Camera(99999, 99999, VIEW_W, VIEW_H, new DisplayMode());
+      const bigCam = new TopDownCamera(99999, 99999, VIEW_W, VIEW_H, new DisplayMode());
       bigCam.moveTo(50000, 50000);
       // Zoom out as far as possible
       bigCam.setZoom(0.25);
@@ -221,6 +228,63 @@ describe('Camera', () => {
       cam.moveTo(VIEW_W / 2, VIEW_H / 2);
       expect(cam.left).toBeCloseTo(0);
       expect(cam.top).toBeCloseTo(0);
+    });
+  });
+
+  describe('clampToWorld: false', () => {
+    function makeUnclampedCamera() {
+      return new TopDownCamera(WORLD_W, WORLD_H, VIEW_W, VIEW_H, new DisplayMode(), {
+        clampToWorld: false,
+      });
+    }
+
+    it('defaults to clampToWorld: true when the options object is omitted', () => {
+      const cam = makeCamera();
+      cam.moveTo(-1000, -1000);
+      expect(cam.x).toBeGreaterThanOrEqual(0);
+      expect(cam.y).toBeGreaterThanOrEqual(0);
+    });
+
+    it('allows moveTo to place the camera center outside world bounds', () => {
+      const cam = makeUnclampedCamera();
+      cam.moveTo(-1000, -1000);
+      expect(cam.x).toBe(-1000);
+      expect(cam.y).toBe(-1000);
+
+      cam.moveTo(WORLD_W + 5000, WORLD_H + 5000);
+      expect(cam.x).toBe(WORLD_W + 5000);
+      expect(cam.y).toBe(WORLD_H + 5000);
+    });
+
+    it('allows pan to move the camera past what would otherwise be clamped', () => {
+      const cam = makeUnclampedCamera();
+      cam.pan(-99999, -99999);
+      expect(cam.x).toBeLessThan(0);
+      expect(cam.y).toBeLessThan(0);
+    });
+
+    it('does not enforce the viewport-fill minimum zoom', () => {
+      // With clampToWorld: true, effectiveMin = max(0.25, 1200/4352, 800/3328) ~= 0.276,
+      // so zooming out is stopped there. With clampToWorld: false it should
+      // reach display-mode's own config.minZoom (0.25) instead.
+      const cam = makeUnclampedCamera();
+      cam.setZoom(0.25);
+      expect(cam.zoom).toBe(0.25);
+    });
+
+    it('zoomAt can zoom out past the viewport-fill minimum without being clamped back', () => {
+      const cam = makeUnclampedCamera();
+      cam.moveTo(2000, 1500);
+      let lastZoom = cam.zoom;
+      for (let i = 0; i < 10; i++) {
+        cam.zoomAt(-0.15, VIEW_W / 2, VIEW_H / 2);
+        if (cam.zoom === lastZoom) break;
+        lastZoom = cam.zoom;
+      }
+      // Reaches display mode's own minZoom (0.25), well below the
+      // viewport-fill effective minimum (~0.276) that clampToWorld: true
+      // would have enforced.
+      expect(cam.zoom).toBeCloseTo(0.25, 2);
     });
   });
 });

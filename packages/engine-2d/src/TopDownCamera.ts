@@ -1,7 +1,11 @@
 /**
- * Camera — Viewport management with pan, zoom, and bounds clamping.
+ * TopDownCamera — Viewport management with pan, zoom, and bounds clamping.
+ *
+ * Formerly named `Camera`; `@seer/engine-2d`'s index still exports `Camera`
+ * as a backward-compatible alias for this class (see `index.ts`).
  */
 
+import type { BaseCamera } from './BaseCamera.ts';
 import type { DisplayMode } from './DisplayMode.ts';
 
 export interface CameraState {
@@ -13,7 +17,20 @@ export interface CameraState {
   zoom: number;
 }
 
-export class Camera {
+export interface TopDownCameraOptions {
+  /**
+   * When true (default), the camera enforces a minimum zoom so the world
+   * always fills the viewport, and clamps x/y so the visible area never
+   * shows area outside the world bounds. Set to false to let the camera
+   * move/zoom freely (e.g. for a camera whose "world" isn't a fixed-size
+   * map to fully cover).
+   */
+  clampToWorld?: boolean;
+}
+
+export class TopDownCamera implements BaseCamera {
+  readonly kind: string = 'top-down';
+
   private _x = 0;
   private _y = 0;
   private _zoom = 1;
@@ -28,6 +45,7 @@ export class Camera {
   private _viewHeight: number;
 
   private _displayMode: DisplayMode;
+  private _clampToWorld: boolean;
 
   constructor(
     worldWidth: number,
@@ -35,12 +53,14 @@ export class Camera {
     viewWidth: number,
     viewHeight: number,
     displayMode: DisplayMode,
+    options: TopDownCameraOptions = {},
   ) {
     this._worldWidth = worldWidth;
     this._worldHeight = worldHeight;
     this._viewWidth = viewWidth;
     this._viewHeight = viewHeight;
     this._displayMode = displayMode;
+    this._clampToWorld = options.clampToWorld ?? true;
   }
 
   get x(): number {
@@ -125,18 +145,20 @@ export class Camera {
     // Apply display mode constraints
     newZoom = Math.max(config.minZoom, Math.min(config.maxZoom, newZoom));
 
-    // Compute the effective minimum zoom that _clamp() will enforce
-    // (viewport-fill minimum, which may exceed config.minZoom). If we're
-    // already at or below it, clamp newZoom to it so the equality check
-    // below catches the no-change case and the cursor-anchored math
-    // doesn't shift position at the visual zoom-out limit.
-    const effectiveMin = Math.max(
-      config.minZoom,
-      this._viewWidth / this._worldWidth,
-      this._viewHeight / this._worldHeight,
-    );
-    if (delta < 0 && newZoom < effectiveMin) {
-      newZoom = effectiveMin;
+    if (this._clampToWorld) {
+      // Compute the effective minimum zoom that _clamp() will enforce
+      // (viewport-fill minimum, which may exceed config.minZoom). If we're
+      // already at or below it, clamp newZoom to it so the equality check
+      // below catches the no-change case and the cursor-anchored math
+      // doesn't shift position at the visual zoom-out limit.
+      const effectiveMin = Math.max(
+        config.minZoom,
+        this._viewWidth / this._worldWidth,
+        this._viewHeight / this._worldHeight,
+      );
+      if (delta < 0 && newZoom < effectiveMin) {
+        newZoom = effectiveMin;
+      }
     }
 
     if (newZoom === oldZoom) return;
@@ -171,6 +193,8 @@ export class Camera {
   }
 
   private _clamp() {
+    if (!this._clampToWorld) return;
+
     // Enforce minimum zoom so the world always fills the viewport
     const minZoomX = this._viewWidth / this._worldWidth;
     const minZoomY = this._viewHeight / this._worldHeight;

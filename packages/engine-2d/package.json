@@ -7,7 +7,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./pixi-helpers": "./src/pixi-helpers.ts"
+    "./pixi-helpers": "./src/pixi-helpers.ts",
+    "./input": "./src/input.ts"
   },
   "scripts": {
     "test": "vitest run",

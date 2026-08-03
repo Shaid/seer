@@ -1,5 +1,5 @@
 /**
- * Game — top-level orchestrator wiring Camera, InputManager, and a
+ * Game — top-level orchestrator wiring a camera, InputManager, and a
  * PixiJS Application together.
  *
  * This is intentionally minimal and renders nothing beyond a placeholder —
@@ -15,32 +15,69 @@
  */
 
 import { Application, type Container } from 'pixi.js';
-import { Camera } from './Camera.ts';
+import type { BaseCamera } from './BaseCamera.ts';
 import { DisplayMode } from './DisplayMode.ts';
 import { InputManager } from './InputManager.ts';
+import { TopDownCamera } from './TopDownCamera.ts';
 
-export interface GameOptions {
+export interface GameOptions<TCamera extends BaseCamera = TopDownCamera> {
   /** DOM element to mount the PixiJS canvas into. */
   container: HTMLElement;
   /** World size in pixels — replace with your actual content dimensions. */
   worldWidth: number;
   worldHeight: number;
+  /**
+   * Camera to use, or a factory to build one from the initial viewport size
+   * and display mode. Omit to get a `TopDownCamera` sized from
+   * `worldWidth`/`worldHeight` (the default today).
+   */
+  camera?: TCamera | ((viewWidth: number, viewHeight: number, displayMode: DisplayMode) => TCamera);
   /** Called once after PixiJS is initialised and camera/input are wired. */
-  onInit?: (game: Game) => void | Promise<void>;
-  /** Called every frame after input is polled. */
-  onUpdate?: (game: Game) => void;
+  onInit?: (game: Game<TCamera>) => void | Promise<void>;
+  /** Called every frame after input is polled, with the elapsed time in milliseconds. */
+  onUpdate?: (game: Game<TCamera>, dtMs: number) => void;
 }
 
-export class Game {
+/**
+ * Resolve the camera to use for a `Game`, given its options and the initial
+ * viewport size/display mode. Exported standalone (pure, no PixiJS/DOM
+ * dependency) so the camera-selection logic is unit-testable without
+ * spinning up a real `Application`.
+ */
+export function resolveCamera<TCamera extends BaseCamera>(
+  options: Pick<GameOptions<TCamera>, 'camera' | 'worldWidth' | 'worldHeight'>,
+  viewWidth: number,
+  viewHeight: number,
+  displayMode: DisplayMode,
+): TCamera {
+  const { camera } = options;
+  if (typeof camera === 'function') {
+    return camera(viewWidth, viewHeight, displayMode);
+  }
+  if (camera) {
+    return camera;
+  }
+  // Default: a TopDownCamera sized from worldWidth/worldHeight, matching
+  // today's behavior for consumers that don't pass a `camera` option.
+  return new TopDownCamera(
+    options.worldWidth,
+    options.worldHeight,
+    viewWidth,
+    viewHeight,
+    displayMode,
+  ) as unknown as TCamera;
+}
+
+export class Game<TCamera extends BaseCamera = TopDownCamera> {
   private app: Application;
-  readonly camera!: Camera;
+  readonly camera!: TCamera;
   readonly input!: InputManager;
   /** The root PixiJS stage — add your sprite layers/tilemaps here. */
   readonly stage!: Container;
   private displayMode = new DisplayMode();
-  private options: GameOptions;
+  private options: GameOptions<TCamera>;
 
-  constructor(options: GameOptions) {
+  constructor(options: GameOptions<TCamera>) {
     this.options = options;
     this.app = new Application();
   }
@@ -55,9 +92,8 @@ export class Game {
 
     (this as { stage: Container }).stage = this.app.stage;
 
-    (this as { camera: Camera }).camera = new Camera(
-      this.options.worldWidth,
-      this.options.worldHeight,
+    (this as { camera: TCamera }).camera = resolveCamera(
+      this.options,
       this.app.screen.width,
       this.app.screen.height,
       this.displayMode,
@@ -65,21 +101,26 @@ export class Game {
 
     (this as { input: InputManager }).input = new InputManager(
       this.app.canvas,
-      this.camera,
+      // InputManager is TopDownCamera-specific (WASD pan, wheel zoom,
+      // drag-to-pan). A future non-affine camera (e.g. a first-person grid
+      // pose) will need its own input wiring — deferred to that work; for
+      // every camera Game constructs today (TopDownCamera/SideViewCamera or
+      // a factory returning one), this cast is accurate at runtime.
+      this.camera as unknown as TopDownCamera,
     );
 
     window.addEventListener('resize', () => {
       this.camera.setViewSize(this.app.screen.width, this.app.screen.height);
     });
 
-    this.app.ticker.add(() => this.update());
+    this.app.ticker.add((ticker) => this.update(ticker.deltaMS));
 
     if (this.options.onInit) await this.options.onInit(this);
   }
 
-  private update(): void {
+  private update(dtMs: number): void {
     this.input.update();
-    this.options.onUpdate?.(this);
+    this.options.onUpdate?.(this, dtMs);
   }
 
   destroy(): void {
@@ -92,7 +133,7 @@ export class Game {
 // Factory alternative — composition over inheritance
 // ---------------------------------------------------------------------------
 
-export type CreateGameOptions = GameOptions;
+export type CreateGameOptions<TCamera extends BaseCamera = TopDownCamera> = GameOptions<TCamera>;
 
 /**
  * Create and initialise a Game via callbacks, rather than subclassing.
@@ -107,14 +148,16 @@ export type CreateGameOptions = GameOptions;
  *     const tilemap = new Container();
  *     g.stage.addChild(tilemap);
  *   },
- *   onUpdate: (g) => {
- *     g.camera.follow(player.x, player.y);
+ *   onUpdate: (g, dtMs) => {
+ *     g.camera.moveTo(player.x, player.y);
  *   },
  * });
  * ```
  */
-export async function createGame(options: CreateGameOptions): Promise<Game> {
-  const game = new Game(options);
+export async function createGame<TCamera extends BaseCamera = TopDownCamera>(
+  options: CreateGameOptions<TCamera>,
+): Promise<Game<TCamera>> {
+  const game = new Game<TCamera>(options);
   await game.init();
   return game;
 }

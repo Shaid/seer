@@ -2,7 +2,7 @@
  * InputManager — Unified mouse + keyboard input handling.
  */
 
-import type { Camera } from './Camera.ts';
+import type { TopDownCamera } from './TopDownCamera.ts';
 import { screenToWorld } from './pixi-helpers.ts';
 
 export interface InputConfig {
@@ -26,7 +26,7 @@ const DEFAULT_CONFIG: InputConfig = {
 export type ClickHandler = (worldX: number, worldY: number, button: number) => void;
 
 export class InputManager {
-  private _camera: Camera;
+  private _camera: TopDownCamera;
   private _config: InputConfig;
   private _canvas: HTMLCanvasElement;
 
@@ -50,7 +50,7 @@ export class InputManager {
   private _boundMouseUp: (e: MouseEvent) => void;
   private _boundContextMenu: (e: Event) => void;
 
-  constructor(canvas: HTMLCanvasElement, camera: Camera, config: Partial<InputConfig> = {}) {
+  constructor(canvas: HTMLCanvasElement, camera: TopDownCamera, config: Partial<InputConfig> = {}) {
     this._canvas = canvas;
     this._camera = camera;
     this._config = { ...DEFAULT_CONFIG, ...config };
