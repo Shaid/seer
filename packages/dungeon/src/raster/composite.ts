@@ -33,23 +33,27 @@
  */
 import type { PieceBank } from './PieceBank.ts';
 import type { IndexedSurface } from './IndexedSurface.ts';
-import type { Slot, SlotTableFile } from '../schema/slots.ts';
+import type { PieceDraw, Slot, SlotTableFile } from '../schema/slots.ts';
+import type { DrawItem } from '../view/DrawItem.ts';
 
 /** Named piece banks a `SlotTableFile`'s draws reference by `PieceDraw.bank`. */
 export type PieceBankLookup = Record<string, PieceBank>;
 
+/** Draw one `PieceDraw` (or `DrawItem`, which carries the same fields). */
+function drawPieceDraw(surface: IndexedSurface, banks: PieceBankLookup, draw: PieceDraw, context: string): void {
+  const bank = banks[draw.bank];
+  if (!bank) throw new Error(`${context} references unknown bank "${draw.bank}"`);
+  const rect = bank.frame(draw.frame);
+  const sx = draw.srcX ?? rect.x;
+  const sy = draw.srcY ?? rect.y;
+  const sw = draw.srcW ?? rect.w;
+  const sh = draw.srcH ?? rect.h;
+  surface.blit(bank.source(), sx, sy, sw, sh, draw.destX, draw.destY, draw.mirrorX ?? false, draw.blend);
+}
+
 function drawSlot(surface: IndexedSurface, banks: PieceBankLookup, slot: Slot | null | undefined, context: string): void {
   if (!slot) return;
-  for (const draw of slot.draws) {
-    const bank = banks[draw.bank];
-    if (!bank) throw new Error(`compositeSlotTable: ${context} references unknown bank "${draw.bank}"`);
-    const rect = bank.frame(draw.frame);
-    const sx = draw.srcX ?? rect.x;
-    const sy = draw.srcY ?? rect.y;
-    const sw = draw.srcW ?? rect.w;
-    const sh = draw.srcH ?? rect.h;
-    surface.blit(bank.source(), sx, sy, sw, sh, draw.destX, draw.destY, draw.mirrorX ?? false, draw.blend);
-  }
+  for (const draw of slot.draws) drawPieceDraw(surface, banks, draw, `compositeSlotTable: ${context}`);
 }
 
 const SLOT_KEY_RE = /^(front|side):(?:-?\d+|[LR]):(\d+)$/;
@@ -91,4 +95,24 @@ export function compositeSlotTable(surface: IndexedSurface, banks: PieceBankLook
   });
 
   for (const { key } of parsed) drawSlot(surface, banks, table.slots[key], `slots.${key}`);
+}
+
+/**
+ * Composites `buildViewList`'s pose-specific output: draws `table.staticSlots`
+ * (ceiling, floor — unconditional, pose-independent) first, then every
+ * `DrawItem`, painter-sorted nearest-first/farthest-last (on top) with side
+ * walls before the front-wall row at equal depth — the identical rule
+ * `compositeSlotTable`'s own `'painter-back-to-front'` ordering uses, since
+ * a `DrawItem` already carries its own `depth`/`kind`.
+ */
+export function compositeDrawList(surface: IndexedSurface, banks: PieceBankLookup, table: SlotTableFile, items: DrawItem[]): void {
+  (table.staticSlots ?? []).forEach((slot, i) => drawSlot(surface, banks, slot, `staticSlots[${i}]`));
+
+  const sorted = [...items].sort((a, b) => {
+    if (a.depth !== b.depth) return a.depth - b.depth;
+    if (a.kind !== b.kind) return a.kind === 'side' ? -1 : 1;
+    return 0;
+  });
+
+  sorted.forEach((item, i) => drawPieceDraw(surface, banks, item, `compositeDrawList: items[${i}] (${item.kind}:${item.lateral}:${item.depth})`));
 }
