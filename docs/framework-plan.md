@@ -224,7 +224,7 @@ someone from accidentally importing `node:fs` into browser-bundled code. As
 real packages, this becomes structural instead of a code-review catch:
 
 - `@seer/pipeline` — Node-only, uses `fs`/`path`, never imported by browser code
-- `@seer/engine`, `@seer/core` — browser-safe, zero Node built-ins
+- `@seer/engine-2d`, `@seer/core` — browser-safe, zero Node built-ins
 - `package.json` `exports` conditions (and/or separate packages entirely) make
   cross-importing a module-resolution error rather than a silent mistake
 
@@ -233,7 +233,7 @@ monorepo) rather than a single flat `src/`/`tools/` split.
 
 ## 9. Peer dependencies instead of bundled dependencies
 
-PixiJS should become a `peerDependency` of `@seer/engine` rather than a
+PixiJS should become a `peerDependency` of `@seer/engine-2d` rather than a
 regular `dependency`. Consumers likely already pin their own PixiJS version;
 bundling a second copy risks duplicate/conflicting instances in their build.
 Similarly `pngjs` for `@seer/pipeline` if consumers already depend on it.
@@ -279,7 +279,7 @@ Resolved decisions section.
 
 4. **Generalize `AssetLoader` and `Game`** (§5, §6) — `createAssetLoader<T>()`
    lands in `@seer/pipeline`, `BaseGame` or `createGame()` lands in
-   `@seer/engine`. These are independent of each other and can be done in
+   `@seer/engine-2d`. These are independent of each other and can be done in
    parallel.
 
 5. **Data root parameterization** (§7) — small change to `resolveDataDir`
@@ -287,7 +287,7 @@ Resolved decisions section.
 
 6. **Peer dependencies + release process** (§9, §10) — once the public
    API surface of each package is stable enough to commit to, switch PixiJS
-   to a peer dep in `@seer/engine`, adopt conventional commits or
+   to a peer dep in `@seer/engine-2d`, adopt conventional commits or
    Changesets, and cut the first real release.
 
 7. **Build `create-seer`** — once the package API and config schema are
@@ -309,7 +309,7 @@ they need. Format-specific code (IFF parser, resource-fork decoder, SMUS
 interpreter) goes in its own optional package — not every target uses IFF,
 so it shouldn't be a mandatory dependency for everyone. Browser/Node
 separation also becomes structural: `@seer/pipeline` imports `node:fs`,
-`@seer/engine` never can, and that's enforced at install time rather than
+`@seer/engine-2d` never can, and that's enforced at install time rather than
 by convention.
 
 As-built package layout (updated post-implementation — see note below on the
@@ -318,7 +318,7 @@ one deliberate deviation from the originally suggested layout):
 | Package | Environment | Contains |
 |---|---|---|
 | `@seer/core` | browser-safe | `BinaryReader`, `binary.ts`, `loadAssets`/`createAssetLoader` |
-| `@seer/engine` | browser-safe | `Camera`, `InputManager`, `DisplayMode`, `Game`, `createGame`, `pixi-helpers.ts` (peer dep: PixiJS) |
+| `@seer/engine-2d` | browser-safe | `Camera`, `InputManager`, `DisplayMode`, `Game`, `createGame`, `pixi-helpers.ts` (peer dep: PixiJS) |
 | `@seer/pipeline` | Node-only | `PlatformConfig`, `GameConfig`, `defineGameConfig`, `flattenConfigs`, `resolveDataDir`, `runPipeline`, CLI binary (`seer extract`/`hex-dump`/`doctor`), hex-dump |
 | `@seer/iff` | Node-only | IFF-85 parser, resource-fork decoder (optional: install only if your target uses IFF containers) |
 | `@seer/smus` | Node-only | SMUS interpreter (optional: install only if your target uses SMUS audio) |
@@ -334,7 +334,7 @@ actually wiring it up and rebuilding: bundling `@seer/pipeline` into the
 browser build pulled in `pngjs` and forced Vite to externalize several
 Node built-ins. Moved to `@seer/core` instead, which is genuinely
 browser-safe and has zero dependencies. `pixi-helpers.ts` similarly ended
-up in `@seer/engine` rather than `@seer/core` as originally suggested,
+up in `@seer/engine-2d` rather than `@seer/core` as originally suggested,
 since it needs PixiJS types and `@seer/core` is meant to stay
 dependency-free — this one was caught before implementation, not after.
 
