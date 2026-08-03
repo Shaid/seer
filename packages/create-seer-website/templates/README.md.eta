@@ -53,15 +53,20 @@ under `public/assets/<%= it.game %>`.
 `src/components/SpriteGallery.astro` renders a searchable grid from a
 packed-frames sprite atlas — the same `{ frames: [{ name, x, y, w, h }],
 width, height }` shape used by the offline asset viewer
-(`create-seer-viewer`). Given `manifest="items"` and `assetPath="<%= it.game %>/amiga"`,
-it reads `public/assets/<%= it.game %>/amiga/sprites/items.json` and `.png`.
+(`create-seer-viewer`). Given `manifest="items"` and
+`assetPath="<%= it.game %>/amiga/sprites"`, it reads
+`public/assets/<%= it.game %>/amiga/sprites/items.json` and `.png` — `assetPath`
+is the *complete* directory containing them, so if your project doesn't keep
+atlases in their own `sprites/` subfolder, just omit that segment
+(`assetPath="<%= it.game %>/amiga"`). This component has no opinion on your
+project's own layout convention.
 
 ```mdx
 import SpriteGallery from '../../../components/SpriteGallery.astro';
 
 <SpriteGallery
   manifest="items"
-  assetPath="<%= it.game %>/amiga"
+  assetPath="<%= it.game %>/amiga/sprites"
   label="item"
   hoverPairs={{ item010: 'item011' }}
   clickChains={{ item020: ['item020', 'item021', 'item022'] }}

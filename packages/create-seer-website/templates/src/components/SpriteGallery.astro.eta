@@ -17,9 +17,14 @@ interface SpriteManifest {
 }
 
 interface Props {
-	/** Sprite-sheet manifest name (without extension), read from `<assetPath>/sprites/<manifest>.json`. */
+	/** Sprite-sheet manifest name (without extension), read from `<assetPath>/<manifest>.json`. */
 	manifest: string;
-	/** Asset directory under `public/assets/`, e.g. `"mygame/amiga"`. */
+	/**
+	 * Full directory under `public/assets/` containing the manifest and image,
+	 * e.g. `"mygame/amiga/sprites"` if your project keeps atlases in their own
+	 * `sprites/` subfolder, or just `"mygame/amiga"` if it doesn't — this
+	 * component has no opinion on your project's own layout convention.
+	 */
 	assetPath: string;
 	label?: string;
 	/**
@@ -48,9 +53,9 @@ const repoAssetRoot = resolve(process.cwd(), '..', 'public', 'assets', assetPath
 const assetRoot = existsSync(repoAssetRoot)
 	? repoAssetRoot
 	: resolve(process.cwd(), 'public', 'assets', assetPath);
-const manifestPath = resolve(assetRoot, 'sprites', `${manifest}.json`);
+const manifestPath = resolve(assetRoot, `${manifest}.json`);
 const spriteManifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as SpriteManifest;
-const imagePath = `/assets/${assetPath}/sprites/${manifest}.png`;
+const imagePath = `/assets/${assetPath}/${manifest}.png`;
 
 const hiddenFrameNames = new Set([
 	...Object.values(hoverPairs),
