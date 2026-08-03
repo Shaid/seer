@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { existsSync, readFileSync, rmSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { scaffold, type ScaffoldOptions } from '../scaffold.ts';
 
@@ -85,7 +85,27 @@ describe('scaffold', () => {
     expect(existsSync(resolve(dir, 'docs/boilerplate-guide.md'))).toBe(true);
     const readme = readFileSync(resolve(dir, 'README.md'), 'utf-8');
     expect(readme).toContain('docs/architecture-overview.md');
-    expect(readme).not.toContain('github.com/Shaid/seer');
+    // architecture-overview.md and boilerplate-guide.md are vendored into
+    // the scaffolded project and linked locally, not out to GitHub.
+    expect(readme).not.toContain('github.com/Shaid/seer/blob/main/docs/architecture-overview.md');
+    expect(readme).not.toContain('github.com/Shaid/seer/blob/main/docs/boilerplate-guide.md');
+    // docs/viewer.md is a deliberate exception: linked out to the framework
+    // repo rather than vendored a third time (see docs/common-tooling-candidates.md §15a).
+    expect(readme).toContain('github.com/Shaid/seer/blob/main/docs/viewer.md');
+  });
+
+  it('writes file: paths to seer packages in package.json', () => {
+    run('seer-paths');
+    const dir = resolve(TMP, 'seer-paths');
+    const pkg = JSON.parse(readFileSync(resolve(dir, 'package.json'), 'utf-8'));
+    for (const dep of ['@seer/core', '@seer/engine-2d', '@seer/pipeline']) {
+      const spec = pkg.dependencies[dep] as string;
+      expect(spec).toMatch(/^file:/);
+      const target = resolve(dir, spec.slice('file:'.length));
+      expect(existsSync(target)).toBe(true);
+      const targetPkg = JSON.parse(readFileSync(resolve(target, 'package.json'), 'utf-8'));
+      expect(targetPkg.name).toBe(dep);
+    }
   });
 
   it('renders templates with the context variables', () => {
@@ -93,7 +113,7 @@ describe('scaffold', () => {
     const pkg = readFileSync(resolve(TMP, 'template-vars/package.json'), 'utf-8');
     expect(pkg).toContain('"name": "demo"');
     const main = readFileSync(resolve(TMP, 'template-vars/src/main.ts'), 'utf-8');
-    expect(main).toContain("from '@seer/engine'");
+    expect(main).toContain("from '@seer/engine-2d'");
   });
 
   it('creates viewer files when viewer option is true', () => {

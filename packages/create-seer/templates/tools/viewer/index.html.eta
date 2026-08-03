@@ -11,8 +11,13 @@
     <div id="sidebar">
       <div id="sidebar-header">
         <h1><%= it.displayName %> — Asset Viewer</h1>
+        <div id="game-platform-select">
+          <select id="game-select"></select>
+          <select id="platform-select"></select>
+        </div>
         <input id="search" type="text" placeholder="Search assets…" />
       </div>
+      <div id="type-filters"></div>
       <div id="list-meta"></div>
       <div id="list"></div>
     </div>
@@ -38,13 +43,31 @@
             <option value="white">White</option>
           </select>
         </label>
+        <label id="shader-toggle-label" class="hidden">
+          <input id="shader-toggle" type="checkbox" />
+          Indexed shader view
+        </label>
       </div>
       <div id="canvas-wrap"></div>
       <div id="frame-strip" class="hidden">
+        <button id="play-toggle" type="button" title="Play/pause animation">▶</button>
         <input id="frame-slider" type="range" min="0" max="0" value="0" />
         <span id="frame-label">Sprite 0 / 0</span>
       </div>
       <div id="palette-bar" class="hidden"></div>
+      <div id="cycle-panel" class="hidden">
+        <span class="cycle-title">Color cycling:</span>
+        <label>Start <input id="cycle-start" type="number" min="0" value="0" /></label>
+        <label>End <input id="cycle-end" type="number" min="0" value="1" /></label>
+        <label>Speed <input id="cycle-speed" type="number" min="1" value="4" /></label>
+        <label>Direction
+          <select id="cycle-direction">
+            <option value="forward" selected>Forward</option>
+            <option value="reverse">Reverse</option>
+          </select>
+        </label>
+        <button id="cycle-toggle" type="button">▶ Animate</button>
+      </div>
     </div>
   </div>
   <script type="module" src="viewer.ts"></script>

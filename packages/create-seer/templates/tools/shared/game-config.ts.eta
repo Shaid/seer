@@ -4,6 +4,7 @@ import {
   resolveDataDir,
   findFileCI,
   resType,
+  writeJson,
   getGameConfig as _getGameConfig,
   getSupportedPlatforms as _getSupportedPlatforms,
   type GameConfig as BaseGameConfig,
@@ -23,6 +24,8 @@ export type { GameId, PlatformId };
 
 export interface PlatformConfig extends Omit<BasePlatformConfig, "platform"> {
   platform: PlatformId;
+  /** Human-readable platform label for UI selectors (e.g. "DOS VGA"). Falls back to the platform id when omitted. */
+  displayName?: string;
 }
 
 export interface GameConfig extends Omit<BaseGameConfig, "id" | "platforms"> {
@@ -52,4 +55,29 @@ export function getGameConfig(game: GameId, platform: PlatformId): PlatformConfi
 
 export function getSupportedPlatforms(game: GameId): PlatformId[] {
   return _getSupportedPlatforms(GAME_PLATFORMS, game) as PlatformId[];
+}
+
+/**
+ * Shape written to `public/assets/games.json` — the data-driven source for
+ * the asset viewer's game/platform selectors (see docs/viewer.md). Derived
+ * entirely from GAME_CONFIGS, so adding a game or platform here is all it
+ * takes for the viewer to pick it up; no viewer template changes needed.
+ */
+export interface GamesManifestEntry {
+  id: string;
+  displayName: string;
+  platforms: { id: string; displayName: string }[];
+}
+
+/** Write the games+platforms manifest the viewer's selectors fetch at startup. */
+export function writeGamesManifest(outFile: string): void {
+  const games: GamesManifestEntry[] = GAME_CONFIGS.map((g) => ({
+    id: g.id,
+    displayName: g.displayName,
+    platforms: g.platforms.map((p) => ({
+      id: p.platform,
+      displayName: p.displayName ?? p.platform,
+    })),
+  }));
+  writeJson(outFile, games);
 }

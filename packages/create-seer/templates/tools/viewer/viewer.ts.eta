@@ -1,34 +1,60 @@
-import { setHidden, type AtlasMeta, type PaletteData, type AtlasFrame } from './shared.ts';
+import {
+  setHidden,
+  type AtlasMeta,
+  type PaletteData,
+  type AtlasFrame,
+  type ManifestEntry,
+  type GamesManifestEntry,
+} from './shared.ts';
+import { cyclePalette } from '@seer/core';
 
-const ASSET_BASE = '/assets/<%= it.game %>/<%= it.platform %>';
-
-interface ManifestEntry {
-  name: string;
-  sprites: number;
-  hasPalette: boolean;
-  png: string;
-}
+// ── Game / platform selection ───────────────────────────────────────────
+// ASSET_BASE is data-driven: populated from /assets/games.json (written by
+// the build pipeline from tools/shared/game-config.ts's GAME_CONFIGS — see
+// docs/viewer.md). Defaults to the scaffolded game/platform below, which
+// also doubles as the fallback when games.json can't be loaded.
+let currentGame = '<%= it.game %>';
+let currentPlatform = '<%= it.platform %>';
+let ASSET_BASE = `/assets/${currentGame}/${currentPlatform}`;
+let games: GamesManifestEntry[] = [];
 
 const listEl = document.getElementById('list')!;
 const listMetaEl = document.getElementById('list-meta')!;
 const searchEl = document.getElementById('search') as HTMLInputElement;
+const gameSelectEl = document.getElementById('game-select') as HTMLSelectElement;
+const platformSelectEl = document.getElementById('platform-select') as HTMLSelectElement;
+const typeFiltersEl = document.getElementById('type-filters')!;
 const titleEl = document.getElementById('title')!;
 const metaEl = document.getElementById('meta')!;
 const frameInfoEl = document.getElementById('frame-info')!;
 const canvasWrap = document.getElementById('canvas-wrap')!;
 const zoomEl = document.getElementById('zoom') as HTMLSelectElement;
 const bgEl = document.getElementById('bg') as HTMLSelectElement;
+const shaderToggleLabel = document.getElementById('shader-toggle-label')!;
+const shaderToggleEl = document.getElementById('shader-toggle') as HTMLInputElement;
 const frameStrip = document.getElementById('frame-strip')!;
+const playToggleEl = document.getElementById('play-toggle') as HTMLButtonElement;
 const frameSlider = document.getElementById('frame-slider') as HTMLInputElement;
 const frameLabel = document.getElementById('frame-label')!;
 const paletteBar = document.getElementById('palette-bar')!;
+const cyclePanelEl = document.getElementById('cycle-panel')!;
+const cycleStartEl = document.getElementById('cycle-start') as HTMLInputElement;
+const cycleEndEl = document.getElementById('cycle-end') as HTMLInputElement;
+const cycleSpeedEl = document.getElementById('cycle-speed') as HTMLInputElement;
+const cycleDirectionEl = document.getElementById('cycle-direction') as HTMLSelectElement;
+const cycleToggleEl = document.getElementById('cycle-toggle') as HTMLButtonElement;
 
 let manifest: ManifestEntry[] = [];
 let selected: ManifestEntry | null = null;
 let currentAtlas: AtlasMeta | null = null;
 let currentPalette: PaletteData | null = null;
+/** Live, in-memory copy of currentPalette.colors — mutated by the palette editor and color-cycling, independent of the loaded .pal.json. */
+let workingPalette: { r: number; g: number; b: number }[] = [];
 let currentFrames: AtlasFrame[] = [];
 let currentFrame = 0;
+let currentTypeFilter: string | null = null;
+
+// ── Manifest / games.json loading ───────────────────────────────────────
 
 async function loadManifest(): Promise<ManifestEntry[]> {
   try {
@@ -48,9 +74,117 @@ async function loadJSON<T>(name: string): Promise<T | null> {
   } catch { return null; }
 }
 
+async function loadGamesManifest(): Promise<GamesManifestEntry[]> {
+  try {
+    const res = await fetch('/assets/games.json');
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+function populateSelect(select: HTMLSelectElement, options: { id: string; displayName: string }[], selectedId: string) {
+  select.innerHTML = '';
+  for (const opt of options) {
+    const el = document.createElement('option');
+    el.value = opt.id;
+    el.textContent = opt.displayName;
+    if (opt.id === selectedId) el.selected = true;
+    select.appendChild(el);
+  }
+}
+
+function currentGameEntry(): GamesManifestEntry | undefined {
+  return games.find((g) => g.id === currentGame);
+}
+
+/**
+ * Populate the game/platform <select> elements from /assets/games.json.
+ * Works correctly even for the trivial single-game/single-platform case a
+ * fresh scaffold starts with — if games.json is missing or empty, falls
+ * back to a synthetic single-entry list built from the scaffolded
+ * game/platform, so the selectors always show something valid.
+ */
+async function initSelectors(): Promise<void> {
+  games = await loadGamesManifest();
+  if (games.length === 0) {
+    games = [{
+      id: currentGame,
+      displayName: currentGame,
+      platforms: [{ id: currentPlatform, displayName: currentPlatform }],
+    }];
+  }
+  if (!games.some((g) => g.id === currentGame)) currentGame = games[0]!.id;
+  populateSelect(gameSelectEl, games.map((g) => ({ id: g.id, displayName: g.displayName })), currentGame);
+
+  const platforms = currentGameEntry()?.platforms ?? [];
+  if (platforms.length > 0 && !platforms.some((p) => p.id === currentPlatform)) {
+    currentPlatform = platforms[0]!.id;
+  }
+  populateSelect(platformSelectEl, platforms, currentPlatform);
+}
+
+async function switchAssetBase(): Promise<void> {
+  ASSET_BASE = `/assets/${currentGame}/${currentPlatform}`;
+  selected = null;
+  currentTypeFilter = null;
+  stopPlayback();
+  stopCycling();
+  manifest = await loadManifest();
+  renderTypeFilters();
+  renderList();
+  drawAsset();
+}
+
+gameSelectEl.addEventListener('change', async () => {
+  currentGame = gameSelectEl.value;
+  const platforms = currentGameEntry()?.platforms ?? [];
+  currentPlatform = platforms[0]?.id ?? currentPlatform;
+  populateSelect(platformSelectEl, platforms, currentPlatform);
+  await switchAssetBase();
+});
+
+platformSelectEl.addEventListener('change', async () => {
+  currentPlatform = platformSelectEl.value;
+  await switchAssetBase();
+});
+
+// ── Asset type filter tabs ───────────────────────────────────────────────
+
+/** Derived from the distinct `type` values actually present in the loaded manifest — no hardcoded asset-type union. */
+function renderTypeFilters(): void {
+  const types = [...new Set(manifest.map((m) => m.type))].sort();
+  typeFiltersEl.innerHTML = '';
+  setHidden(typeFiltersEl, types.length === 0);
+  if (types.length === 0) return;
+
+  if (currentTypeFilter !== null && !types.includes(currentTypeFilter)) currentTypeFilter = null;
+
+  const makeButton = (label: string, value: string | null) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'type-filter-btn';
+    btn.textContent = label;
+    if (currentTypeFilter === value) btn.classList.add('active');
+    btn.addEventListener('click', () => {
+      currentTypeFilter = value;
+      renderTypeFilters();
+      renderList();
+    });
+    typeFiltersEl.appendChild(btn);
+  };
+
+  makeButton('All', null);
+  for (const t of types) makeButton(t, t);
+}
+
+// ── List / search ────────────────────────────────────────────────────────
+
 function renderList() {
   const q = searchEl.value.trim().toLowerCase();
-  const filtered = q ? manifest.filter(a => a.name.includes(q)) : manifest;
+  let filtered = currentTypeFilter ? manifest.filter((a) => a.type === currentTypeFilter) : manifest;
+  if (q) filtered = filtered.filter((a) => a.name.includes(q));
 
   listMetaEl.textContent = `${filtered.length} of ${manifest.length} assets`;
 
@@ -76,12 +210,23 @@ function renderList() {
 async function selectAsset(asset: ManifestEntry) {
   selected = asset;
   currentFrame = 0;
+  stopPlayback();
+  stopCycling();
   currentAtlas = await loadJSON<AtlasMeta>(`${asset.name}.json`);
   currentPalette = asset.hasPalette ? await loadJSON<PaletteData>(`${asset.name}.pal.json`) : null;
+  workingPalette = currentPalette ? currentPalette.colors.map((c) => ({ ...c })) : [];
   currentFrames = currentAtlas?.frames ?? [];
+
+  const hasIndexed = Boolean(asset.indexedPng);
+  setHidden(shaderToggleLabel, !hasIndexed);
+  if (!hasIndexed) shaderMode = false;
+  shaderToggleEl.checked = shaderMode;
+
   renderList();
   drawAsset();
 }
+
+// ── Drawing (Canvas2D baked-PNG path) ────────────────────────────────────
 
 function drawAsset() {
   if (!selected || !currentAtlas) {
@@ -91,6 +236,11 @@ function drawAsset() {
 
   const zoom = Number(zoomEl.value);
   const frame = currentFrames[currentFrame];
+
+  if (shaderMode && selected.indexedPng) {
+    drawAssetShader(frame ?? null, zoom);
+    return;
+  }
 
   if (frame) {
     titleEl.textContent = `${selected.name} — sprite ${currentFrame + 1}/${currentFrames.length}`;
@@ -155,26 +305,361 @@ function drawFullAtlas(asset: ManifestEntry, atlas: AtlasMeta, zoom: number) {
   img.src = `${ASSET_BASE}/${asset.name}.png`;
 }
 
+// ── WebGL2 indexed-texture + palette shader ─────────────────────────────
+//
+// The generic "no-op" base case: sample an 8-bit index out of an indexed
+// PNG (index in the R channel, written by @seer/pipeline's writeIndexedPNG),
+// look that index up in a small 1D palette texture, output the color. No
+// bitplane permutation, no per-entity mode table — this is intentionally
+// the extension point a project layers its own game-specific recolor
+// mechanism on top of. See docs/viewer.md and, for a worked example of such
+// an extension, ../../../middilgard/docs/tooling/asset-viewer.md (a WIME-
+// specific 5-bitplane/48-entry mode table — not reusable as-is, but a good
+// reference for the shape of a richer shader built on this same base).
+
+let shaderMode = false;
+
+const SHADER_VERTEX_SRC = `#version 300 es
+in vec2 aPos;
+in vec2 aUV;
+out vec2 vUV;
+void main() {
+  vUV = aUV;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+const SHADER_FRAGMENT_SRC = `#version 300 es
+precision mediump float;
+uniform sampler2D uIndexTex;
+uniform sampler2D uPaletteTex;
+uniform float uPaletteSize;
+uniform vec4 uFrameRect; // x, y, w, h — normalized [0,1] coords within the indexed atlas
+in vec2 vUV;
+out vec4 fragColor;
+void main() {
+  vec2 atlasUV = uFrameRect.xy + vUV * uFrameRect.zw;
+  vec4 packed = texture(uIndexTex, atlasUV);
+  float index = packed.r * 255.0;
+  vec4 color = texture(uPaletteTex, vec2((index + 0.5) / uPaletteSize, 0.5));
+  fragColor = vec4(color.rgb, packed.a);
+}`;
+
+interface GLState {
+  gl: WebGL2RenderingContext;
+  program: WebGLProgram;
+  indexTex: WebGLTexture;
+  paletteTex: WebGLTexture;
+  uFrameRect: WebGLUniformLocation;
+  uPaletteSize: WebGLUniformLocation;
+}
+
+let glState: GLState | null = null;
+let lastShaderRect: { x: number; y: number; w: number; h: number } | null = null;
+let lastAtlasDims: { w: number; h: number } | null = null;
+
+function compileShader(gl: WebGL2RenderingContext, type: number, src: string): WebGLShader {
+  const shader = gl.createShader(type)!;
+  gl.shaderSource(shader, src);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const info = gl.getShaderInfoLog(shader);
+    gl.deleteShader(shader);
+    throw new Error(`Shader compile error: ${info ?? '(no info)'}`);
+  }
+  return shader;
+}
+
+function initGL(canvas: HTMLCanvasElement): GLState | null {
+  const gl = canvas.getContext('webgl2');
+  if (!gl) return null;
+
+  const program = gl.createProgram()!;
+  gl.attachShader(program, compileShader(gl, gl.VERTEX_SHADER, SHADER_VERTEX_SRC));
+  gl.attachShader(program, compileShader(gl, gl.FRAGMENT_SHADER, SHADER_FRAGMENT_SRC));
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    throw new Error(`Program link error: ${gl.getProgramInfoLog(program) ?? '(no info)'}`);
+  }
+  gl.useProgram(program);
+
+  // Full-screen quad in clip space; UV 0..1 (Y flipped so image top-left maps to canvas top-left).
+  const quad = new Float32Array([
+    // x,  y,  u, v
+    -1, -1,  0, 1,
+     1, -1,  1, 1,
+    -1,  1,  0, 0,
+    -1,  1,  0, 0,
+     1, -1,  1, 1,
+     1,  1,  1, 0,
+  ]);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+
+  const aPos = gl.getAttribLocation(program, 'aPos');
+  const aUV = gl.getAttribLocation(program, 'aUV');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
+  gl.enableVertexAttribArray(aUV);
+  gl.vertexAttribPointer(aUV, 2, gl.FLOAT, false, 16, 8);
+
+  const indexTex = gl.createTexture()!;
+  const paletteTex = gl.createTexture()!;
+
+  gl.uniform1i(gl.getUniformLocation(program, 'uIndexTex'), 0);
+  gl.uniform1i(gl.getUniformLocation(program, 'uPaletteTex'), 1);
+  const uFrameRect = gl.getUniformLocation(program, 'uFrameRect')!;
+  const uPaletteSize = gl.getUniformLocation(program, 'uPaletteSize')!;
+
+  const state: GLState = { gl, program, indexTex, paletteTex, uFrameRect, uPaletteSize };
+  glState = state;
+  return state;
+}
+
+function uploadIndexTexture(state: GLState, img: HTMLImageElement): void {
+  const { gl, indexTex } = state;
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, indexTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+
+/** Re-uploads the palette texture from `workingPalette` — called on every palette edit and cycling tick, never touches the index texture. */
+function uploadPaletteTexture(): void {
+  if (!glState || workingPalette.length === 0) return;
+  const { gl, paletteTex } = glState;
+  const size = workingPalette.length;
+  const data = new Uint8Array(size * 4);
+  for (let i = 0; i < size; i++) {
+    const c = workingPalette[i]!;
+    data[i * 4] = c.r;
+    data[i * 4 + 1] = c.g;
+    data[i * 4 + 2] = c.b;
+    data[i * 4 + 3] = 255;
+  }
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, paletteTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, size, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+
+function renderGL(rect: { x: number; y: number; w: number; h: number }, atlasW: number, atlasH: number): void {
+  if (!glState) return;
+  const { gl, program, uFrameRect, uPaletteSize } = glState;
+  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.useProgram(program);
+  gl.uniform4f(uFrameRect, rect.x / atlasW, rect.y / atlasH, rect.w / atlasW, rect.h / atlasH);
+  gl.uniform1f(uPaletteSize, workingPalette.length || 1);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  lastShaderRect = rect;
+  lastAtlasDims = { w: atlasW, h: atlasH };
+}
+
+/** Re-renders the current shader view in place — used after a palette edit or a color-cycling tick. No-op unless the shader view is active. */
+function redrawShaderIfActive(): void {
+  if (!shaderMode || !glState || !lastShaderRect || !lastAtlasDims) return;
+  uploadPaletteTexture();
+  renderGL(lastShaderRect, lastAtlasDims.w, lastAtlasDims.h);
+}
+
+function drawAssetShader(frame: AtlasFrame | null, zoom: number): void {
+  if (!selected || !currentAtlas || !selected.indexedPng) return;
+  const atlas = currentAtlas;
+  const rect = frame ?? { x: 0, y: 0, w: atlas.width, h: atlas.height };
+
+  titleEl.textContent = frame
+    ? `${selected.name} — sprite ${currentFrame + 1}/${currentFrames.length} (shader)`
+    : `${selected.name} — full atlas (shader)`;
+  metaEl.textContent = `${rect.w}×${rect.h}`;
+  frameInfoEl.textContent = `atlas ${atlas.width}×${atlas.height}`;
+  setHidden(frameStrip, currentFrames.length <= 1);
+  if (currentFrames.length > 1) {
+    frameSlider.max = String(currentFrames.length - 1);
+    frameSlider.value = String(currentFrame);
+    frameLabel.textContent = `Sprite ${currentFrame + 1} / ${currentFrames.length}`;
+  }
+
+  const indexedPng = selected.indexedPng;
+  const img = new Image();
+  img.onload = () => {
+    canvasWrap.innerHTML = '';
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, rect.w * zoom);
+    canvas.height = Math.max(1, rect.h * zoom);
+    canvasWrap.appendChild(canvas);
+
+    const state = initGL(canvas);
+    if (!state) {
+      canvasWrap.innerHTML = '<div class="state-panel state-error"><span class="state-icon">⚠</span><span class="state-title">WebGL2 not supported</span></div>';
+      return;
+    }
+    uploadIndexTexture(state, img);
+    uploadPaletteTexture();
+    renderGL(rect, atlas.width, atlas.height);
+  };
+  img.onerror = () => {
+    canvasWrap.innerHTML = '<div class="state-panel state-error"><span class="state-icon">⚠</span><span class="state-title">Failed to load indexed image</span></div>';
+  };
+  img.src = `${ASSET_BASE}/${indexedPng}`;
+
+  renderPalette(currentPalette);
+}
+
+shaderToggleEl.addEventListener('change', () => {
+  shaderMode = shaderToggleEl.checked;
+  drawAsset();
+});
+
+// ── Palette editor + color cycling ──────────────────────────────────────
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const n = parseInt(hex.slice(1), 16);
+  return { r: (n >> 16) & 0xff, g: (n >> 8) & 0xff, b: n & 0xff };
+}
+
+/** Opens a native <input type="color"> to edit one palette entry in workingPalette, then re-uploads the palette texture and redraws. No index-texture or re-fetch involved. */
+function editPaletteColor(index: number): void {
+  const c = workingPalette[index];
+  if (!c) return;
+
+  const input = document.createElement('input');
+  input.type = 'color';
+  input.value = rgbToHex(c.r, c.g, c.b);
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  input.style.pointerEvents = 'none';
+  document.body.appendChild(input);
+
+  input.addEventListener('input', () => {
+    workingPalette[index] = hexToRgb(input.value);
+    renderPalette(currentPalette);
+    redrawShaderIfActive();
+  });
+  input.addEventListener('change', () => input.remove());
+  input.addEventListener('blur', () => input.remove());
+  input.click();
+}
+
 function renderPalette(palette: PaletteData | null) {
   paletteBar.innerHTML = '';
-  if (!palette) { setHidden(paletteBar, true); return; }
+  if (!palette || workingPalette.length === 0) {
+    setHidden(paletteBar, true);
+    setHidden(cyclePanelEl, true);
+    return;
+  }
   setHidden(paletteBar, false);
+  setHidden(cyclePanelEl, false);
 
   const label = document.createElement('span');
-  label.textContent = `Palette (${palette.colors.length} colors):`;
+  label.textContent = `Palette (${workingPalette.length} colors) — click to edit:`;
   label.style.cssText = 'font-size: 11px; color: var(--text-muted); margin-right: 6px; white-space: nowrap;';
   paletteBar.appendChild(label);
 
-  for (let i = 0; i < Math.min(256, palette.colors.length); i++) {
-    const c = palette.colors[i];
+  for (let i = 0; i < Math.min(256, workingPalette.length); i++) {
+    const c = workingPalette[i];
     if (!c) continue;
     const swatch = document.createElement('div');
     swatch.className = 'palette-color';
-    swatch.title = `Index ${i}: rgb(${c.r}, ${c.g}, ${c.b})`;
+    swatch.title = `Index ${i}: rgb(${c.r}, ${c.g}, ${c.b}) — click to edit`;
     swatch.style.background = `rgb(${c.r}, ${c.g}, ${c.b})`;
+    swatch.addEventListener('click', () => editPaletteColor(i));
     paletteBar.appendChild(swatch);
   }
+
+  const maxIndex = String(workingPalette.length - 1);
+  cycleStartEl.max = maxIndex;
+  cycleEndEl.max = maxIndex;
 }
+
+let cycleRaf: number | null = null;
+let cycleFrameCounter = 0;
+
+function stopCycling(): void {
+  if (cycleRaf !== null) {
+    cancelAnimationFrame(cycleRaf);
+    cycleRaf = null;
+  }
+  cycleToggleEl.textContent = '▶ Animate';
+  cycleToggleEl.classList.remove('playing');
+}
+
+function cycleTick(): void {
+  cycleRaf = requestAnimationFrame(cycleTick);
+
+  const speed = Math.max(1, Number(cycleSpeedEl.value) || 1);
+  cycleFrameCounter++;
+  if (cycleFrameCounter % speed !== 0) return;
+
+  const start = Number(cycleStartEl.value);
+  const end = Number(cycleEndEl.value);
+  const direction = cycleDirectionEl.value === 'reverse' ? -1 : 1;
+  if (workingPalette.length === 0 || start >= end || start < 0 || end >= workingPalette.length) return;
+
+  cyclePalette(workingPalette, start, end, direction);
+  renderPalette(currentPalette);
+  redrawShaderIfActive();
+}
+
+function toggleCycling(): void {
+  if (cycleRaf !== null) {
+    stopCycling();
+    return;
+  }
+  cycleFrameCounter = 0;
+  cycleToggleEl.textContent = '⏸ Stop';
+  cycleToggleEl.classList.add('playing');
+  cycleRaf = requestAnimationFrame(cycleTick);
+}
+
+cycleToggleEl.addEventListener('click', toggleCycling);
+
+// ── Animation autoplay ───────────────────────────────────────────────────
+
+/** Milliseconds between frames during autoplay — tune animation speed here. */
+const AUTOPLAY_INTERVAL_MS = 150;
+let playTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopPlayback(): void {
+  if (playTimer !== null) {
+    clearInterval(playTimer);
+    playTimer = null;
+  }
+  playToggleEl.textContent = '▶';
+  playToggleEl.classList.remove('playing');
+}
+
+function togglePlayback(): void {
+  if (playTimer !== null) {
+    stopPlayback();
+    return;
+  }
+  if (currentFrames.length <= 1) return;
+  playToggleEl.textContent = '⏸';
+  playToggleEl.classList.add('playing');
+  playTimer = setInterval(() => {
+    currentFrame = (currentFrame + 1) % currentFrames.length;
+    drawAsset();
+  }, AUTOPLAY_INTERVAL_MS);
+}
+
+playToggleEl.addEventListener('click', togglePlayback);
+
+// ── Toolbar / search / frame controls ───────────────────────────────────
 
 searchEl.addEventListener('input', renderList);
 
@@ -190,6 +675,7 @@ bgEl.addEventListener('change', () => {
 
 frameSlider.addEventListener('input', () => {
   if (!selected) return;
+  stopPlayback();
   currentFrame = Number(frameSlider.value);
   drawAsset();
 });
@@ -198,20 +684,25 @@ document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   if (e.code === 'ArrowLeft' && currentFrames.length > 0) {
     e.preventDefault();
+    stopPlayback();
     currentFrame = (currentFrame - 1 + currentFrames.length) % currentFrames.length;
     drawAsset();
   }
   if (e.code === 'ArrowRight' && currentFrames.length > 0) {
     e.preventDefault();
+    stopPlayback();
     currentFrame = (currentFrame + 1) % currentFrames.length;
     drawAsset();
   }
 });
 
 (async () => {
+  await initSelectors();
   manifest = await loadManifest();
   if (manifest.length === 0) {
     listEl.innerHTML = '<div class="no-results"><p>No assets found.</p><p style="margin-top:8px;font-size:11px;">Run <code>npm run build-assets</code> first.</p></div>';
   }
+  renderTypeFilters();
   renderList();
+  drawAsset();
 })();

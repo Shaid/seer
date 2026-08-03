@@ -340,6 +340,14 @@ preprocessed JSON manifests and PNGs produced by the pipeline, but also
 provides richer inspection capabilities (WebGL shader rendering for specialised
 colour systems, palette editors, frame-by-frame animation scrubbing).
 
+The scaffold's `tools/viewer/` template ships a data-driven game/platform
+selector, asset-type filter tabs, animation autoplay, and a generic
+indexed-texture + palette WebGL2 shader with a live palette editor and
+colour-cycling out of the box — see
+[the viewer tooling guide](https://github.com/Shaid/seer/blob/main/docs/viewer.md)
+for the full architecture, data flow, and how a project layers a
+game-specific recolour mechanism on top of the generic shader.
+
 ---
 
 ## 10. Key Architectural Principles

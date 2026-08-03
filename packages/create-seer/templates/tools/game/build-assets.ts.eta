@@ -4,8 +4,40 @@
  */
 import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { writeJson } from '@seer/pipeline';
-import { getGameConfig } from '../shared/game-config.ts';
+import { writeJson, writePNG, writeIndexedPNG } from '@seer/pipeline';
+import { getGameConfig, writeGamesManifest } from '../shared/game-config.ts';
+
+const EXAMPLE_SIZE = 16;
+
+/** Solid placeholder sprite so a fresh scaffold's viewer has something to render before real decoders are wired in. */
+function buildExampleRGBA(): Uint8Array {
+  const rgba = new Uint8Array(EXAMPLE_SIZE * EXAMPLE_SIZE * 4);
+  for (let i = 0; i < EXAMPLE_SIZE * EXAMPLE_SIZE; i++) {
+    rgba[i * 4] = 0x4a;
+    rgba[i * 4 + 1] = 0xaa;
+    rgba[i * 4 + 2] = 0x77;
+    rgba[i * 4 + 3] = 0xff;
+  }
+  return rgba;
+}
+
+/** A 2-color checkerboard of palette indices, to make the indexed/shader view visibly distinct from a flat fill. */
+function buildExampleIndices(): Uint8Array {
+  const indices = new Uint8Array(EXAMPLE_SIZE * EXAMPLE_SIZE);
+  for (let y = 0; y < EXAMPLE_SIZE; y++) {
+    for (let x = 0; x < EXAMPLE_SIZE; x++) {
+      indices[y * EXAMPLE_SIZE + x] = (x + y) % 2 === 0 ? 1 : 2;
+    }
+  }
+  return indices;
+}
+
+const EXAMPLE_PALETTE = [
+  { r: 0x00, g: 0x00, b: 0x00 },
+  { r: 0x4a, g: 0xaa, b: 0x77 },
+  { r: 0xff, g: 0xff, b: 0xff },
+  { r: 0xff, g: 0x33, b: 0x33 },
+];
 
 function main() {
   const dataDir = process.argv[2];
@@ -28,7 +60,40 @@ function main() {
     rows: 1,
   });
 
-  console.log("Wrote placeholder manifest to " + outDir);
+  // Placeholder viewer-facing example asset — replace with your real format
+  // decoders. Demonstrates the manifest contract tools/viewer expects: a
+  // baked RGBA sheet, a packed-frame atlas, a palette, and an indexed PNG
+  // variant that unlocks the viewer's WebGL shader + palette-editor view.
+  // See docs/viewer.md.
+  writePNG(resolve(outDir, 'example.png'), buildExampleRGBA(), EXAMPLE_SIZE, EXAMPLE_SIZE);
+  writeIndexedPNG(
+    resolve(outDir, 'example.indexed.png'),
+    buildExampleIndices(),
+    EXAMPLE_SIZE,
+    EXAMPLE_SIZE,
+    { transparentIndex: null },
+  );
+  writeJson(resolve(outDir, 'example.json'), {
+    frames: [{ name: 'example', x: 0, y: 0, w: EXAMPLE_SIZE, h: EXAMPLE_SIZE }],
+    width: EXAMPLE_SIZE,
+    height: EXAMPLE_SIZE,
+  });
+  writeJson(resolve(outDir, 'example.pal.json'), { colors: EXAMPLE_PALETTE });
+  writeJson(resolve(outDir, 'manifest.json'), [{
+    name: 'example',
+    type: 'sprite',
+    sprites: 1,
+    hasPalette: true,
+    png: 'example.png',
+    indexedPng: 'example.indexed.png',
+  }]);
+
+  // Data-driven game/platform manifest for the viewer's game/platform
+  // selectors — derived from GAME_CONFIGS, so it grows with the config with
+  // zero viewer template changes required.
+  writeGamesManifest(resolve('public/assets/games.json'));
+
+  console.log("Wrote placeholder manifest + example asset to " + outDir);
 }
 
 main();

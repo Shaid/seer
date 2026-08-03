@@ -81,7 +81,7 @@ describe('main', () => {
   it('scaffolds with flags and no TTY', async () => {
     const { main } = await import('../cli.ts');
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
 
     const projectDir = resolve(TMP, 'flags-test');
     const origCwd = process.cwd;

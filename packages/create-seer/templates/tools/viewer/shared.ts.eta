@@ -16,18 +16,34 @@ export interface PaletteData {
   colors: { r: number; g: number; b: number }[];
 }
 
-export interface AssetEntry {
+/**
+ * One row of `manifest.json` — the canonical shape written by the build
+ * pipeline (see tools/<game>/build-assets.ts) and read by the viewer. This
+ * is the single source of truth for that shape; don't redeclare it locally
+ * elsewhere (see docs/weaknesses.md §6 for what happens when it drifts).
+ */
+export interface ManifestEntry {
   name: string;
-  hasPng: boolean;
+  /** Asset kind (e.g. "sprite", "screen", "map"). Drives the filter tabs — see docs/viewer.md. */
+  type: string;
+  sprites: number;
   hasPalette: boolean;
-  spriteCount: number;
+  /** Baked RGBA sprite sheet, drawn via the default Canvas2D path. */
+  png: string;
+  /**
+   * Optional indexed-color variant of `png` (palette index in the R
+   * channel, written by `writeIndexedPNG` from @seer/pipeline). When
+   * present, the viewer's WebGL shader view becomes available for this
+   * asset — see docs/viewer.md.
+   */
+  indexedPng?: string;
 }
 
-export function rgbaFromPalette(palette: PaletteData | null, index: number): [number, number, number, number] {
-  if (!palette) return [128, 128, 128, 255];
-  const c = palette.colors[index];
-  if (!c) return [0, 0, 0, 0];
-  return [c.r, c.g, c.b, index === 0 ? 0 : 255];
+/** One entry of `public/assets/games.json`, fetched to populate the game/platform selectors. */
+export interface GamesManifestEntry {
+  id: string;
+  displayName: string;
+  platforms: { id: string; displayName: string }[];
 }
 
 export function setHidden(el: HTMLElement, hidden: boolean) {
