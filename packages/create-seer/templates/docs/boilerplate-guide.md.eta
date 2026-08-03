@@ -22,7 +22,7 @@ any target. Import from them; don't edit their source directly.
 | Package | Contains |
 |---------|----------|
 | `@seer/core` | `binary.ts` — endian-aware byte-reading primitives (`r8`/`r16`/`r24`/`r32`); `binary-reader.ts` — cursor-based `BinaryReader`, endianness is a constructor param |
-| `@seer/engine` | `Camera.ts` — 2D pan/zoom/bounds-clamped camera; `InputManager.ts` — keyboard + mouse input (pan, edge-scroll, wheel zoom, drag, click); `DisplayMode.ts` — zoom-bounds/scale-mode config; `Game.ts` — top-level orchestrator shape; `pixi-helpers.ts` — viewport culling, atlas slicing, label styling (PixiJS-specific; peer dep on `pixi.js`) |
+| `@seer/engine-2d` | `Camera.ts` — 2D pan/zoom/bounds-clamped camera; `InputManager.ts` — keyboard + mouse input (pan, edge-scroll, wheel zoom, drag, click); `DisplayMode.ts` — zoom-bounds/scale-mode config; `Game.ts` — top-level orchestrator shape; `pixi-helpers.ts` — viewport culling, atlas slicing, label styling (PixiJS-specific; peer dep on `pixi.js`) |
 | `@seer/pipeline` | Node-only: `resolveDataDir()`/`findFileCI()` — breadth-first, case-insensitive discovery of wherever the user dropped their game files; `io.ts` — generic file I/O (`readBinary`, `writePNG`, `writeIndexedPNG`, `writeJson`, `scanFilesByExtension`, `resolveDataFile`); `hex-dump.ts` — CLI binary inspector, your first tool when reverse-engineering a new format |
 | `@seer/iff` | Generic EA IFF-85 FORM/chunk parser (depends on `@seer/core`). **Optional** — delete this package if your target doesn't use IFF-derived formats (8SVX, ILBM, ANIM, SMUS, or a custom FORM-based format) |
 | `@seer/smus` | SMUS (Simple Musical Score) interpreter — EA IFF 85 SMUS format parser, SampledSound .instr/.ss parser, Sonix audio engine with instrument converters. **Optional** — only relevant if your target uses SMUS audio |
@@ -68,7 +68,7 @@ placeholder values you must replace as soon as you know your actual target:
   interface, one loader function, parallel `fetch()`" convention. Replace
   the placeholder `AtlasMeta` fields with whatever your build-assets script
   actually produces.
-- **`src/main.ts`** — boots `Game` from `@seer/engine` with placeholder world
+- **`src/main.ts`** — boots `Game` from `@seer/engine-2d` with placeholder world
   dimensions. Replace `worldWidth`/`worldHeight` with your actual content
   size once known, and adjust if you support multiple games/platforms via
   URL params.
@@ -76,15 +76,15 @@ placeholder values you must replace as soon as you know your actual target:
   type (typically audio) is decoded at runtime rather than precompiled.
   Delete it if your pipeline precompiles everything.
 
-`@seer/engine`'s `Game.ts` is technically inside the packages workspace, but
-unlike the rest of `@seer/engine` it's meant to be edited, not imported
+`@seer/engine-2d`'s `Game.ts` is technically inside the packages workspace, but
+unlike the rest of `@seer/engine-2d` it's meant to be edited, not imported
 as-is: it's the top-level orchestrator shape (async init → camera/input
 wiring → ticker loop) with `TODO`s for your actual rendering — tilemap,
 sprite layers, dialogue screens, whatever your genre needs. **This is not
 assumed to be a map-based game** — see `docs/architecture-overview.md` §8.
 If you outgrow the single-file template, move your game-specific rendering
 logic into your own `src/` code and have it import `Camera`/`InputManager`/
-`DisplayMode` from `@seer/engine` directly, rather than continuing to edit
+`DisplayMode` from `@seer/engine-2d` directly, rather than continuing to edit
 the package file.
 
 ---
@@ -112,7 +112,7 @@ for you:
    unique to each compiled binary and must be found via disassembly.
 5. **Your audio format decoder**, if applicable — `@seer/smus` is populated
    with a working SMUS interpreter if your target uses SMUS.
-6. **Your actual game/rendering logic**, built out from `@seer/engine`'s
+6. **Your actual game/rendering logic**, built out from `@seer/engine-2d`'s
    `Game.ts` template.
 
 ---
@@ -128,6 +128,6 @@ for you:
 5. Fill in `tools/<game>/export-game-data.ts` and `build-assets.ts`.
 6. Wire up `src/data/GameData.ts` / `AssetLoader.ts` to match what stage 2
    actually produces.
-7. Build out `@seer/engine`'s `Game.ts` (or your own `src/` code importing
+7. Build out `@seer/engine-2d`'s `Game.ts` (or your own `src/` code importing
    from it) to render your actual content.
 8. Run `npm test` and `npm run lint` before considering anything done.

@@ -7,7 +7,7 @@
  * Run via: npx create-seer <project-name>
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Eta } from 'eta';
 
@@ -62,7 +62,21 @@ export function scaffold(targetDir: string, options: ScaffoldOptions = {}): void
   }
 
   const p = (rel: string) => resolve(targetDir, rel);
-  const ctx = { game, platform, displayName };
+
+  const seerPackagesDir = resolve(__dirname, '../..');
+  const seerSpec = (name: string): string => {
+    let rel = relative(resolve(targetDir), resolve(seerPackagesDir, name));
+    if (!rel.startsWith('.') && !rel.startsWith('/')) rel = './' + rel;
+    return 'file:' + rel;
+  };
+  const ctx = {
+    game,
+    platform,
+    displayName,
+    seerCore: seerSpec('core'),
+    seerEngine2d: seerSpec('engine-2d'),
+    seerPipeline: seerSpec('pipeline'),
+  };
 
   // ── Root config files ──────────────────────────────────────────────
 
