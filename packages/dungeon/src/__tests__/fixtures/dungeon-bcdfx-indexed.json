@@ -1,0 +1,587 @@
+{
+  "frames": [
+    {
+      "name": "wall0-left",
+      "x": 100,
+      "y": 1,
+      "w": 16,
+      "h": 123
+    },
+    {
+      "name": "wall0-face",
+      "x": 117,
+      "y": 1,
+      "w": 176,
+      "h": 123
+    },
+    {
+      "name": "wall0-right",
+      "x": 294,
+      "y": 1,
+      "w": 16,
+      "h": 123
+    },
+    {
+      "name": "wall1-left",
+      "x": 98,
+      "y": 252,
+      "w": 48,
+      "h": 78
+    },
+    {
+      "name": "wall1-face",
+      "x": 147,
+      "y": 252,
+      "w": 112,
+      "h": 78
+    },
+    {
+      "name": "wall1-right",
+      "x": 260,
+      "y": 252,
+      "w": 48,
+      "h": 78
+    },
+    {
+      "name": "wall2-left",
+      "x": 164,
+      "y": 406,
+      "w": 64,
+      "h": 57
+    },
+    {
+      "name": "wall2-face",
+      "x": 229,
+      "y": 406,
+      "w": 80,
+      "h": 57
+    },
+    {
+      "name": "wall2-right",
+      "x": 310,
+      "y": 406,
+      "w": 64,
+      "h": 57
+    },
+    {
+      "name": "ceiling",
+      "x": 182,
+      "y": 520,
+      "w": 208,
+      "h": 30
+    },
+    {
+      "name": "floor",
+      "x": 278,
+      "y": 333,
+      "w": 208,
+      "h": 68
+    },
+    {
+      "name": "sidewall-depth0-near",
+      "x": 1,
+      "y": 1,
+      "w": 16,
+      "h": 140
+    },
+    {
+      "name": "sidewall-depth0-far",
+      "x": 18,
+      "y": 1,
+      "w": 16,
+      "h": 140
+    },
+    {
+      "name": "sidewall-depth1-near",
+      "x": 311,
+      "y": 1,
+      "w": 32,
+      "h": 122
+    },
+    {
+      "name": "sidewall-depth1-far",
+      "x": 344,
+      "y": 1,
+      "w": 32,
+      "h": 122
+    },
+    {
+      "name": "sidewall-depth2-near",
+      "x": 309,
+      "y": 252,
+      "w": 16,
+      "h": 77
+    },
+    {
+      "name": "sidewall-depth2-far",
+      "x": 326,
+      "y": 252,
+      "w": 16,
+      "h": 77
+    },
+    {
+      "name": "sidewall-depth3-near",
+      "x": 375,
+      "y": 406,
+      "w": 16,
+      "h": 55
+    },
+    {
+      "name": "sidewall-depth3-far",
+      "x": 392,
+      "y": 406,
+      "w": 16,
+      "h": 55
+    },
+    {
+      "name": "door-type0-1",
+      "x": 276,
+      "y": 142,
+      "w": 80,
+      "h": 92
+    },
+    {
+      "name": "door-type0-2",
+      "x": 1,
+      "y": 406,
+      "w": 64,
+      "h": 60
+    },
+    {
+      "name": "door-type0-3",
+      "x": 343,
+      "y": 467,
+      "w": 48,
+      "h": 44
+    },
+    {
+      "name": "door-type1-1",
+      "x": 357,
+      "y": 142,
+      "w": 80,
+      "h": 92
+    },
+    {
+      "name": "door-type1-2",
+      "x": 66,
+      "y": 406,
+      "w": 64,
+      "h": 60
+    },
+    {
+      "name": "door-type1-3",
+      "x": 392,
+      "y": 467,
+      "w": 48,
+      "h": 44
+    },
+    {
+      "name": "doorway-1b",
+      "x": 260,
+      "y": 558,
+      "w": 80,
+      "h": 27
+    },
+    {
+      "name": "doorway-1a",
+      "x": 458,
+      "y": 1,
+      "w": 48,
+      "h": 109
+    },
+    {
+      "name": "doorway-1c",
+      "x": 1,
+      "y": 142,
+      "w": 48,
+      "h": 109
+    },
+    {
+      "name": "doorway-2b",
+      "x": 214,
+      "y": 589,
+      "w": 48,
+      "h": 14
+    },
+    {
+      "name": "doorway-2a",
+      "x": 82,
+      "y": 333,
+      "w": 32,
+      "h": 69
+    },
+    {
+      "name": "doorway-2c",
+      "x": 115,
+      "y": 333,
+      "w": 32,
+      "h": 69
+    },
+    {
+      "name": "doorway-3",
+      "x": 1,
+      "y": 467,
+      "w": 80,
+      "h": 52
+    },
+    {
+      "name": "floor-pit-d-left",
+      "x": 84,
+      "y": 520,
+      "w": 48,
+      "h": 32
+    },
+    {
+      "name": "floor-pit-a",
+      "x": 1,
+      "y": 558,
+      "w": 144,
+      "h": 30
+    },
+    {
+      "name": "floor-pit-d-right",
+      "x": 133,
+      "y": 520,
+      "w": 48,
+      "h": 32
+    },
+    {
+      "name": "floor-pit-b",
+      "x": 263,
+      "y": 589,
+      "w": 96,
+      "h": 14
+    },
+    {
+      "name": "floor-pit-c",
+      "x": 1,
+      "y": 606,
+      "w": 64,
+      "h": 8
+    },
+    {
+      "name": "ceiling-pit-a",
+      "x": 1,
+      "y": 589,
+      "w": 144,
+      "h": 16
+    },
+    {
+      "name": "ceiling-pit-b",
+      "x": 66,
+      "y": 606,
+      "w": 96,
+      "h": 8
+    },
+    {
+      "name": "alcove-a",
+      "x": 343,
+      "y": 252,
+      "w": 112,
+      "h": 77
+    },
+    {
+      "name": "alcove-b",
+      "x": 278,
+      "y": 467,
+      "w": 64,
+      "h": 45
+    },
+    {
+      "name": "alcove-c",
+      "x": 35,
+      "y": 520,
+      "w": 48,
+      "h": 34
+    },
+    {
+      "name": "alcove-d",
+      "x": 409,
+      "y": 406,
+      "w": 32,
+      "h": 54
+    },
+    {
+      "name": "alcove-e",
+      "x": 18,
+      "y": 520,
+      "w": 16,
+      "h": 36
+    },
+    {
+      "name": "plaque-a",
+      "x": 1,
+      "y": 252,
+      "w": 96,
+      "h": 80
+    },
+    {
+      "name": "plaque-b",
+      "x": 82,
+      "y": 467,
+      "w": 64,
+      "h": 52
+    },
+    {
+      "name": "plaque-c",
+      "x": 441,
+      "y": 467,
+      "w": 48,
+      "h": 40
+    },
+    {
+      "name": "plaque-d",
+      "x": 131,
+      "y": 406,
+      "w": 32,
+      "h": 60
+    },
+    {
+      "name": "plaque-e",
+      "x": 1,
+      "y": 520,
+      "w": 16,
+      "h": 37
+    },
+    {
+      "name": "pillar-a",
+      "x": 377,
+      "y": 1,
+      "w": 80,
+      "h": 116
+    },
+    {
+      "name": "pillar-b",
+      "x": 456,
+      "y": 252,
+      "w": 48,
+      "h": 72
+    },
+    {
+      "name": "pillar-c",
+      "x": 245,
+      "y": 467,
+      "w": 32,
+      "h": 47
+    },
+    {
+      "name": "door-slot",
+      "x": 35,
+      "y": 1,
+      "w": 64,
+      "h": 136
+    },
+    {
+      "name": "stairs-flight-a-depth0",
+      "x": 50,
+      "y": 142,
+      "w": 112,
+      "h": 109
+    },
+    {
+      "name": "stairs-flight-a-depth1",
+      "x": 148,
+      "y": 333,
+      "w": 64,
+      "h": 69
+    },
+    {
+      "name": "stairs-flight-a-depth2",
+      "x": 147,
+      "y": 467,
+      "w": 48,
+      "h": 52
+    },
+    {
+      "name": "stairs-flight-b-depth0",
+      "x": 163,
+      "y": 142,
+      "w": 112,
+      "h": 109
+    },
+    {
+      "name": "stairs-flight-b-depth1",
+      "x": 213,
+      "y": 333,
+      "w": 64,
+      "h": 69
+    },
+    {
+      "name": "stairs-flight-b-depth2",
+      "x": 196,
+      "y": 467,
+      "w": 48,
+      "h": 52
+    },
+    {
+      "name": "panel-top",
+      "x": 179,
+      "y": 558,
+      "w": 80,
+      "h": 29
+    },
+    {
+      "name": "fountain",
+      "x": 1,
+      "y": 333,
+      "w": 80,
+      "h": 72
+    },
+    {
+      "name": "pull-chain-0",
+      "x": 490,
+      "y": 467,
+      "w": 16,
+      "h": 38
+    },
+    {
+      "name": "pull-chain-1",
+      "x": 341,
+      "y": 558,
+      "w": 16,
+      "h": 25
+    },
+    {
+      "name": "pull-chain-2",
+      "x": 392,
+      "y": 558,
+      "w": 16,
+      "h": 19
+    },
+    {
+      "name": "pull-chain-3",
+      "x": 360,
+      "y": 589,
+      "w": 16,
+      "h": 13
+    },
+    {
+      "name": "secret-button1-out",
+      "x": 196,
+      "y": 606,
+      "w": 16,
+      "h": 5
+    },
+    {
+      "name": "secret-button1-in",
+      "x": 213,
+      "y": 606,
+      "w": 16,
+      "h": 5
+    },
+    {
+      "name": "normal-button1-out",
+      "x": 146,
+      "y": 589,
+      "w": 16,
+      "h": 16
+    },
+    {
+      "name": "normal-button1-in",
+      "x": 163,
+      "y": 589,
+      "w": 16,
+      "h": 16
+    },
+    {
+      "name": "normal-button2-out",
+      "x": 461,
+      "y": 589,
+      "w": 16,
+      "h": 9
+    },
+    {
+      "name": "normal-button2-in",
+      "x": 478,
+      "y": 589,
+      "w": 16,
+      "h": 9
+    },
+    {
+      "name": "special-button1-r",
+      "x": 146,
+      "y": 558,
+      "w": 32,
+      "h": 30
+    },
+    {
+      "name": "special-button1-l",
+      "x": 394,
+      "y": 589,
+      "w": 32,
+      "h": 10
+    },
+    {
+      "name": "special-button2-r",
+      "x": 409,
+      "y": 558,
+      "w": 32,
+      "h": 19
+    },
+    {
+      "name": "special-button2-l",
+      "x": 163,
+      "y": 606,
+      "w": 32,
+      "h": 6
+    },
+    {
+      "name": "special-button3-r",
+      "x": 377,
+      "y": 589,
+      "w": 16,
+      "h": 11
+    },
+    {
+      "name": "special-button3-l",
+      "x": 230,
+      "y": 606,
+      "w": 16,
+      "h": 4
+    },
+    {
+      "name": "special-button1-rs",
+      "x": 358,
+      "y": 558,
+      "w": 16,
+      "h": 22
+    },
+    {
+      "name": "special-button1-ls",
+      "x": 375,
+      "y": 558,
+      "w": 16,
+      "h": 22
+    },
+    {
+      "name": "special-button2-rs",
+      "x": 180,
+      "y": 589,
+      "w": 16,
+      "h": 15
+    },
+    {
+      "name": "special-button2-ls",
+      "x": 197,
+      "y": 589,
+      "w": 16,
+      "h": 15
+    },
+    {
+      "name": "special-button3-rs",
+      "x": 427,
+      "y": 589,
+      "w": 16,
+      "h": 10
+    },
+    {
+      "name": "special-button3-ls",
+      "x": 444,
+      "y": 589,
+      "w": 16,
+      "h": 10
+    }
+  ],
+  "width": 512,
+  "height": 615
+}

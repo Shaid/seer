@@ -22,6 +22,16 @@
       "id": "dungeon-bcdfx",
       "atlas": "textures/dungeon-bcdfx.json",
       "image": "textures/dungeon-bcdfx.png"
+    },
+    {
+      "id": "wall-decorations",
+      "atlas": "sprites/wall-decorations.json",
+      "image": "sprites/wall-decorations.png"
+    },
+    {
+      "id": "dungeon-floor-items",
+      "atlas": "sprites/floor-items.json",
+      "image": "sprites/floor-items.png"
     }
   ],
   "ordering": "painter-back-to-front",
@@ -56,11 +66,12 @@
       "draws": [
         {
           "bank": "dungeon-bcdfx",
-          "frame": "wall0-left",
+          "frame": "wall0-right",
           "destX": 0,
           "destY": 5,
+          "mirrorX": true,
           "blend": "replace",
-          "origin": "bcdft S_1+0x22ce2 (front-wall descriptor 0), re-read this pass"
+          "origin": "bcdft S_1+0x22d96 (front-wall descriptor 0, the $48F==0/default-flag branch, drawn mirrored per +0x2304A -- walker-front-wall-handedness fix)"
         }
       ]
     },
@@ -71,8 +82,9 @@
           "frame": "wall0-face",
           "destX": 16,
           "destY": 5,
+          "mirrorX": true,
           "blend": "replace",
-          "origin": "bcdft S_1+0x22cf6 (front-wall descriptor 1), re-read this pass"
+          "origin": "bcdft S_1+0x22daa (front-wall descriptor 1, the $48F==0/default-flag branch, drawn mirrored per +0x2304A -- walker-front-wall-handedness fix)"
         }
       ]
     },
@@ -80,11 +92,12 @@
       "draws": [
         {
           "bank": "dungeon-bcdfx",
-          "frame": "wall0-right",
+          "frame": "wall0-left",
           "destX": 192,
           "destY": 5,
+          "mirrorX": true,
           "blend": "replace",
-          "origin": "bcdft S_1+0x22d0a (front-wall descriptor 2), re-read this pass"
+          "origin": "bcdft S_1+0x22dbe (front-wall descriptor 2, the $48F==0/default-flag branch, drawn mirrored per +0x2304A -- walker-front-wall-handedness fix)"
         }
       ]
     },
@@ -92,11 +105,12 @@
       "draws": [
         {
           "bank": "dungeon-bcdfx",
-          "frame": "wall1-left",
+          "frame": "wall1-right",
           "destX": 0,
           "destY": 18,
+          "mirrorX": true,
           "blend": "replace",
-          "origin": "bcdft S_1+0x22d1e (front-wall descriptor 3), re-read this pass"
+          "origin": "bcdft S_1+0x22dd2 (front-wall descriptor 3, the $48F==0/default-flag branch, drawn mirrored per +0x2304A -- walker-front-wall-handedness fix)"
         }
       ]
     },
@@ -107,8 +121,9 @@
           "frame": "wall1-face",
           "destX": 48,
           "destY": 18,
+          "mirrorX": true,
           "blend": "replace",
-          "origin": "bcdft S_1+0x22d32 (front-wall descriptor 4), re-read this pass"
+          "origin": "bcdft S_1+0x22de6 (front-wall descriptor 4, the $48F==0/default-flag branch, drawn mirrored per +0x2304A -- walker-front-wall-handedness fix)"
         }
       ]
     },
@@ -116,11 +131,12 @@
       "draws": [
         {
           "bank": "dungeon-bcdfx",
-          "frame": "wall1-right",
+          "frame": "wall1-left",
           "destX": 160,
           "destY": 18,
+          "mirrorX": true,
           "blend": "replace",
-          "origin": "bcdft S_1+0x22d46 (front-wall descriptor 5), re-read this pass"
+          "origin": "bcdft S_1+0x22dfa (front-wall descriptor 5, the $48F==0/default-flag branch, drawn mirrored per +0x2304A -- walker-front-wall-handedness fix)"
         }
       ]
     },
@@ -128,11 +144,12 @@
       "draws": [
         {
           "bank": "dungeon-bcdfx",
-          "frame": "wall2-left",
+          "frame": "wall2-right",
           "destX": 0,
           "destY": 23,
+          "mirrorX": true,
           "blend": "replace",
-          "origin": "bcdft S_1+0x22d5a (front-wall descriptor 6), re-read this pass"
+          "origin": "bcdft S_1+0x22e0e (front-wall descriptor 6, the $48F==0/default-flag branch, drawn mirrored per +0x2304A -- walker-front-wall-handedness fix)"
         }
       ]
     },
@@ -143,8 +160,9 @@
           "frame": "wall2-face",
           "destX": 64,
           "destY": 23,
+          "mirrorX": true,
           "blend": "replace",
-          "origin": "bcdft S_1+0x22d6e (front-wall descriptor 7), re-read this pass"
+          "origin": "bcdft S_1+0x22e22 (front-wall descriptor 7, the $48F==0/default-flag branch, drawn mirrored per +0x2304A -- walker-front-wall-handedness fix)"
         }
       ]
     },
@@ -152,11 +170,12 @@
       "draws": [
         {
           "bank": "dungeon-bcdfx",
-          "frame": "wall2-right",
+          "frame": "wall2-left",
           "destX": 144,
           "destY": 23,
+          "mirrorX": true,
           "blend": "replace",
-          "origin": "bcdft S_1+0x22d82 (front-wall descriptor 8), re-read this pass"
+          "origin": "bcdft S_1+0x22e36 (front-wall descriptor 8, the $48F==0/default-flag branch, drawn mirrored per +0x2304A -- walker-front-wall-handedness fix)"
         }
       ]
     },
@@ -269,6 +288,23 @@
         }
       ]
     },
+    "prop:alcove:-1:1:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "alcove-b",
+          "destX": 0,
+          "destY": 23,
+          "mirrorX": false,
+          "blend": "replace",
+          "srcX": 40,
+          "srcY": 0,
+          "srcW": 24,
+          "srcH": 45,
+          "origin": "bcdft S_1+0x24f90 (alcove index table, depth=1 lateral=-1 dir=0) -> shared pool +0x1d9e6 (horizontally-clipped angled view, see _resolve_crop)"
+        }
+      ]
+    },
     "prop:alcove:0:1:0": {
       "draws": [
         {
@@ -305,6 +341,23 @@
           "mirrorX": false,
           "blend": "replace",
           "origin": "bcdft S_1+0x24f90 (alcove index table, depth=1 lateral=0 dir=3) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:alcove:1:1:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "alcove-b",
+          "destX": 184,
+          "destY": 23,
+          "mirrorX": false,
+          "blend": "replace",
+          "srcX": 0,
+          "srcY": 0,
+          "srcW": 24,
+          "srcH": 45,
+          "origin": "bcdft S_1+0x24f90 (alcove index table, depth=1 lateral=1 dir=0) -> shared pool +0x1d9e6 (horizontally-clipped angled view, see _resolve_crop)"
         }
       ]
     },
@@ -386,6 +439,23 @@
         }
       ]
     },
+    "prop:plaque:-1:1:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "plaque-b",
+          "destX": 0,
+          "destY": 21,
+          "mirrorX": false,
+          "blend": "replace",
+          "srcX": 40,
+          "srcY": 0,
+          "srcW": 24,
+          "srcH": 52,
+          "origin": "bcdft S_1+0x250f0 (plaque index table, depth=1 lateral=-1 dir=0) -> shared pool +0x1d9e6 (horizontally-clipped angled view, see _resolve_crop)"
+        }
+      ]
+    },
     "prop:plaque:0:1:0": {
       "draws": [
         {
@@ -422,6 +492,23 @@
           "mirrorX": false,
           "blend": "replace",
           "origin": "bcdft S_1+0x250f0 (plaque index table, depth=1 lateral=0 dir=3) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:plaque:1:1:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "plaque-b",
+          "destX": 184,
+          "destY": 21,
+          "mirrorX": false,
+          "blend": "replace",
+          "srcX": 0,
+          "srcY": 0,
+          "srcW": 24,
+          "srcH": 52,
+          "origin": "bcdft S_1+0x250f0 (plaque index table, depth=1 lateral=1 dir=0) -> shared pool +0x1d9e6 (horizontally-clipped angled view, see _resolve_crop)"
         }
       ]
     },
@@ -514,6 +601,38 @@
         }
       ]
     },
+    "prop:stairs-a:-1:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-a-depth1",
+          "destX": 0,
+          "destY": 20,
+          "blend": "replace",
+          "srcX": 32,
+          "srcY": 0,
+          "srcW": 32,
+          "srcH": 69,
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=1 lateral=-1 flight=a) -> shared pool +0x1d9e6 (horizontally-clipped angled view, see _resolve_crop)"
+        }
+      ]
+    },
+    "prop:stairs-b:-1:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-b-depth1",
+          "destX": 0,
+          "destY": 20,
+          "blend": "replace",
+          "srcX": 32,
+          "srcY": 0,
+          "srcW": 32,
+          "srcH": 69,
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=1 lateral=-1 flight=b) -> shared pool +0x1d9e6 (horizontally-clipped angled view, see _resolve_crop)"
+        }
+      ]
+    },
     "prop:stairs-a:0:1": {
       "draws": [
         {
@@ -535,6 +654,38 @@
           "destY": 20,
           "blend": "replace",
           "origin": "bcdft S_1+0x25232 (stairs index table, depth=1 lateral=0 flight=b) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:stairs-a:1:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-a-depth1",
+          "destX": 176,
+          "destY": 20,
+          "blend": "replace",
+          "srcX": 0,
+          "srcY": 0,
+          "srcW": 32,
+          "srcH": 69,
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=1 lateral=1 flight=a) -> shared pool +0x1d9e6 (horizontally-clipped angled view, see _resolve_crop)"
+        }
+      ]
+    },
+    "prop:stairs-b:1:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-b-depth1",
+          "destX": 176,
+          "destY": 20,
+          "blend": "replace",
+          "srcX": 0,
+          "srcY": 0,
+          "srcW": 32,
+          "srcH": 69,
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=1 lateral=1 flight=b) -> shared pool +0x1d9e6 (horizontally-clipped angled view, see _resolve_crop)"
         }
       ]
     },
@@ -698,6 +849,978 @@
           },
           "origin": "bcdft S_1+0x260b8 (door switch position table, side=1 direct, depth=2 lateral=0); only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
         }
+      ]
+    },
+    "prop:door-lock:-1:0": {
+      "draws": [
+        {
+          "bank": "wall-decorations",
+          "frame": {
+            "template": "m{mapId}_decor{gfxIndex}_{depthLabel}"
+          },
+          "destX": -8,
+          "destY": 52,
+          "blend": "mask",
+          "hotspot": {
+            "code": 107
+          },
+          "origin": "bcdft S_1+0x25e5a (door lock position table, side=1 direct, depth=0 lateral=-1); art resolved at render time via the FrameTemplate (per-map wall-decorations bank) -- only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
+        }
+      ]
+    },
+    "prop:door-lock:0:0": {
+      "draws": [
+        {
+          "bank": "wall-decorations",
+          "frame": {
+            "template": "m{mapId}_decor{gfxIndex}_{depthLabel}"
+          },
+          "destX": 158,
+          "destY": 52,
+          "blend": "mask",
+          "hotspot": {
+            "code": 107
+          },
+          "origin": "bcdft S_1+0x25e5a (door lock position table, side=1 direct, depth=0 lateral=0); art resolved at render time via the FrameTemplate (per-map wall-decorations bank) -- only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
+        }
+      ]
+    },
+    "prop:door-lock:-1:1": {
+      "draws": [
+        {
+          "bank": "wall-decorations",
+          "frame": {
+            "template": "m{mapId}_decor{gfxIndex}_{depthLabel}"
+          },
+          "destX": 32,
+          "destY": 47,
+          "blend": "mask",
+          "hotspot": {
+            "code": 107
+          },
+          "origin": "bcdft S_1+0x25e5a (door lock position table, side=1 direct, depth=1 lateral=-1); art resolved at render time via the FrameTemplate (per-map wall-decorations bank) -- only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
+        }
+      ]
+    },
+    "prop:door-lock:0:1": {
+      "draws": [
+        {
+          "bank": "wall-decorations",
+          "frame": {
+            "template": "m{mapId}_decor{gfxIndex}_{depthLabel}"
+          },
+          "destX": 138,
+          "destY": 47,
+          "blend": "mask",
+          "hotspot": {
+            "code": 107
+          },
+          "origin": "bcdft S_1+0x25e5a (door lock position table, side=1 direct, depth=1 lateral=0); art resolved at render time via the FrameTemplate (per-map wall-decorations bank) -- only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
+        }
+      ]
+    },
+    "prop:door-lock:-1:2": {
+      "draws": [
+        {
+          "bank": "wall-decorations",
+          "frame": {
+            "template": "m{mapId}_decor{gfxIndex}_{depthLabel}"
+          },
+          "destX": 49,
+          "destY": 46,
+          "blend": "mask",
+          "hotspot": {
+            "code": 107
+          },
+          "origin": "bcdft S_1+0x25e5a (door lock position table, side=1 direct, depth=2 lateral=-1); art resolved at render time via the FrameTemplate (per-map wall-decorations bank) -- only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
+        }
+      ]
+    },
+    "prop:door-lock:0:2": {
+      "draws": [
+        {
+          "bank": "wall-decorations",
+          "frame": {
+            "template": "m{mapId}_decor{gfxIndex}_{depthLabel}"
+          },
+          "destX": 127,
+          "destY": 46,
+          "blend": "mask",
+          "hotspot": {
+            "code": 107
+          },
+          "origin": "bcdft S_1+0x25e5a (door lock position table, side=1 direct, depth=2 lateral=0); art resolved at render time via the FrameTemplate (per-map wall-decorations bank) -- only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
+        }
+      ]
+    }
+  },
+  "floorItem": {
+    "bank": "dungeon-floor-items",
+    "gfxToGroup": [
+      255,
+      8,
+      36,
+      10,
+      18,
+      4,
+      19,
+      0,
+      30,
+      16,
+      16,
+      16,
+      7,
+      12,
+      12,
+      1,
+      1,
+      17,
+      28,
+      9,
+      2,
+      27,
+      20,
+      20,
+      20,
+      20,
+      44,
+      3,
+      11,
+      13,
+      255,
+      255,
+      46,
+      10,
+      15,
+      15,
+      21,
+      40,
+      32,
+      32,
+      30,
+      47,
+      15,
+      14,
+      15,
+      48,
+      14,
+      15,
+      14,
+      15,
+      48,
+      14,
+      23,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      0,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      23,
+      23,
+      23,
+      23,
+      23,
+      8,
+      13,
+      13,
+      13,
+      13,
+      24,
+      24,
+      24,
+      24,
+      20,
+      20,
+      20,
+      1,
+      1,
+      47,
+      47,
+      43,
+      23,
+      39,
+      39,
+      39,
+      40,
+      39,
+      39,
+      40,
+      39,
+      17,
+      17,
+      26,
+      26,
+      26,
+      25,
+      25,
+      25,
+      21,
+      21,
+      21,
+      22,
+      22,
+      22,
+      22,
+      37,
+      37,
+      37,
+      0,
+      36,
+      36,
+      36,
+      10,
+      10,
+      10,
+      10,
+      41,
+      255,
+      41,
+      37,
+      37,
+      37,
+      255,
+      255,
+      42,
+      43,
+      32,
+      32,
+      32,
+      42,
+      32,
+      42,
+      42,
+      255,
+      31,
+      31,
+      31,
+      18,
+      34,
+      36,
+      255,
+      15,
+      15,
+      15,
+      26,
+      44,
+      38,
+      35,
+      29,
+      33,
+      33,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      255,
+      37,
+      255,
+      255,
+      255,
+      255,
+      45,
+      255,
+      15,
+      255,
+      255,
+      255,
+      255,
+      255,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      5,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      5,
+      5,
+      5,
+      6,
+      6,
+      5,
+      6,
+      5,
+      39,
+      24,
+      46,
+      255,
+      48,
+      48,
+      0
+    ],
+    "noneGroup": 255,
+    "anchor": {
+      "0:-1": [
+        0,
+        -1
+      ],
+      "0:0": [
+        103,
+        75
+      ],
+      "0:1": [
+        0,
+        -1
+      ],
+      "1:-1": [
+        -8,
+        60
+      ],
+      "1:0": [
+        103,
+        60
+      ],
+      "1:1": [
+        215,
+        60
+      ],
+      "2:-1": [
+        23,
+        54
+      ],
+      "2:0": [
+        103,
+        54
+      ],
+      "2:1": [
+        183,
+        54
+      ]
+    },
+    "registration": {
+      "0:0": [
+        25,
+        6
+      ],
+      "0:1": [
+        17,
+        4
+      ],
+      "0:2": [
+        9,
+        3
+      ],
+      "1:0": [
+        16,
+        12
+      ],
+      "1:1": [
+        8,
+        7
+      ],
+      "1:2": [
+        8,
+        4
+      ],
+      "2:0": [
+        8,
+        12
+      ],
+      "2:1": [
+        7,
+        7
+      ],
+      "2:2": [
+        9,
+        4
+      ],
+      "3:0": [
+        26,
+        16
+      ],
+      "3:1": [
+        17,
+        9
+      ],
+      "3:2": [
+        8,
+        5
+      ],
+      "4:0": [
+        17,
+        7
+      ],
+      "4:1": [
+        18,
+        5
+      ],
+      "4:2": [
+        9,
+        3
+      ],
+      "5:0": [
+        8,
+        3
+      ],
+      "5:1": [
+        8,
+        1
+      ],
+      "5:2": [
+        8,
+        1
+      ],
+      "6:0": [
+        8,
+        3
+      ],
+      "6:1": [
+        8,
+        1
+      ],
+      "6:2": [
+        8,
+        1
+      ],
+      "7:0": [
+        9,
+        11
+      ],
+      "7:1": [
+        10,
+        8
+      ],
+      "7:2": [
+        10,
+        4
+      ],
+      "8:0": [
+        16,
+        3
+      ],
+      "8:1": [
+        8,
+        2
+      ],
+      "8:2": [
+        8,
+        2
+      ],
+      "9:0": [
+        7,
+        11
+      ],
+      "9:1": [
+        6,
+        7
+      ],
+      "9:2": [
+        8,
+        5
+      ],
+      "10:0": [
+        41,
+        4
+      ],
+      "10:1": [
+        24,
+        3
+      ],
+      "10:2": [
+        16,
+        2
+      ],
+      "11:0": [
+        16,
+        12
+      ],
+      "11:1": [
+        8,
+        7
+      ],
+      "11:2": [
+        8,
+        5
+      ],
+      "12:0": [
+        16,
+        7
+      ],
+      "12:1": [
+        8,
+        4
+      ],
+      "12:2": [
+        8,
+        2
+      ],
+      "13:0": [
+        18,
+        4
+      ],
+      "13:1": [
+        16,
+        3
+      ],
+      "13:2": [
+        8,
+        2
+      ],
+      "14:0": [
+        32,
+        11
+      ],
+      "14:1": [
+        16,
+        6
+      ],
+      "14:2": [
+        17,
+        3
+      ],
+      "15:0": [
+        32,
+        11
+      ],
+      "15:1": [
+        16,
+        6
+      ],
+      "15:2": [
+        17,
+        3
+      ],
+      "16:0": [
+        16,
+        6
+      ],
+      "16:1": [
+        8,
+        5
+      ],
+      "16:2": [
+        8,
+        3
+      ],
+      "17:0": [
+        14,
+        9
+      ],
+      "17:1": [
+        8,
+        6
+      ],
+      "17:2": [
+        8,
+        4
+      ],
+      "18:0": [
+        39,
+        4
+      ],
+      "18:1": [
+        24,
+        3
+      ],
+      "18:2": [
+        16,
+        2
+      ],
+      "19:0": [
+        16,
+        4
+      ],
+      "19:1": [
+        16,
+        2
+      ],
+      "19:2": [
+        8,
+        1
+      ],
+      "20:0": [
+        8,
+        10
+      ],
+      "20:1": [
+        8,
+        6
+      ],
+      "20:2": [
+        8,
+        3
+      ],
+      "21:0": [
+        7,
+        19
+      ],
+      "21:1": [
+        7,
+        12
+      ],
+      "21:2": [
+        8,
+        8
+      ],
+      "22:0": [
+        15,
+        1
+      ],
+      "22:1": [
+        15,
+        0
+      ],
+      "22:2": [
+        8,
+        1
+      ],
+      "23:0": [
+        7,
+        2
+      ],
+      "23:1": [
+        7,
+        1
+      ],
+      "23:2": [
+        7,
+        1
+      ],
+      "24:0": [
+        7,
+        6
+      ],
+      "24:1": [
+        7,
+        5
+      ],
+      "24:2": [
+        7,
+        2
+      ],
+      "25:0": [
+        6,
+        7
+      ],
+      "25:1": [
+        7,
+        4
+      ],
+      "25:2": [
+        7,
+        2
+      ],
+      "26:0": [
+        15,
+        7
+      ],
+      "26:1": [
+        7,
+        5
+      ],
+      "26:2": [
+        7,
+        3
+      ],
+      "27:0": [
+        7,
+        8
+      ],
+      "27:1": [
+        6,
+        4
+      ],
+      "27:2": [
+        7,
+        3
+      ],
+      "28:0": [
+        8,
+        13
+      ],
+      "28:1": [
+        8,
+        10
+      ],
+      "28:2": [
+        7,
+        5
+      ],
+      "29:0": [
+        6,
+        3
+      ],
+      "29:1": [
+        7,
+        2
+      ],
+      "29:2": [
+        7,
+        1
+      ],
+      "30:0": [
+        17,
+        5
+      ],
+      "30:1": [
+        8,
+        3
+      ],
+      "30:2": [
+        8,
+        1
+      ],
+      "31:0": [
+        12,
+        10
+      ],
+      "31:1": [
+        14,
+        6
+      ],
+      "31:2": [
+        6,
+        5
+      ],
+      "32:0": [
+        23,
+        8
+      ],
+      "32:1": [
+        16,
+        5
+      ],
+      "32:2": [
+        8,
+        2
+      ],
+      "33:0": [
+        8,
+        2
+      ],
+      "33:1": [
+        8,
+        1
+      ],
+      "33:2": [
+        7,
+        0
+      ],
+      "34:0": [
+        16,
+        4
+      ],
+      "34:1": [
+        8,
+        3
+      ],
+      "34:2": [
+        7,
+        1
+      ],
+      "35:0": [
+        7,
+        19
+      ],
+      "35:1": [
+        8,
+        14
+      ],
+      "35:2": [
+        7,
+        8
+      ],
+      "36:0": [
+        15,
+        13
+      ],
+      "36:1": [
+        14,
+        6
+      ],
+      "36:2": [
+        8,
+        4
+      ],
+      "37:0": [
+        22,
+        3
+      ],
+      "37:1": [
+        15,
+        2
+      ],
+      "37:2": [
+        15,
+        1
+      ],
+      "38:0": [
+        15,
+        21
+      ],
+      "38:1": [
+        8,
+        13
+      ],
+      "38:2": [
+        7,
+        8
+      ],
+      "39:0": [
+        21,
+        7
+      ],
+      "39:1": [
+        15,
+        4
+      ],
+      "39:2": [
+        8,
+        2
+      ],
+      "40:0": [
+        23,
+        9
+      ],
+      "40:1": [
+        15,
+        5
+      ],
+      "40:2": [
+        7,
+        3
+      ],
+      "41:0": [
+        22,
+        7
+      ],
+      "41:1": [
+        15,
+        4
+      ],
+      "41:2": [
+        8,
+        2
+      ],
+      "42:0": [
+        22,
+        16
+      ],
+      "42:1": [
+        15,
+        9
+      ],
+      "42:2": [
+        7,
+        4
+      ],
+      "43:0": [
+        16,
+        12
+      ],
+      "43:1": [
+        7,
+        6
+      ],
+      "43:2": [
+        7,
+        3
+      ],
+      "44:0": [
+        29,
+        24
+      ],
+      "44:1": [
+        20,
+        15
+      ],
+      "44:2": [
+        15,
+        10
+      ],
+      "45:0": [
+        15,
+        7
+      ],
+      "45:1": [
+        7,
+        4
+      ],
+      "45:2": [
+        7,
+        2
+      ],
+      "46:0": [
+        8,
+        4
+      ],
+      "46:1": [
+        8,
+        2
+      ],
+      "46:2": [
+        8,
+        1
+      ],
+      "47:0": [
+        15,
+        11
+      ],
+      "47:1": [
+        7,
+        8
+      ],
+      "47:2": [
+        8,
+        6
+      ],
+      "48:0": [
+        16,
+        8
+      ],
+      "48:1": [
+        7,
+        3
+      ],
+      "48:2": [
+        8,
+        2
       ]
     }
   }

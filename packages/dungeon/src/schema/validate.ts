@@ -10,7 +10,7 @@
  */
 import { SCHEMA_VERSION } from './version.ts';
 import type { DungeonLevelFile, CellSpace, WallStorage, LevelUnit, Dir4 } from './level.ts';
-import type { SlotTableFile, PieceBankRef, PieceDraw, Slot, BlendMode } from './slots.ts';
+import type { SlotTableFile, PieceBankRef, PieceDraw, Slot, BlendMode, AnimRef, FrameRef, FrameTemplate, FloorItemPlacement } from './slots.ts';
 import type { SemanticsFile, WallMeaning, FeatureMeaning } from './semantics.ts';
 import { BINDING_ACTIONS, type BindingsFile, type BindingAction } from './bindings.ts';
 
@@ -198,6 +198,38 @@ function validatePieceBankRef(v: unknown, context: string): PieceBankRef {
   };
 }
 
+function validateAnimRef(v: unknown, context: string): AnimRef {
+  const o = assertObject(v, context, 'draw.frame');
+  const frames = assertArray(o.frames, context, 'draw.frame.frames').map((f, i) => assertString(f, context, `draw.frame.frames[${i}]`));
+  const phase = o.phase === undefined ? undefined : assertString(o.phase, context, 'draw.frame.phase');
+  if (phase !== undefined && phase !== 'fixed' && phase !== 'cell') {
+    fail(context, `draw.frame.phase must be "fixed" or "cell", got ${JSON.stringify(phase)}`);
+  }
+  return {
+    frames,
+    ticksPerFrame: assertNumber(o.ticksPerFrame, context, 'draw.frame.ticksPerFrame'),
+    periodTicks: o.periodTicks === undefined ? undefined : assertNumber(o.periodTicks, context, 'draw.frame.periodTicks'),
+    phase: phase as AnimRef['phase'],
+    phaseTicks: o.phaseTicks === undefined ? undefined : assertNumber(o.phaseTicks, context, 'draw.frame.phaseTicks'),
+  };
+}
+
+function validateFrameTemplate(v: unknown, context: string): FrameTemplate {
+  const o = assertObject(v, context, 'draw.frame');
+  return { template: assertString(o.template, context, 'draw.frame.template') };
+}
+
+/** `draw.frame` is a plain bank frame name, an `AnimRef` (object with a `frames` array), or a `FrameTemplate` (object with a `template` string) — see `FrameRef`'s doc comment. */
+function validateFrameRef(v: unknown, context: string): FrameRef {
+  if (typeof v === 'string') return v;
+  if (isPlainObject(v) && Array.isArray(v.frames)) return validateAnimRef(v, context);
+  if (isPlainObject(v) && typeof v.template === 'string') return validateFrameTemplate(v, context);
+  fail(
+    context,
+    `draw.frame must be a string, an AnimRef object (with a "frames" array), or a FrameTemplate object (with a "template" string), got ${typeof v === 'object' && v !== null ? JSON.stringify(Object.keys(v)) : typeof v}`,
+  );
+}
+
 function validatePieceDraw(v: unknown, context: string): PieceDraw {
   const o = assertObject(v, context, 'draw');
   const blend = o.blend;
@@ -206,7 +238,7 @@ function validatePieceDraw(v: unknown, context: string): PieceDraw {
   }
   return {
     bank: assertString(o.bank, context, 'draw.bank'),
-    frame: assertString(o.frame, context, 'draw.frame'),
+    frame: validateFrameRef(o.frame, context),
     destX: assertNumber(o.destX, context, 'draw.destX'),
     destY: assertNumber(o.destY, context, 'draw.destY'),
     srcX: o.srcX === undefined ? undefined : assertNumber(o.srcX, context, 'draw.srcX'),
@@ -228,6 +260,30 @@ function validateSlot(v: unknown, context: string): Slot | null {
   const o = assertObject(v, context, 'slot');
   const draws = assertArray(o.draws, context, 'slot.draws');
   return { draws: draws.map((d, i) => validatePieceDraw(d, `${context}.draws[${i}]`)) };
+}
+
+function validateXYPair(v: unknown, context: string, field: string): [number, number] {
+  const a = assertArray(v, context, field);
+  if (a.length !== 2) fail(context, `"${field}" must be a 2-element [x, y] array, got ${a.length} elements`);
+  return [assertNumber(a[0], context, `${field}[0]`), assertNumber(a[1], context, `${field}[1]`)];
+}
+
+function validateXYPairRecord(v: unknown, context: string, field: string): Record<string, [number, number]> {
+  const o = assertObject(v, context, field);
+  const out: Record<string, [number, number]> = {};
+  for (const [key, pair] of Object.entries(o)) out[key] = validateXYPair(pair, context, `${field}.${key}`);
+  return out;
+}
+
+function validateFloorItemPlacement(v: unknown, context: string): FloorItemPlacement {
+  const o = assertObject(v, context, 'floorItem');
+  return {
+    bank: assertString(o.bank, context, 'floorItem.bank'),
+    gfxToGroup: assertArray(o.gfxToGroup, context, 'floorItem.gfxToGroup').map((n, i) => assertNumber(n, context, `floorItem.gfxToGroup[${i}]`)),
+    noneGroup: assertNumber(o.noneGroup, context, 'floorItem.noneGroup'),
+    anchor: validateXYPairRecord(o.anchor, context, 'floorItem.anchor'),
+    registration: validateXYPairRecord(o.registration, context, 'floorItem.registration'),
+  };
 }
 
 export function validateSlotTableFile(v: unknown): SlotTableFile {
@@ -271,6 +327,7 @@ export function validateSlotTableFile(v: unknown): SlotTableFile {
       return slot;
     }),
     ordering: ordering as SlotTableFile['ordering'],
+    floorItem: o.floorItem === undefined ? undefined : validateFloorItemPlacement(o.floorItem, context),
   };
 }
 

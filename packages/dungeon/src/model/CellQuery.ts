@@ -41,4 +41,18 @@ export interface CellQuery {
    * `planeAt`) it never throws for "nothing here".
    */
   entitiesAt(x: number, y: number): EntityRecord[];
+
+  /**
+   * Optional — the same records `entitiesAt` returns, each paired with a
+   * stable string `handle` a host can hold onto (e.g. from a hotspot's
+   * `onInteract`) and later pass to `PatchedCellQuery.setPatch`/a walker's
+   * `setEntityState` to mutate that exact record (M4, `walker-plan.md`
+   * "Mouse interactivity"). A `CellQuery` with no addressable entity
+   * identity (most geometry-only test fixtures) simply omits this —
+   * callers needing handles treat a missing implementation as "entities
+   * here are anonymous/read-only." `FlatGridLevel`'s handle format is
+   * `"<unitId>:<y>:<x>:<slot>"`, the same key `DungeonLevelFile.entities`
+   * is keyed by.
+   */
+  entityHandlesAt?(x: number, y: number): Array<{ handle: string; entity: EntityRecord }>;
 }

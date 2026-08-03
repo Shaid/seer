@@ -35,15 +35,33 @@ import type { PieceBank } from './PieceBank.ts';
 import type { IndexedSurface } from './IndexedSurface.ts';
 import type { PieceDraw, Slot, SlotTableFile } from '../schema/slots.ts';
 import type { DrawItem } from '../view/DrawItem.ts';
+import { paintOrder } from '../view/order.ts';
+import { resolveFrameName } from './anim.ts';
 
 /** Named piece banks a `SlotTableFile`'s draws reference by `PieceDraw.bank`. */
 export type PieceBankLookup = Record<string, PieceBank>;
 
-/** Draw one `PieceDraw` (or `DrawItem`, which carries the same fields). */
-function drawPieceDraw(surface: IndexedSurface, banks: PieceBankLookup, draw: PieceDraw, context: string): void {
+/**
+ * Draw one `PieceDraw` (or `DrawItem`, which carries the same fields) at
+ * `tick` — resolving an `AnimRef` `frame` to a concrete bank frame name
+ * first (`resolveFrameName` is a no-op for the plain-string case, so
+ * every existing non-animated caller is unaffected by `tick`). `cell` is
+ * only meaningful for `phase: 'cell'` and is `undefined` for `staticSlots`
+ * pieces (`compositeSlotTable`'s `PieceDraw`s carry no cell of their own —
+ * see `DrawItem.cellX/cellY`'s doc comment).
+ */
+function drawPieceDraw(
+  surface: IndexedSurface,
+  banks: PieceBankLookup,
+  draw: PieceDraw,
+  context: string,
+  tick: number,
+  cell?: { x: number; y: number },
+): void {
   const bank = banks[draw.bank];
   if (!bank) throw new Error(`${context} references unknown bank "${draw.bank}"`);
-  const rect = bank.frame(draw.frame);
+  const frameName = resolveFrameName(draw.frame, tick, cell);
+  const rect = bank.frame(frameName);
   const sx = draw.srcX ?? rect.x;
   const sy = draw.srcY ?? rect.y;
   const sw = draw.srcW ?? rect.w;
@@ -51,9 +69,9 @@ function drawPieceDraw(surface: IndexedSurface, banks: PieceBankLookup, draw: Pi
   surface.blit(bank.source(), sx, sy, sw, sh, draw.destX, draw.destY, draw.mirrorX ?? false, draw.blend);
 }
 
-function drawSlot(surface: IndexedSurface, banks: PieceBankLookup, slot: Slot | null | undefined, context: string): void {
+function drawSlot(surface: IndexedSurface, banks: PieceBankLookup, slot: Slot | null | undefined, context: string, tick: number): void {
   if (!slot) return;
-  for (const draw of slot.draws) drawPieceDraw(surface, banks, draw, `compositeSlotTable: ${context}`);
+  for (const draw of slot.draws) drawPieceDraw(surface, banks, draw, `compositeSlotTable: ${context}`, tick);
 }
 
 // `front:<lateral>:<depth>` / `side:<L|R>:<depth>` (walls) or
@@ -86,15 +104,18 @@ function parseSlotKey(key: string): ParsedSlotKey | null {
  * `walker-plan.md` but not yet consumed here) — see `PieceDraw.priority`
  * for the field this would use if/when that's implemented.
  */
+// Kind order for the key-parsed (`SlotTableFile.slots`) sort below — kept
+// local since it operates on parsed slot keys, not `DrawItem`s; see
+// `view/order.ts` for the `DrawItem`-based equivalent `compositeDrawList` uses.
 const KIND_ORDER: Record<'side' | 'front' | 'prop', number> = { side: 0, front: 1, prop: 2 };
 
-export function compositeSlotTable(surface: IndexedSurface, banks: PieceBankLookup, table: SlotTableFile): void {
-  (table.staticSlots ?? []).forEach((slot, i) => drawSlot(surface, banks, slot, `staticSlots[${i}]`));
+export function compositeSlotTable(surface: IndexedSurface, banks: PieceBankLookup, table: SlotTableFile, tick = 0): void {
+  (table.staticSlots ?? []).forEach((slot, i) => drawSlot(surface, banks, slot, `staticSlots[${i}]`, tick));
 
   const keys = Object.keys(table.slots);
 
   if (table.ordering === 'array') {
-    for (const key of keys) drawSlot(surface, banks, table.slots[key], `slots.${key}`);
+    for (const key of keys) drawSlot(surface, banks, table.slots[key], `slots.${key}`, tick);
     return;
   }
 
@@ -111,24 +132,24 @@ export function compositeSlotTable(surface: IndexedSurface, banks: PieceBankLook
     return KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
   });
 
-  for (const { key } of parsed) drawSlot(surface, banks, table.slots[key], `slots.${key}`);
+  for (const { key } of parsed) drawSlot(surface, banks, table.slots[key], `slots.${key}`, tick);
 }
 
 /**
  * Composites `buildViewList`'s pose-specific output: draws `table.staticSlots`
  * (ceiling, floor — unconditional, pose-independent) first, then every
- * `DrawItem`, painter-sorted nearest-first/farthest-last (on top) with side
- * walls before the front-wall row at equal depth — the identical rule
- * `compositeSlotTable`'s own `'painter-back-to-front'` ordering uses, since
- * a `DrawItem` already carries its own `depth`/`kind`.
+ * `DrawItem` in `view/order.ts`'s shared `paintOrder` (nearest-first/
+ * farthest-last, side walls before the front-wall row at equal depth).
+ * `tick` (default 0, so every pre-M4 caller is unaffected) resolves any
+ * `AnimRef` frames via each item's own `cellX`/`cellY` for `phase: 'cell'`.
  */
-export function compositeDrawList(surface: IndexedSurface, banks: PieceBankLookup, table: SlotTableFile, items: DrawItem[]): void {
-  (table.staticSlots ?? []).forEach((slot, i) => drawSlot(surface, banks, slot, `staticSlots[${i}]`));
+export function compositeDrawList(surface: IndexedSurface, banks: PieceBankLookup, table: SlotTableFile, items: DrawItem[], tick = 0): void {
+  (table.staticSlots ?? []).forEach((slot, i) => drawSlot(surface, banks, slot, `staticSlots[${i}]`, tick));
 
-  const sorted = [...items].sort((a, b) => {
-    if (a.depth !== b.depth) return a.depth - b.depth;
-    return KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
+  const sorted = paintOrder(items);
+
+  sorted.forEach((item, i) => {
+    const cell = item.cellX !== undefined && item.cellY !== undefined ? { x: item.cellX, y: item.cellY } : undefined;
+    drawPieceDraw(surface, banks, item, `compositeDrawList: items[${i}] (${item.kind}:${item.lateral}:${item.depth})`, tick, cell);
   });
-
-  sorted.forEach((item, i) => drawPieceDraw(surface, banks, item, `compositeDrawList: items[${i}] (${item.kind}:${item.lateral}:${item.depth})`));
 }

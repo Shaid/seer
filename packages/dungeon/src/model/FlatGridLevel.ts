@@ -67,15 +67,25 @@ export class FlatGridLevel implements CellQuery {
   }
 
   entitiesAt(x: number, y: number): EntityRecord[] {
+    return this.walkEntityChain(x, y).map((e) => e.entity);
+  }
+
+  /** Same chain walk as `entitiesAt`, but keeping each record's own lookup key as its `handle` — see `CellQuery.entityHandlesAt`'s doc comment. */
+  entityHandlesAt(x: number, y: number): Array<{ handle: string; entity: EntityRecord }> {
+    return this.walkEntityChain(x, y);
+  }
+
+  private walkEntityChain(x: number, y: number): Array<{ handle: string; entity: EntityRecord }> {
     if (!this.entities || !this.entityHandlePlane || !this.inBounds(x, y)) return [];
     let slot = this.planeAt(this.entityHandlePlane, x, y);
-    const out: EntityRecord[] = [];
+    const out: Array<{ handle: string; entity: EntityRecord }> = [];
     const seen = new Set<number>(); // defensive: never loop forever on a malformed chain
     while (slot && !seen.has(slot)) {
       seen.add(slot);
-      const rec = this.entities[`${this.unit.id}:${y}:${x}:${slot}`];
+      const handle = `${this.unit.id}:${y}:${x}:${slot}`;
+      const rec = this.entities[handle];
       if (!rec) break;
-      out.push(rec);
+      out.push({ handle, entity: rec });
       slot = rec.chainNext ?? 0;
     }
     return out;

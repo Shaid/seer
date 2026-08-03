@@ -12,6 +12,8 @@ export class PixiPresenter {
   readonly sprite: Sprite;
   private readonly surface: IndexedSurface;
   private readonly source: BufferImageSource;
+  /** The integer upscale factor `attachTo` picked (1 until attached). `Walker.pick`/`view/Hotspot.ts` need this to map a container-space click back to surface pixels. */
+  scale = 1;
 
   constructor(surface: IndexedSurface) {
     this.surface = surface;
@@ -33,8 +35,13 @@ export class PixiPresenter {
 
   /** Add the sprite to `container`, scaled by the largest whole integer that fits `(targetWidth, targetHeight)`. */
   attachTo(container: Container, targetWidth: number, targetHeight: number): void {
-    const scale = Math.max(1, Math.floor(Math.min(targetWidth / this.surface.width, targetHeight / this.surface.height)));
-    this.sprite.scale.set(scale);
+    this.scale = Math.max(1, Math.floor(Math.min(targetWidth / this.surface.width, targetHeight / this.surface.height)));
+    this.sprite.scale.set(this.scale);
     container.addChild(this.sprite);
+  }
+
+  /** Map a point in the sprite's parent container's local space (e.g. a Pixi pointer event's `.getLocalPosition(sprite.parent)`) back to integer surface-pixel coordinates, per this presenter's current `scale`. */
+  toSurfacePoint(containerX: number, containerY: number): { x: number; y: number } {
+    return { x: Math.floor(containerX / this.scale), y: Math.floor(containerY / this.scale) };
   }
 }

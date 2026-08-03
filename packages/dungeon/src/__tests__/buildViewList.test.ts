@@ -64,8 +64,11 @@ function makeSlots(): SlotTableFile {
 
 const SEMANTICS = { schemaVersion: 1, confidence: 'confirmed', source: 'test', walls: {}, features: {} } as SemanticsFile;
 
+// Every fixture in this file uses plain string frames, never an `AnimRef` —
+// `frame` is asserted as `string` here for that reason (M4 widened
+// `DrawItem.frame` to `FrameRef`; see `raster/anim.test.ts` for `AnimRef` coverage).
 function framesOf(items: ReturnType<typeof buildViewList>): string[] {
-  return items.map((i) => i.frame).sort();
+  return items.map((i) => i.frame as string).sort();
 }
 
 describe('buildViewList', () => {

@@ -37,18 +37,14 @@
  * ## M5 — non-wall structure props
  *
  * `docs/blackcrypt/amiga/data-structure.md` "M5 — prop placement tables"
- * confirms four of the seven non-wall structure classes render from static,
- * view-geometry-keyed slots exactly like the walls do (the actual pixels
- * never depend on *which* structure record it is, only on `(depth, lateral,
- * ...)`) — `alcove`, `plaque`, `stairs` and `door-switch` below. The other
- * three (`door-lock`, `floor-plate/trap`, `floor-item`) have their placement
- * tables decoded and verified in `scripts/export_dungeon_props.py` /
- * `dungeon/props.json` but are **not yet wired here** — door-lock's art is
- * per-map (needs a template resolved against the pose's own level unit,
- * not just a static atlas frame), floor-plate's art source is a still-
- * unidentified graphics-kernel slot, and floor-item placement needs the
- * entity's own `gfxNumber` threaded through a 3-table anchor/registration/
- * scatter chain. See `docs/blackcrypt/TODO.md`.
+ * confirms six of the seven non-wall structure classes render either from
+ * static, view-geometry-keyed slots exactly like the walls do (`alcove`,
+ * `plaque`, `stairs`, `door-switch`, `door-lock` — the pixels never depend
+ * on *which* structure record it is, only on `(depth, lateral, ...)`), or
+ * (floor-item, below) from a small arithmetic table keyed additionally by
+ * the entity's own `gfxNumber`. Only `floor-plate/trap` is not wired here —
+ * its art source is a still-unidentified graphics-kernel slot. See
+ * `docs/blackcrypt/TODO.md`.
  *
  * Gating, all re-derived from disassembly this pass (not guessed):
  *
@@ -66,6 +62,37 @@
  *   only the wall on the party's own **right** is ever drawn — tested here
  *   as "does raw byte `0x07`'s bit for `rightOf(facing)` (via `wall =
  *   rightOf(facing)`, `bit = (wall+1)&3`) come up set", not via `wallMask`.
+ * - **Door lock** (`type 0x22`): same wall-mounted/right-only gating as door
+ *   switch (`docs/blackcrypt/amiga/data-structure.md` "Kind 3..." names both
+ *   `0x22` and `0x0F` as affected), but its art is per-map — `sprites/
+ *   wall-decorations.json`'s frames are named `m{mapId}_decor{gfxIndex}_
+ *   {near|mid|far}` (`scripts/extract_bcdfbn_decor.py`). `slots.json`'s
+ *   `prop:door-lock:<lateral>:<depth>` entries carry a `FrameTemplate`
+ *   (`schema/slots.ts`) instead of a literal frame; `resolveDoorLockFrame`
+ *   below substitutes `{mapId}` from `pose.level`, `{gfxIndex}` from the
+ *   entity's own `gfxNumber` (`EntityRecord.gfx`, `0x51`/`0x52`/`0x53` →
+ *   `0`/`1`/`2` — `scripts/export_dungeon_props.py`'s `read_door_lock`) and
+ *   `{depthLabel}` from the geometric depth (`0`/`1`/`2` → `near`/`mid`/
+ *   `far`, the same fixed mapping `read_door_lock` uses) — all three are
+ *   known at `buildViewList` time, so the template is always fully resolved
+ *   before the item is emitted (never reaches the compositor unresolved).
+ * - **Floor item** (`blackcrypt-floor-item-placement`) — everything else
+ *   that isn't a monster (`EntityRecord.type === 0x80`, the exporter's own
+ *   sentinel — see `export_dungeon_levels.py`'s `EntityRecord` field
+ *   mapping) or one of the structure types above. Position and frame are
+ *   *computed*, not looked up in `slots.slots` — `+0x218FA`'s own formula,
+ *   `destX/Y = anchor(depth, lateral) - registration(group, depth)`, where
+ *   `group = floorItem.gfxToGroup[entity.gfx]`. `resolveFloorItem` below
+ *   returns `null` (render nothing) for a `gfxNumber` with no floor group
+ *   (`noneGroup`/out of range) — matching the game's own "bail on a negative
+ *   result" gate — or when `slots.floorItem` is absent (a level/fixture that
+ *   doesn't model floor items, e.g. `sweep.test.ts`'s wall-only M1 fixture).
+ *   Free-standing at any `(depth, lateral)` the anchor table covers, unlike
+ *   alcove/plaque/door-switch/door-lock's wall-adjacency gating — the anchor
+ *   table has no wall-mask dependency, and level design places items on any
+ *   square shape. Does not model the runtime scatter jitter (`+0x220CC`,
+ *   `FloorItemPlacement`'s doc comment) or the wall-mounted `+0x21C84`
+ *   variant (kind 0-3's default, a documented, out-of-scope simplification).
  */
 import type { CellQuery } from '../model/CellQuery.ts';
 import type { Pose } from '../model/Pose.ts';
@@ -73,9 +100,26 @@ import { leftOf, rightOf, project } from '../model/Direction.ts';
 import type { Dir4 } from '../model/Pose.ts';
 import type { ViewSpec } from './ViewSpec.ts';
 import type { SemanticsFile } from '../schema/semantics.ts';
-import type { SlotTableFile } from '../schema/slots.ts';
+import type { SlotTableFile, FloorItemPlacement } from '../schema/slots.ts';
 import type { EntityRecord } from '../schema/level.ts';
 import type { DrawItem, DrawItemKind } from './DrawItem.ts';
+import type { FrameRef } from '../schema/slots.ts';
+import { isFrameTemplate } from '../raster/anim.ts';
+
+/**
+ * Extra, per-instance fields merged onto every `DrawItem` a `pushSlot` call
+ * emits for one square — the cell it was resolved at (`AnimRef`'s
+ * `phase: 'cell'` needs this — see `DrawItem.cellX`/`cellY`'s doc comment),
+ * and, for an entity-sourced prop, that entity's record/handle/hotspot code
+ * (M4, "Mouse interactivity" / "Clickable-hotspot globals").
+ */
+interface SlotExtras {
+  x: number;
+  y: number;
+  entity?: EntityRecord;
+  entityHandle?: string;
+  hotspot?: { code: number };
+}
 
 function pushSlot(
   items: DrawItem[],
@@ -84,14 +128,51 @@ function pushSlot(
   kind: DrawItemKind,
   depth: number,
   lateral: number,
+  extras: SlotExtras,
   side?: 'L' | 'R',
   propType?: string,
+  resolveFrame?: (frame: FrameRef) => FrameRef,
 ): void {
   const slot = slots.slots[key];
   if (!slot) return;
   for (const draw of slot.draws) {
-    items.push({ ...draw, kind, depth, lateral, side, propType });
+    items.push({
+      ...draw,
+      frame: resolveFrame ? resolveFrame(draw.frame) : draw.frame,
+      kind,
+      depth,
+      lateral,
+      side,
+      propType,
+      cellX: extras.x,
+      cellY: extras.y,
+      entity: extras.entity,
+      entityHandle: extras.entityHandle,
+      // An entity-derived hotspot code (below) always wins over anything
+      // baked into the slot's own static `PieceDraw` — geometry (`slots.json`)
+      // doesn't know about entity semantics, only `buildViewList` does.
+      hotspot: extras.hotspot ?? draw.hotspot,
+    });
   }
+}
+
+/** `depth` (0 = nearest) → door-lock's fixed depth-label convention (`read_door_lock`'s own `depth_labels`). */
+const DOOR_LOCK_DEPTH_LABELS = ['near', 'mid', 'far'] as const;
+
+/**
+ * Substitutes a door-lock `FrameTemplate`'s `{mapId}`/`{gfxIndex}`/
+ * `{depthLabel}` placeholders — see the module doc comment's "Door lock"
+ * paragraph. Returns a non-template frame unchanged (defensive: lets this
+ * function be passed as `pushSlot`'s generic `resolveFrame` even if a
+ * literal-string draw ever ends up sharing a door-lock slot).
+ */
+function resolveDoorLockFrame(frame: FrameRef, mapId: number, gfxIndex: number, depth: number): FrameRef {
+  if (!isFrameTemplate(frame)) return frame;
+  const depthLabel = DOOR_LOCK_DEPTH_LABELS[depth] ?? DOOR_LOCK_DEPTH_LABELS[0];
+  return frame.template
+    .replace('{mapId}', String(mapId))
+    .replace('{gfxIndex}', String(gfxIndex))
+    .replace('{depthLabel}', depthLabel);
 }
 
 /**
@@ -142,31 +223,119 @@ function stairsFlight(entity: EntityRecord): 'a' | 'b' | null {
   return null;
 }
 
+/**
+ * M4 — the real, confirmed hotspot codes (`data-structure.md` "Clickable-
+ * hotspot globals") for the entity types `buildViewList` already renders as
+ * props. Keyed by `EntityRecord.type`; a type with two distinct codes
+ * (plaque `0x20`/`0x21`) is disambiguated below rather than in this table.
+ * Fountain/panel (`0x6E`) and switch (`0x6D`) are known codes but have no
+ * rendered prop yet (floor-plate, M5's one remaining class), so they're not
+ * wired here — see the module doc comment. Floor items carry no hotspot —
+ * they aren't in this table (`decorate`/pick-up is a host/inventory
+ * concern, not a viewport click per `data-structure.md`'s hotspot list).
+ */
+const ALCOVE_HOTSPOT_CODE = 0x69;
+const PLAQUE_HOTSPOT_CODES: Record<0x20 | 0x21, number> = { 0x20: 0x6a, 0x21: 0x6f };
+const DOOR_SWITCH_HOTSPOT_CODE = 0x64;
+const DOOR_LOCK_HOTSPOT_CODE = 0x6b;
+
+/** `EntityRecord.type` sentinel for a monster record (`export_dungeon_levels.py`'s `EntityRecord` field mapping: `raw[0]&0x80` -> `0x80`). Not a floor item, not a structure — excluded from the floor-item fallback below. */
+const MONSTER_TYPE_SENTINEL = 0x80;
+
+/** Every structure type this file renders its own dedicated way — the floor-item fallback in `pushProps` applies to anything *not* in this set (and not a monster). */
+const HANDLED_STRUCTURE_TYPES = new Set<number>([0x16, 0x20, 0x21, 0x12, 0x0f, 0x22]);
+
+/**
+ * `blackcrypt-floor-item-placement` — `+0x218FA`'s own formula:
+ * `dest = anchor(depth, lateral) - registration(group, depth)`, `group =
+ * floorItem.gfxToGroup[gfxNumber]`. Returns `null` (render nothing) exactly
+ * when the game's own gate would: no `floorItem` table at all (a
+ * fixture/level that doesn't model floor items), `gfxNumber` out of range or
+ * mapping to `noneGroup` (`MOVE.B (A1,gfx.W),D1` returning negative — no
+ * floor sprite for this item), or a missing anchor/registration entry for
+ * this exact `(depth, lateral)`/`(group, depth)` (the anchor table only
+ * covers `depth`/`lateral` in `{0,1,2}`×`{-1,0,1}`, matching
+ * `frontWallMaxDepth`).
+ */
+function resolveFloorItem(
+  floorItem: FloorItemPlacement | undefined,
+  gfxNumber: number | undefined,
+  depth: number,
+  lateral: number,
+): { frame: string; destX: number; destY: number } | null {
+  if (!floorItem || gfxNumber === undefined) return null;
+  const group = floorItem.gfxToGroup[gfxNumber];
+  if (group === undefined || group === floorItem.noneGroup) return null;
+  const anchor = floorItem.anchor[`${depth}:${lateral}`];
+  const registration = floorItem.registration[`${group}:${depth}`];
+  if (!anchor || !registration) return null;
+  return {
+    frame: `floor${String(group).padStart(2, '0')}-d${depth}`,
+    destX: anchor[0] - registration[0],
+    destY: anchor[1] - registration[1],
+  };
+}
+
+interface EntityHandle {
+  handle?: string;
+  entity: EntityRecord;
+}
+
 function pushProps(
   items: DrawItem[],
   slots: SlotTableFile,
-  entities: EntityRecord[],
+  entries: EntityHandle[],
   facing: Dir4,
   depth: number,
   lateral: number,
   frontWallMaxDepth: number,
+  cell: { x: number; y: number },
+  mapId: number,
 ): void {
-  for (const entity of entities) {
+  for (const { handle, entity } of entries) {
     if (entity.type === 0x16 || entity.type === 0x20 || entity.type === 0x21) {
       if (depth >= frontWallMaxDepth) continue;
       const dir = singleWallDir(entity.wallMask, facing);
       if (dir === null) continue;
       const kind = entity.type === 0x16 ? 'alcove' : 'plaque';
-      pushSlot(items, slots, `prop:${kind}:${lateral}:${depth}:${dir}`, 'prop', depth, lateral, undefined, kind);
+      const hotspot = { code: entity.type === 0x16 ? ALCOVE_HOTSPOT_CODE : PLAQUE_HOTSPOT_CODES[entity.type] };
+      pushSlot(items, slots, `prop:${kind}:${lateral}:${depth}:${dir}`, 'prop', depth, lateral, { ...cell, entity, entityHandle: handle, hotspot }, undefined, kind);
     } else if (entity.type === 0x12) {
       if (depth >= 3) continue;
       const flight = stairsFlight(entity);
       if (flight === null) continue;
-      pushSlot(items, slots, `prop:stairs-${flight}:${lateral}:${depth}`, 'prop', depth, lateral, undefined, 'stairs');
+      pushSlot(items, slots, `prop:stairs-${flight}:${lateral}:${depth}`, 'prop', depth, lateral, { ...cell, entity, entityHandle: handle }, undefined, 'stairs');
     } else if (entity.type === 0x0f) {
       if (depth >= 3) continue;
       if (!decoratesRightWall(entity.raw, facing)) continue;
-      pushSlot(items, slots, `prop:door-switch:${lateral}:${depth}`, 'prop', depth, lateral, undefined, 'door-switch');
+      const hotspot = { code: DOOR_SWITCH_HOTSPOT_CODE };
+      pushSlot(items, slots, `prop:door-switch:${lateral}:${depth}`, 'prop', depth, lateral, { ...cell, entity, entityHandle: handle, hotspot }, undefined, 'door-switch');
+    } else if (entity.type === 0x22) {
+      if (depth >= 3) continue;
+      if (!decoratesRightWall(entity.raw, facing)) continue;
+      // gfxNumber 0x51/0x52/0x53 -> gfxIndex 0/1/2 (read_door_lock); a
+      // gfxNumber outside that range has no per-map decor art, so skip
+      // rather than resolve a template that can't name a real frame.
+      if (entity.gfx === undefined) continue;
+      const gfxIndex = entity.gfx - 0x51;
+      if (gfxIndex < 0 || gfxIndex > 2) continue;
+      const hotspot = { code: DOOR_LOCK_HOTSPOT_CODE };
+      pushSlot(
+        items, slots, `prop:door-lock:${lateral}:${depth}`, 'prop', depth, lateral,
+        { ...cell, entity, entityHandle: handle, hotspot }, undefined, 'door-lock',
+        (frame) => resolveDoorLockFrame(frame, mapId, gfxIndex, depth),
+      );
+    } else if (entity.type !== MONSTER_TYPE_SENTINEL && !HANDLED_STRUCTURE_TYPES.has(entity.type)) {
+      if (depth >= frontWallMaxDepth) continue;
+      const resolved = resolveFloorItem(slots.floorItem, entity.gfx, depth, lateral);
+      if (!resolved) continue;
+      const bank = slots.floorItem!.bank; // resolveFloorItem returned non-null, so floorItem exists
+      items.push({
+        bank, frame: resolved.frame, destX: resolved.destX, destY: resolved.destY, blend: 'mask',
+        kind: 'prop', depth, lateral, propType: 'floor-item',
+        cellX: cell.x, cellY: cell.y, entity, entityHandle: handle,
+        origin: `bcdft S_1+0x218FA (floor-item anchor+registration, gfxNumber=${entity.gfx}, depth=${depth} lateral=${lateral})`,
+      });
     }
   }
 }
@@ -193,23 +362,26 @@ export function buildViewList(
     for (const lateral of spec.lateralOffsets) {
       const { x, y } = project(pose.x, pose.y, pose.facing, depth, lateral);
       if (!level.inBounds(x, y)) continue;
+      const cell = { x, y };
 
       if (depth < spec.frontWallMaxDepth && level.wallAt(x, y, pose.facing)) {
-        pushSlot(items, slots, `front:${lateral}:${depth}`, 'front', depth, lateral);
+        pushSlot(items, slots, `front:${lateral}:${depth}`, 'front', depth, lateral, cell);
       }
 
       if (lateral === 0) {
         if (level.wallAt(x, y, leftOf(pose.facing))) {
-          pushSlot(items, slots, `side:L:${depth}`, 'side', depth, lateral, 'L');
+          pushSlot(items, slots, `side:L:${depth}`, 'side', depth, lateral, cell, 'L');
         }
         if (level.wallAt(x, y, rightOf(pose.facing))) {
-          pushSlot(items, slots, `side:R:${depth}`, 'side', depth, lateral, 'R');
+          pushSlot(items, slots, `side:R:${depth}`, 'side', depth, lateral, cell, 'R');
         }
       }
 
-      const entities = level.entitiesAt(x, y);
-      if (entities.length > 0) {
-        pushProps(items, slots, entities, pose.facing, depth, lateral, spec.frontWallMaxDepth);
+      const entries: EntityHandle[] = level.entityHandlesAt
+        ? level.entityHandlesAt(x, y)
+        : level.entitiesAt(x, y).map((entity) => ({ entity }));
+      if (entries.length > 0) {
+        pushProps(items, slots, entries, pose.facing, depth, lateral, spec.frontWallMaxDepth, cell, pose.level);
       }
     }
   }

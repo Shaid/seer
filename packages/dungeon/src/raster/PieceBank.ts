@@ -115,6 +115,78 @@ export class PieceBank {
     return new PieceBank(width, height, index, mask, palette, frames);
   }
 
+  /**
+   * Decode a *true palette-indexed* atlas — `scripts/export_dungeon_tileset_
+   * indexed.py`'s `dungeon-<name>-indexed.png` (+ `-indexed-mask.png`) — into
+   * a `PieceBank` whose `.index` values are the game's own raw EHB palette
+   * indices (0-63), not an arbitrary per-atlas dedup like `fromRGBA`. That
+   * portable index domain is exactly what every one of a tileset's
+   * `palettes/dungeon-<name>-ramp<N>.json` files shares (M4, `walker-plan.md`
+   * "ramp-aware rendering") — swap which ramp array a presenter's `.present()`
+   * uses and the same index buffer renders correctly under any ramp,
+   * unlike `fromRGBA`'s locally-derived palette which is meaningless outside
+   * the one atlas it was built from.
+   *
+   * `rgba`/`maskRgba` are the two PNGs already decoded to interleaved RGBA
+   * bytes by whatever decoder the caller has (Node `pngjs`, or a browser
+   * `<canvas>` readback — both work identically here, unlike a "give me the
+   * raw index bytes" API would: a `<canvas>` round-trip always rasterizes a
+   * PNG to RGBA, discarding a color-type-3 PNG's own index identity before
+   * `getImageData` can see it). The index is instead *recovered* by matching
+   * each decoded pixel's exact RGB against `basePalette` — the same ramp the
+   * PNG's own embedded palette was baked with (the export script's "primary
+   * ramp", always ramp index 0 for any tileset that serves it) — which is
+   * exact because the PNG has no lossy recompression between export and
+   * decode. `maskRgba`'s value is read from its red channel (a grayscale
+   * 0/255 image — R=G=B), thresholded at 128.
+   */
+  static fromIndexedRGBA(
+    rgba: Uint8Array | Uint8ClampedArray,
+    maskRgba: Uint8Array | Uint8ClampedArray,
+    width: number,
+    height: number,
+    atlas: AtlasMeta,
+    basePalette: RGBAColor[],
+  ): PieceBank {
+    const pixelCount = width * height;
+    if (rgba.length !== pixelCount * 4) {
+      throw new Error(`PieceBank.fromIndexedRGBA: expected ${pixelCount * 4} RGBA bytes for ${width}x${height}, got ${rgba.length}`);
+    }
+    if (maskRgba.length !== pixelCount * 4) {
+      throw new Error(`PieceBank.fromIndexedRGBA: mask image must be ${width}x${height} too (${pixelCount * 4} RGBA bytes), got ${maskRgba.length}`);
+    }
+
+    const colorToIndex = new Map<string, number>();
+    basePalette.forEach((c, i) => {
+      const key = `${c.r},${c.g},${c.b}`;
+      if (!colorToIndex.has(key)) colorToIndex.set(key, i); // first index wins on a duplicate color
+    });
+
+    const index = new Uint8Array(pixelCount);
+    const mask = new Uint8Array(pixelCount);
+    for (let i = 0; i < pixelCount; i++) {
+      const o = i * 4;
+      const key = `${rgba[o]},${rgba[o + 1]},${rgba[o + 2]}`;
+      const idx = colorToIndex.get(key);
+      if (idx === undefined) {
+        const x = i % width;
+        const y = Math.floor(i / width);
+        throw new Error(
+          `PieceBank.fromIndexedRGBA: pixel (${x},${y}) color (${rgba[o]},${rgba[o + 1]},${rgba[o + 2]}) isn't in basePalette — wrong ramp paired with this atlas?`,
+        );
+      }
+      index[i] = idx;
+      mask[i] = (maskRgba[o] as number) > 127 ? 1 : 0;
+    }
+
+    const frames = new Map<string, PieceRect>();
+    for (const f of atlas.frames as AtlasFrame[]) {
+      frames.set(f.name, { x: f.x, y: f.y, w: f.w, h: f.h });
+    }
+
+    return new PieceBank(width, height, index, mask, [...basePalette], frames);
+  }
+
   hasFrame(name: string): boolean {
     return this.frames.has(name);
   }
