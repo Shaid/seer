@@ -65,3 +65,54 @@ describe('FlatGridLevel', () => {
     expect(() => new FlatGridLevel(file, file.units[0]!)).toThrow(/elements, expected/);
   });
 });
+
+describe('FlatGridLevel.entitiesAt', () => {
+  function makeFileWithEntities(): DungeonLevelFile {
+    const file = makeFile(new Array(9).fill(0));
+    file.units[0]!.planes.objectHandle = [0, 0, 0, 0, 5, 0, 0, 0, 0]; // cell (1,1) chain head = slot 5
+    file.entityHandlePlane = 'objectHandle';
+    file.entities = {
+      '1:1:1:5': { type: 0x11, chainNext: 7, raw: [] },
+      '1:1:1:7': { type: 0x14, chainNext: 0, raw: [] },
+    };
+    return file;
+  }
+
+  it('walks the same-square chain in order via chainNext', () => {
+    const file = makeFileWithEntities();
+    const level = new FlatGridLevel(file, file.units[0]!);
+    const recs = level.entitiesAt(1, 1);
+    expect(recs.map((r) => r.type)).toEqual([0x11, 0x14]);
+  });
+
+  it('returns [] for a cell with no chain (objectHandle 0)', () => {
+    const file = makeFileWithEntities();
+    const level = new FlatGridLevel(file, file.units[0]!);
+    expect(level.entitiesAt(0, 0)).toEqual([]);
+  });
+
+  it('returns [] when the level has no entityHandlePlane/entities at all', () => {
+    const file = makeFile(new Array(9).fill(0));
+    const level = new FlatGridLevel(file, file.units[0]!);
+    expect(level.entitiesAt(1, 1)).toEqual([]);
+  });
+
+  it('returns [] for an out-of-bounds cell rather than throwing', () => {
+    const file = makeFileWithEntities();
+    const level = new FlatGridLevel(file, file.units[0]!);
+    expect(level.entitiesAt(50, 50)).toEqual([]);
+  });
+
+  it('does not infinite-loop on a self-referential chainNext', () => {
+    const file = makeFile(new Array(9).fill(0));
+    file.units[0]!.planes.objectHandle = [0, 0, 0, 0, 5, 0, 0, 0, 0];
+    file.entityHandlePlane = 'objectHandle';
+    file.entities = { '1:1:1:5': { type: 0x30, chainNext: 5, raw: [] } }; // points to itself
+    const level = new FlatGridLevel(file, file.units[0]!);
+    let recs: ReturnType<typeof level.entitiesAt> = [];
+    expect(() => {
+      recs = level.entitiesAt(1, 1);
+    }).not.toThrow();
+    expect(recs).toHaveLength(1); // visited once, not forever
+  });
+});

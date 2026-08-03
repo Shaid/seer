@@ -9,7 +9,7 @@
  */
 import type { CellQuery } from './CellQuery.ts';
 import type { Dir4 } from './Pose.ts';
-import type { DungeonLevelFile, LevelUnit } from '../schema/level.ts';
+import type { DungeonLevelFile, EntityRecord, LevelUnit } from '../schema/level.ts';
 
 export class FlatGridLevel implements CellQuery {
   readonly width: number;
@@ -17,6 +17,8 @@ export class FlatGridLevel implements CellQuery {
   readonly unit: LevelUnit;
   private readonly wallPlane: number[];
   private readonly wallBits: readonly [number, number, number, number];
+  private readonly entities: Record<string, EntityRecord> | undefined;
+  private readonly entityHandlePlane: string | undefined;
 
   constructor(file: DungeonLevelFile, unit: LevelUnit) {
     if (file.cellSpace.kind !== 'flat') {
@@ -37,6 +39,8 @@ export class FlatGridLevel implements CellQuery {
     }
     this.wallPlane = plane;
     this.wallBits = file.wallStorage.bits;
+    this.entities = file.entities;
+    this.entityHandlePlane = file.entityHandlePlane;
   }
 
   inBounds(x: number, y: number): boolean {
@@ -60,5 +64,20 @@ export class FlatGridLevel implements CellQuery {
     const plane = this.unit.planes[name];
     if (!plane) throw new Error(`FlatGridLevel.planeAt: unknown plane "${name}"`);
     return plane[this.index(x, y)] ?? 0;
+  }
+
+  entitiesAt(x: number, y: number): EntityRecord[] {
+    if (!this.entities || !this.entityHandlePlane || !this.inBounds(x, y)) return [];
+    let slot = this.planeAt(this.entityHandlePlane, x, y);
+    const out: EntityRecord[] = [];
+    const seen = new Set<number>(); // defensive: never loop forever on a malformed chain
+    while (slot && !seen.has(slot)) {
+      seen.add(slot);
+      const rec = this.entities[`${this.unit.id}:${y}:${x}:${slot}`];
+      if (!rec) break;
+      out.push(rec);
+      slot = rec.chainNext ?? 0;
+    }
+    return out;
   }
 }

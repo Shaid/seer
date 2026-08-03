@@ -8,6 +8,7 @@
  * until a game with sparse/paged storage shows up) would implement it too.
  */
 import type { Dir4 } from './Pose.ts';
+import type { EntityRecord } from '../schema/level.ts';
 
 export interface CellQuery {
   /** Whether `(x, y)` is a real, addressable cell in this level. */
@@ -30,4 +31,14 @@ export interface CellQuery {
    * instead of a bounds exception).
    */
   planeAt(name: string, x: number, y: number): number;
+
+  /**
+   * Every entity (item/structure/monster head record) occupying cell
+   * `(x, y)`, walking the same-square chain the way the game's own loader
+   * does (`bcdfs.load_world`'s docstring — `chainNext` threads the chain,
+   * `0` ends it). Returns `[]` for an out-of-bounds or empty cell — this is
+   * a data lookup for props/M5, not a movement/rendering gate, so (like
+   * `planeAt`) it never throws for "nothing here".
+   */
+  entitiesAt(x: number, y: number): EntityRecord[];
 }

@@ -1,0 +1,704 @@
+{
+  "schemaVersion": 1,
+  "surface": {
+    "width": 320,
+    "height": 200
+  },
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "width": 208,
+    "height": 140
+  },
+  "depthCount": 4,
+  "lateralOffsets": [
+    0,
+    1,
+    -1
+  ],
+  "frontWallMaxDepth": 3,
+  "banks": [
+    {
+      "id": "dungeon-bcdfx",
+      "atlas": "textures/dungeon-bcdfx.json",
+      "image": "textures/dungeon-bcdfx.png"
+    }
+  ],
+  "ordering": "painter-back-to-front",
+  "staticSlots": [
+    {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "ceiling",
+          "destX": 0,
+          "destY": 0,
+          "blend": "replace",
+          "origin": "data-structure.md:5226,5249 Ceiling, 208x30 @ (0,0) -- hard-coded view-builder constant, not re-derived from the 9-descriptor table"
+        }
+      ]
+    },
+    {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "floor",
+          "destX": 0,
+          "destY": 72,
+          "blend": "replace",
+          "origin": "data-structure.md:5227,5251 Floor, 208x68 @ (0,72) -- hard-coded view-builder constant, not re-derived from the 9-descriptor table"
+        }
+      ]
+    }
+  ],
+  "slots": {
+    "front:-1:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "wall0-left",
+          "destX": 0,
+          "destY": 5,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x22ce2 (front-wall descriptor 0), re-read this pass"
+        }
+      ]
+    },
+    "front:0:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "wall0-face",
+          "destX": 16,
+          "destY": 5,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x22cf6 (front-wall descriptor 1), re-read this pass"
+        }
+      ]
+    },
+    "front:1:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "wall0-right",
+          "destX": 192,
+          "destY": 5,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x22d0a (front-wall descriptor 2), re-read this pass"
+        }
+      ]
+    },
+    "front:-1:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "wall1-left",
+          "destX": 0,
+          "destY": 18,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x22d1e (front-wall descriptor 3), re-read this pass"
+        }
+      ]
+    },
+    "front:0:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "wall1-face",
+          "destX": 48,
+          "destY": 18,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x22d32 (front-wall descriptor 4), re-read this pass"
+        }
+      ]
+    },
+    "front:1:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "wall1-right",
+          "destX": 160,
+          "destY": 18,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x22d46 (front-wall descriptor 5), re-read this pass"
+        }
+      ]
+    },
+    "front:-1:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "wall2-left",
+          "destX": 0,
+          "destY": 23,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x22d5a (front-wall descriptor 6), re-read this pass"
+        }
+      ]
+    },
+    "front:0:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "wall2-face",
+          "destX": 64,
+          "destY": 23,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x22d6e (front-wall descriptor 7), re-read this pass"
+        }
+      ]
+    },
+    "front:1:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "wall2-right",
+          "destX": 144,
+          "destY": 23,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x22d82 (front-wall descriptor 8), re-read this pass"
+        }
+      ]
+    },
+    "side:L:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "sidewall-depth0-near",
+          "destX": 0,
+          "destY": 0,
+          "blend": "mask",
+          "origin": "bcdft S_1+0x22e4a (side-wall descriptor 0), re-read this pass -- atlas frame name \"sidewall-depth0-near\" predates the left/right correction"
+        }
+      ]
+    },
+    "side:R:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "sidewall-depth0-far",
+          "destX": 192,
+          "destY": 0,
+          "blend": "mask",
+          "origin": "bcdft S_1+0x22e66 (side-wall descriptor 1), re-read this pass -- atlas frame name \"sidewall-depth0-far\" predates the left/right correction"
+        }
+      ]
+    },
+    "side:L:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "sidewall-depth1-near",
+          "destX": 16,
+          "destY": 5,
+          "blend": "mask",
+          "origin": "bcdft S_1+0x22e82 (side-wall descriptor 2), re-read this pass -- atlas frame name \"sidewall-depth1-near\" predates the left/right correction"
+        }
+      ]
+    },
+    "side:R:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "sidewall-depth1-far",
+          "destX": 160,
+          "destY": 5,
+          "blend": "mask",
+          "origin": "bcdft S_1+0x22e9e (side-wall descriptor 3), re-read this pass -- atlas frame name \"sidewall-depth1-far\" predates the left/right correction"
+        }
+      ]
+    },
+    "side:L:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "sidewall-depth2-near",
+          "destX": 48,
+          "destY": 18,
+          "blend": "mask",
+          "origin": "bcdft S_1+0x22eba (side-wall descriptor 4), re-read this pass -- atlas frame name \"sidewall-depth2-near\" predates the left/right correction"
+        }
+      ]
+    },
+    "side:R:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "sidewall-depth2-far",
+          "destX": 144,
+          "destY": 18,
+          "blend": "mask",
+          "origin": "bcdft S_1+0x22ed6 (side-wall descriptor 5), re-read this pass -- atlas frame name \"sidewall-depth2-far\" predates the left/right correction"
+        }
+      ]
+    },
+    "side:L:3": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "sidewall-depth3-near",
+          "destX": 64,
+          "destY": 24,
+          "blend": "mask",
+          "origin": "bcdft S_1+0x22ef2 (side-wall descriptor 6), re-read this pass -- atlas frame name \"sidewall-depth3-near\" predates the left/right correction"
+        }
+      ]
+    },
+    "side:R:3": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "sidewall-depth3-far",
+          "destX": 128,
+          "destY": 24,
+          "blend": "mask",
+          "origin": "bcdft S_1+0x22f0e (side-wall descriptor 7), re-read this pass -- atlas frame name \"sidewall-depth3-far\" predates the left/right correction"
+        }
+      ]
+    },
+    "prop:alcove:0:0:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "alcove-a",
+          "destX": 48,
+          "destY": 10,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x24f90 (alcove index table, depth=0 lateral=0 dir=0) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:alcove:0:1:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "alcove-b",
+          "destX": 72,
+          "destY": 23,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x24f90 (alcove index table, depth=1 lateral=0 dir=0) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:alcove:0:1:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "alcove-d",
+          "destX": 160,
+          "destY": 16,
+          "mirrorX": true,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x24f90 (alcove index table, depth=1 lateral=0 dir=1) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:alcove:0:1:3": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "alcove-d",
+          "destX": 16,
+          "destY": 16,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x24f90 (alcove index table, depth=1 lateral=0 dir=3) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:alcove:-1:2:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "alcove-c",
+          "destX": 0,
+          "destY": 26,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x24f90 (alcove index table, depth=2 lateral=-1 dir=0) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:alcove:0:2:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "alcove-c",
+          "destX": 80,
+          "destY": 26,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x24f90 (alcove index table, depth=2 lateral=0 dir=0) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:alcove:0:2:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "alcove-e",
+          "destX": 144,
+          "destY": 25,
+          "mirrorX": true,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x24f90 (alcove index table, depth=2 lateral=0 dir=1) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:alcove:0:2:3": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "alcove-e",
+          "destX": 48,
+          "destY": 25,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x24f90 (alcove index table, depth=2 lateral=0 dir=3) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:alcove:1:2:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "alcove-c",
+          "destX": 160,
+          "destY": 26,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x24f90 (alcove index table, depth=2 lateral=1 dir=0) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:plaque:0:0:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "plaque-a",
+          "destX": 56,
+          "destY": 9,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x250f0 (plaque index table, depth=0 lateral=0 dir=0) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:plaque:0:1:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "plaque-b",
+          "destX": 72,
+          "destY": 21,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x250f0 (plaque index table, depth=1 lateral=0 dir=0) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:plaque:0:1:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "plaque-d",
+          "destX": 160,
+          "destY": 18,
+          "mirrorX": true,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x250f0 (plaque index table, depth=1 lateral=0 dir=1) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:plaque:0:1:3": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "plaque-d",
+          "destX": 16,
+          "destY": 18,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x250f0 (plaque index table, depth=1 lateral=0 dir=3) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:plaque:-1:2:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "plaque-c",
+          "destX": 0,
+          "destY": 25,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x250f0 (plaque index table, depth=2 lateral=-1 dir=0) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:plaque:0:2:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "plaque-c",
+          "destX": 80,
+          "destY": 25,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x250f0 (plaque index table, depth=2 lateral=0 dir=0) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:plaque:0:2:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "plaque-e",
+          "destX": 144,
+          "destY": 27,
+          "mirrorX": true,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x250f0 (plaque index table, depth=2 lateral=0 dir=1) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:plaque:0:2:3": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "plaque-e",
+          "destX": 48,
+          "destY": 27,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x250f0 (plaque index table, depth=2 lateral=0 dir=3) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:plaque:1:2:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "plaque-c",
+          "destX": 160,
+          "destY": 25,
+          "mirrorX": false,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x250f0 (plaque index table, depth=2 lateral=1 dir=0) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:stairs-a:0:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-a-depth0",
+          "destX": 48,
+          "destY": 9,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=0 lateral=0 flight=a) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:stairs-b:0:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-b-depth0",
+          "destX": 48,
+          "destY": 9,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=0 lateral=0 flight=b) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:stairs-a:0:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-a-depth1",
+          "destX": 72,
+          "destY": 20,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=1 lateral=0 flight=a) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:stairs-b:0:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-b-depth1",
+          "destX": 72,
+          "destY": 20,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=1 lateral=0 flight=b) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:stairs-a:-1:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-a-depth2",
+          "destX": 0,
+          "destY": 25,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=2 lateral=-1 flight=a) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:stairs-b:-1:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-b-depth2",
+          "destX": 0,
+          "destY": 25,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=2 lateral=-1 flight=b) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:stairs-a:0:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-a-depth2",
+          "destX": 80,
+          "destY": 25,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=2 lateral=0 flight=a) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:stairs-b:0:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-b-depth2",
+          "destX": 80,
+          "destY": 25,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=2 lateral=0 flight=b) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:stairs-a:1:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-a-depth2",
+          "destX": 160,
+          "destY": 25,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=2 lateral=1 flight=a) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:stairs-b:1:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "stairs-flight-b-depth2",
+          "destX": 160,
+          "destY": 25,
+          "blend": "replace",
+          "origin": "bcdft S_1+0x25232 (stairs index table, depth=2 lateral=1 flight=b) -> shared pool +0x1d9e6"
+        }
+      ]
+    },
+    "prop:door-switch:-1:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "pull-chain-1",
+          "destX": -8,
+          "destY": 50,
+          "blend": "mask",
+          "hotspot": {
+            "code": 100
+          },
+          "origin": "bcdft S_1+0x260b8 (door switch position table, side=1 direct, depth=0 lateral=-1); only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
+        }
+      ]
+    },
+    "prop:door-switch:0:0": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "pull-chain-1",
+          "destX": 158,
+          "destY": 50,
+          "blend": "mask",
+          "hotspot": {
+            "code": 100
+          },
+          "origin": "bcdft S_1+0x260b8 (door switch position table, side=1 direct, depth=0 lateral=0); only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
+        }
+      ]
+    },
+    "prop:door-switch:-1:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "pull-chain-2",
+          "destX": 32,
+          "destY": 47,
+          "blend": "mask",
+          "hotspot": {
+            "code": 100
+          },
+          "origin": "bcdft S_1+0x260b8 (door switch position table, side=1 direct, depth=1 lateral=-1); only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
+        }
+      ]
+    },
+    "prop:door-switch:0:1": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "pull-chain-2",
+          "destX": 138,
+          "destY": 47,
+          "blend": "mask",
+          "hotspot": {
+            "code": 100
+          },
+          "origin": "bcdft S_1+0x260b8 (door switch position table, side=1 direct, depth=1 lateral=0); only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
+        }
+      ]
+    },
+    "prop:door-switch:-1:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "pull-chain-3",
+          "destX": 49,
+          "destY": 46,
+          "blend": "mask",
+          "hotspot": {
+            "code": 100
+          },
+          "origin": "bcdft S_1+0x260b8 (door switch position table, side=1 direct, depth=2 lateral=-1); only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
+        }
+      ]
+    },
+    "prop:door-switch:0:2": {
+      "draws": [
+        {
+          "bank": "dungeon-bcdfx",
+          "frame": "pull-chain-3",
+          "destX": 127,
+          "destY": 46,
+          "blend": "mask",
+          "hotspot": {
+            "code": 100
+          },
+          "origin": "bcdft S_1+0x260b8 (door switch position table, side=1 direct, depth=2 lateral=0); only reachable side per the confirmed kind-3 off-by-one (data-structure.md)"
+        }
+      ]
+    }
+  }
+}

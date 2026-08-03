@@ -9,6 +9,7 @@ export * from './model/CellQuery.ts';
 export * from './model/FlatGridLevel.ts';
 export * from './model/Pose.ts';
 export * from './model/Direction.ts';
+export * from './model/collision.ts';
 
 export * from './view/ViewSpec.ts';
 export * from './view/DrawItem.ts';
@@ -21,3 +22,10 @@ export * from './raster/composite.ts';
 
 export * from './render/CanvasPresenter.ts';
 export * from './render/PixiPresenter.ts';
+
+export * from './input/WalkerController.ts';
+
+export * from './automap/AutomapState.ts';
+export * from './automap/AutomapRenderer.ts';
+
+export * from './debug/Minimap.ts';

@@ -56,19 +56,37 @@ function drawSlot(surface: IndexedSurface, banks: PieceBankLookup, slot: Slot | 
   for (const draw of slot.draws) drawPieceDraw(surface, banks, draw, `compositeSlotTable: ${context}`);
 }
 
+// `front:<lateral>:<depth>` / `side:<L|R>:<depth>` (walls) or
+// `prop:<kind>:<lateral>:<depth>(:<extra>)?` (M5 non-wall structures, e.g.
+// `prop:alcove:0:1:2`, `prop:stairs-a:1:0`) — depth is always the segment
+// right after the lateral/side field in both shapes.
 const SLOT_KEY_RE = /^(front|side):(?:-?\d+|[LR]):(\d+)$/;
+const PROP_SLOT_KEY_RE = /^prop:[^:]+:-?\d+:(\d+)(?::.+)?$/;
 
 interface ParsedSlotKey {
   key: string;
-  kind: 'front' | 'side';
+  kind: 'front' | 'side' | 'prop';
   depth: number;
 }
 
 function parseSlotKey(key: string): ParsedSlotKey | null {
   const m = SLOT_KEY_RE.exec(key);
-  if (!m) return null;
-  return { key, kind: m[1] as 'front' | 'side', depth: Number(m[2]) };
+  if (m) return { key, kind: m[1] as 'front' | 'side', depth: Number(m[2]) };
+  const p = PROP_SLOT_KEY_RE.exec(key);
+  if (p) return { key, kind: 'prop', depth: Number(p[1]!) };
+  return null;
 }
+
+/**
+ * Same-depth draw order: side walls first, then the front-wall row, then
+ * non-wall props on top (an alcove/plaque/door-switch/stairs piece is
+ * always foreground detail relative to the corridor geometry it sits in).
+ * This is a simple, stable total order, **not** a port of the game's own
+ * priority-byte painter's sort (`priority & 0x80` etc., documented in
+ * `walker-plan.md` but not yet consumed here) — see `PieceDraw.priority`
+ * for the field this would use if/when that's implemented.
+ */
+const KIND_ORDER: Record<'side' | 'front' | 'prop', number> = { side: 0, front: 1, prop: 2 };
 
 export function compositeSlotTable(surface: IndexedSurface, banks: PieceBankLookup, table: SlotTableFile): void {
   (table.staticSlots ?? []).forEach((slot, i) => drawSlot(surface, banks, slot, `staticSlots[${i}]`));
@@ -87,11 +105,10 @@ export function compositeSlotTable(surface: IndexedSurface, banks: PieceBankLook
   });
 
   // Nearest depth first, farthest depth last (on top); at equal depth,
-  // side walls before the front-wall row. See the module doc comment for why.
+  // side walls, then front wall, then props. See the module doc comment for why.
   parsed.sort((a, b) => {
     if (a.depth !== b.depth) return a.depth - b.depth;
-    if (a.kind !== b.kind) return a.kind === 'side' ? -1 : 1;
-    return 0;
+    return KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
   });
 
   for (const { key } of parsed) drawSlot(surface, banks, table.slots[key], `slots.${key}`);
@@ -110,8 +127,7 @@ export function compositeDrawList(surface: IndexedSurface, banks: PieceBankLooku
 
   const sorted = [...items].sort((a, b) => {
     if (a.depth !== b.depth) return a.depth - b.depth;
-    if (a.kind !== b.kind) return a.kind === 'side' ? -1 : 1;
-    return 0;
+    return KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
   });
 
   sorted.forEach((item, i) => drawPieceDraw(surface, banks, item, `compositeDrawList: items[${i}] (${item.kind}:${item.lateral}:${item.depth})`));

@@ -54,5 +54,15 @@ export interface DungeonLevelFile {
   yAxisDown: boolean;
   units: LevelUnit[];
   entities?: Record<string, EntityRecord>;
+  /**
+   * Which `LevelUnit.planes` entry holds a cell's same-square entity-chain
+   * head ("unique"/slot number; `0` = no entity here) — Black Crypt's
+   * `objectHandle` (`export_dungeon_levels.py`'s `build_units_and_entities`).
+   * `entities` is keyed `"<unitId>:<y>:<x>:<slot>"`, chained forward through
+   * each record's own `chainNext`. Omit both this and `entities` for a level
+   * file with no per-cell entity data (e.g. a fixture trimmed to wall
+   * geometry only) — `CellQuery.entitiesAt` then always returns `[]`.
+   */
+  entityHandlePlane?: string;
   provenance?: Record<string, string>;
 }

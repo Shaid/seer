@@ -12,6 +12,7 @@ import { SCHEMA_VERSION } from './version.ts';
 import type { DungeonLevelFile, CellSpace, WallStorage, LevelUnit, Dir4 } from './level.ts';
 import type { SlotTableFile, PieceBankRef, PieceDraw, Slot, BlendMode } from './slots.ts';
 import type { SemanticsFile, WallMeaning, FeatureMeaning } from './semantics.ts';
+import { BINDING_ACTIONS, type BindingsFile, type BindingAction } from './bindings.ts';
 
 function fail(context: string, message: string): never {
   throw new Error(`${context}: ${message}`);
@@ -176,6 +177,7 @@ export function validateDungeonLevelFile(v: unknown): DungeonLevelFile {
     yAxisDown: assertBoolean(o.yAxisDown, context, 'yAxisDown'),
     units,
     entities,
+    entityHandlePlane: o.entityHandlePlane === undefined ? undefined : assertString(o.entityHandlePlane, context, 'entityHandlePlane'),
     provenance: o.provenance === undefined ? undefined : (assertObject(o.provenance, context, 'provenance') as Record<string, string>),
   };
 }
@@ -335,5 +337,38 @@ export function validateSemanticsFile(v: unknown): SemanticsFile {
     features,
     facingMap,
     yAxisDown: o.yAxisDown === undefined ? undefined : assertBoolean(o.yAxisDown, context, 'yAxisDown'),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// bindings.json
+
+const BINDING_MODES = ['positional', 'literal'];
+
+export function validateBindingsFile(v: unknown): BindingsFile {
+  const context = 'BindingsFile';
+  assertSchemaVersion(v, context);
+  const o = v as Record<string, unknown>;
+
+  const mode = o.mode === undefined ? undefined : assertString(o.mode, context, 'mode');
+  if (mode !== undefined && !BINDING_MODES.includes(mode)) {
+    fail(context, `mode must be one of ${BINDING_MODES.join(', ')}, got ${JSON.stringify(mode)}`);
+  }
+
+  const bindingsObj = assertObject(o.bindings, context, 'bindings');
+  const bindings = {} as Record<BindingAction, string[]>;
+  for (const action of BINDING_ACTIONS) {
+    const codes = assertArray(bindingsObj[action], context, `bindings.${action}`);
+    bindings[action] = codes.map((c, i) => assertString(c, context, `bindings.${action}[${i}]`));
+  }
+  const extra = Object.keys(bindingsObj).filter((k) => !BINDING_ACTIONS.includes(k as BindingAction));
+  if (extra.length > 0) {
+    fail(context, `bindings has unknown action(s) ${extra.join(', ')} — expected only ${BINDING_ACTIONS.join(', ')}`);
+  }
+
+  return {
+    schemaVersion: 1,
+    mode: mode as BindingsFile['mode'],
+    bindings,
   };
 }

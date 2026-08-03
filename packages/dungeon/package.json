@@ -12,7 +12,8 @@
     "pixi.js": "^8.9.0"
   },
   "dependencies": {
-    "@seer/core": "*"
+    "@seer/core": "*",
+    "@seer/engine-2d": "*"
   },
   "devDependencies": {
     "@types/pngjs": "^6.0.5",

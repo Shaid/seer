@@ -51,7 +51,13 @@ export interface SlotTableFile {
   lateralOffsets: number[];
   frontWallMaxDepth: number;
   banks: PieceBankRef[];
-  /** Keyed `"front:<lateral>:<depth>"` or `"side:<L|R>:<depth>"`; `null` means "nothing drawn here". */
+  /**
+   * Keyed `"front:<lateral>:<depth>"` / `"side:<L|R>:<depth>"` (walls), or
+   * `"prop:<kind>:<lateral>:<depth>"` with an optional trailing segment for
+   * a class that needs one more axis (`"prop:alcove:<lateral>:<depth>:<dir>"`,
+   * `"prop:stairs-a|b:<lateral>:<depth>"` — M5, `walker-plan.md`). `null`
+   * means "nothing drawn here".
+   */
   slots: Record<string, Slot | null>;
   /** Unconditional pieces drawn every frame regardless of pose (Black Crypt: ceiling, floor). */
   staticSlots?: Slot[];

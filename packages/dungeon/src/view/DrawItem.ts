@@ -7,7 +7,7 @@
  */
 import type { BlendMode } from '../schema/slots.ts';
 
-export type DrawItemKind = 'front' | 'side';
+export type DrawItemKind = 'front' | 'side' | 'prop';
 
 export interface DrawItem {
   kind: DrawItemKind;
@@ -17,6 +17,8 @@ export interface DrawItem {
   lateral: number;
   /** For `kind: 'side'`, which side of the corridor this piece is on. */
   side?: 'L' | 'R';
+  /** For `kind: 'prop'`, which structure class this is (e.g. `'alcove'`, `'door-switch'`) — a debug/inspector convenience, not consumed by the compositor. */
+  propType?: string;
 
   bank: string;
   frame: string;
