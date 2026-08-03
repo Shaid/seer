@@ -92,6 +92,19 @@ const results = await runPipeline(configs, { game: 'mygame', platform: 'amiga' }
 | `resolveDataFile(dataDir, candidates)` | First matching filename from a list of casing candidates, or the first candidate if none exist |
 | `scanFilesByExtension(dir, ext)` | Find files by extension, case-insensitive, sorted |
 
+## Decompression
+
+| Function | Description |
+| --- | --- |
+| `decompressLZEXE(input)` | Decompress an LZEXE v0.91-compressed DOS executable, returning `{ data, bodyOffset }` — a faithful port of the classic `unlzexe.c`. Common on DOS-era executables; throws if `input` isn't v0.91-shaped. |
+
+```ts
+import { decompressLZEXE } from '@seer/pipeline';
+
+const compressed = readBinary('GAME.EXE');
+const { data, bodyOffset } = decompressLZEXE(compressed);
+```
+
 ## Testing
 
 ```bash

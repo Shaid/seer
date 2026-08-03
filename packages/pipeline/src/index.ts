@@ -28,3 +28,5 @@ export {
 } from './io.ts';
 
 export { hexDump } from './hex-dump.ts';
+
+export { decompressLZEXE, type LZEXEResult } from './lzexe.ts';
