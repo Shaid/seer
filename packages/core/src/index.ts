@@ -9,3 +9,4 @@ export * from './binary.ts';
 export * from './binary-reader.ts';
 export * from './assets.ts';
 export * from './palette.ts';
+export * from './atlas.ts';

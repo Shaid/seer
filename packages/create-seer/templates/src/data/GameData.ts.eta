@@ -1,14 +1,9 @@
 /**
  * Type definitions for preprocessed runtime assets.
  */
+import type { AtlasMeta } from '@seer/core';
 
-export interface AtlasMeta {
-  imageUrl: string;
-  cellWidth: number;
-  cellHeight: number;
-  columns: number;
-  rows: number;
-}
+export type { AtlasMeta };
 
 export interface GameAssets {
   atlas: AtlasMeta;

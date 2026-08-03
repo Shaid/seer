@@ -1,16 +1,6 @@
-export interface AtlasFrame {
-  name: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+import type { AtlasFrame, AtlasMeta } from '@seer/core';
 
-export interface AtlasMeta {
-  frames: AtlasFrame[];
-  width: number;
-  height: number;
-}
+export type { AtlasFrame, AtlasMeta };
 
 export interface PaletteData {
   colors: { r: number; g: number; b: number }[];
