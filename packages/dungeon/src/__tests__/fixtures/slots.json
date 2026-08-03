@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "surface": { "width": 320, "height": 200 },
+  "viewport": { "x": 0, "y": 0, "width": 208, "height": 140 },
+  "depthCount": 4,
+  "lateralOffsets": [0, 1, -1],
+  "frontWallMaxDepth": 3,
+  "banks": [
+    { "id": "dungeon-bcdfx", "atlas": "textures/dungeon-bcdfx.json", "image": "textures/dungeon-bcdfx.png" }
+  ],
+  "ordering": "painter-back-to-front",
+  "staticSlots": [
+    { "draws": [{ "bank": "dungeon-bcdfx", "frame": "ceiling", "destX": 0, "destY": 0, "blend": "replace", "origin": "data-structure.md:5221 Ceiling, 208x30 @ (0,0)" }] },
+    { "draws": [{ "bank": "dungeon-bcdfx", "frame": "floor", "destX": 0, "destY": 72, "blend": "replace", "origin": "data-structure.md:5222 Floor, 208x68 @ (0,72)" }] }
+  ],
+  "slots": {
+    "front:-1:0": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "wall0-left", "destX": 0, "destY": 5, "blend": "replace", "origin": "data-structure.md:5212 Wall 0 left return, 16x123 @ (0,5)" }] },
+    "front:0:0": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "wall0-face", "destX": 16, "destY": 5, "blend": "replace", "origin": "data-structure.md:5213 Wall 0 front face, 176x123 @ (16,5)" }] },
+    "front:1:0": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "wall0-right", "destX": 192, "destY": 5, "blend": "replace", "origin": "data-structure.md:5214 Wall 0 right return, 16x123 @ (192,5)" }] },
+
+    "front:-1:1": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "wall1-left", "destX": 0, "destY": 18, "blend": "replace", "origin": "data-structure.md:5215 Wall 1 left return, 48x78 @ (0,18)" }] },
+    "front:0:1": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "wall1-face", "destX": 48, "destY": 18, "blend": "replace", "origin": "data-structure.md:5216 Wall 1 front face, 112x78 @ (48,18)" }] },
+    "front:1:1": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "wall1-right", "destX": 160, "destY": 18, "blend": "replace", "origin": "data-structure.md:5217 Wall 1 right return, 48x78 @ (160,18)" }] },
+
+    "front:-1:2": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "wall2-left", "destX": 0, "destY": 23, "blend": "replace", "origin": "data-structure.md:5218 Wall 2 left return, 64x57 @ (0,23)" }] },
+    "front:0:2": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "wall2-face", "destX": 64, "destY": 23, "blend": "replace", "origin": "data-structure.md:5219 Wall 2 front face, 80x57 @ (64,23)" }] },
+    "front:1:2": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "wall2-right", "destX": 144, "destY": 23, "blend": "replace", "origin": "data-structure.md:5220 Wall 2 right return, 64x57 @ (144,23)" }] },
+
+    "side:L:0": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "sidewall-depth0-near", "destX": 0, "destY": 0, "blend": "mask", "origin": "data-structure.md:5380 Side wall depth 0 left, 16x140 @ (0,0) — atlas frame 'near' is the party's left, corrected :6924-6934" }] },
+    "side:R:0": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "sidewall-depth0-far", "destX": 192, "destY": 0, "blend": "mask", "origin": "data-structure.md:5381 Side wall depth 0 right, 16x140 @ (192,0) — atlas frame 'far' is the party's right, corrected :6924-6934" }] },
+
+    "side:L:1": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "sidewall-depth1-near", "destX": 16, "destY": 5, "blend": "mask", "origin": "data-structure.md:5382 Side wall depth 1 left, 32x122 @ (16,5)" }] },
+    "side:R:1": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "sidewall-depth1-far", "destX": 160, "destY": 5, "blend": "mask", "origin": "data-structure.md:5383 Side wall depth 1 right, 32x122 @ (160,5)" }] },
+
+    "side:L:2": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "sidewall-depth2-near", "destX": 48, "destY": 18, "blend": "mask", "origin": "data-structure.md:5384 Side wall depth 2 left, 16x77 @ (48,18)" }] },
+    "side:R:2": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "sidewall-depth2-far", "destX": 144, "destY": 18, "blend": "mask", "origin": "data-structure.md:5385 Side wall depth 2 right, 16x77 @ (144,18)" }] },
+
+    "side:L:3": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "sidewall-depth3-near", "destX": 64, "destY": 24, "blend": "mask", "origin": "data-structure.md:5386 Side wall depth 3 left, 16x55 @ (64,24)" }] },
+    "side:R:3": { "draws": [{ "bank": "dungeon-bcdfx", "frame": "sidewall-depth3-far", "destX": 128, "destY": 24, "blend": "mask", "origin": "data-structure.md:5387 Side wall depth 3 right, 16x55 @ (128,24)" }] }
+  }
+}
