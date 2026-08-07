@@ -1,19 +1,46 @@
 {
-  "name": "@seer/dungeon",
-  "version": "0.0.1",
+  "name": "@seer-project/dungeon",
+  "version": "0.1.0",
+  "description": "PixiJS-based dungeon crawler framework with raster hallway rendering and automap",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shaid/seer.git"
+  },
+  "keywords": [
+    "pixijs",
+    "dungeon",
+    "crawler",
+    "2d",
+    "game"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./schema": "./src/schema/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schema": {
+      "types": "./dist/schema/index.d.ts",
+      "import": "./dist/schema/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "peerDependencies": {
     "pixi.js": "^8.9.0"
   },
   "dependencies": {
-    "@seer/core": "*",
-    "@seer/engine-2d": "*"
+    "@seer-project/core": "^0.1.0",
+    "@seer-project/engine-2d": "^0.1.0"
   },
   "devDependencies": {
     "@types/pngjs": "^6.0.5",
@@ -23,6 +50,8 @@
     "vitest": "^3.2.0"
   },
   "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "prepack": "npm run build",
     "test": "vitest run",
     "lint": "eslint src/"
   }

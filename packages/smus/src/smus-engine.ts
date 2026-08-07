@@ -1,4 +1,4 @@
-import { parseIff, findChunks, findChunk } from '@seer/iff';
+import { parseIff, findChunks, findChunk } from '@seer-project/iff';
 import type {
   InstrEmbedded,
   InstrExternal,

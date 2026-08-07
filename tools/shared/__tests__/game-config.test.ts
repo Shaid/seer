@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getGameConfig, getSupportedPlatforms, flattenConfigs } from '@seer/pipeline';
+import { getGameConfig, getSupportedPlatforms, flattenConfigs } from '@seer-project/pipeline';
 import {
   GAME_IDS,
   PLATFORM_IDS,

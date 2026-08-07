@@ -98,7 +98,7 @@ describe('scaffold', () => {
     run('seer-paths');
     const dir = resolve(TMP, 'seer-paths');
     const pkg = JSON.parse(readFileSync(resolve(dir, 'package.json'), 'utf-8'));
-    for (const dep of ['@seer/core', '@seer/engine-2d', '@seer/pipeline']) {
+    for (const dep of ['@seer-project/core', '@seer-project/engine-2d', '@seer-project/pipeline']) {
       const spec = pkg.dependencies[dep] as string;
       expect(spec).toMatch(/^file:/);
       const target = resolve(dir, spec.slice('file:'.length));
@@ -113,7 +113,7 @@ describe('scaffold', () => {
     const pkg = readFileSync(resolve(TMP, 'template-vars/package.json'), 'utf-8');
     expect(pkg).toContain('"name": "demo"');
     const main = readFileSync(resolve(TMP, 'template-vars/src/main.ts'), 'utf-8');
-    expect(main).toContain("from '@seer/engine-2d'");
+    expect(main).toContain("from '@seer-project/engine-2d'");
   });
 
   it('creates viewer files when viewer option is true', () => {

@@ -1,7 +1,7 @@
 /**
  * Hand-written runtime validators for the three walker data files.
  *
- * Deliberately dependency-free (no zod/ajv/etc) so `@seer/dungeon/schema`
+ * Deliberately dependency-free (no zod/ajv/etc) so `@seer-project/dungeon/schema`
  * stays zero-dependency per its package.json — a Node-side exporter can
  * import just this subpath without pulling in anything else. Each
  * validator throws a descriptive `Error` on malformed input, and always

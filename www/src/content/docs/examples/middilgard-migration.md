@@ -2,11 +2,11 @@
 title: Middilgard Migration
 description: >
   Step-by-step plan for migrating middilgard from an all-in-one layout to
-  consuming @seer/* scoped packages.
+  consuming @seer-project/* scoped packages.
 ---
 
 This document details how to migrate middilgard from its current all-in-one
-layout to consuming `@seer/*` scoped packages. The goal is to eliminate
+layout to consuming `@seer-project/*` scoped packages. The goal is to eliminate
 duplicated utility code between the two projects while keeping all
 middilgard-specific game logic, decoders, tools, and pipeline orchestration
 in-repo.
@@ -17,48 +17,48 @@ in-repo.
 
 Middilgard is fully self-contained — every file (binary readers, PixiJS
 helpers, IFF parser, pipeline utilities) lives in-repo. Seer contains
-generic, reusable versions of the same utilities as scoped `@seer/*`
+generic, reusable versions of the same utilities as scoped `@seer-project/*`
 packages. The two projects are siblings at `/home/ctemplet/Development/` and
 share no code today.
 
-Middilgard's `package.json` has no npm workspaces and no `@seer/*`
+Middilgard's `package.json` has no npm workspaces and no `@seer-project/*`
 dependencies.
 
 ---
 
 ## 2. What Maps Where
 
-### 2.1 `@seer/core` — Browser-safe binary utilities
+### 2.1 `@seer-project/core` — Browser-safe binary utilities
 
 | Middilgard file | Seer counterpart | Status |
 |---|---|---|
-| `src/utils/binary.ts` | `@seer/core` `binary.ts` | **Near-identical.** middilgard has extra `detectEndian()`, `r16()`, `r24()`, `r32()` helpers — keep these in-repo. |
-| `src/utils/binary-reader.ts` | `@seer/core` `binary-reader.ts` | **Near-identical.** seer adds an `endian` constructor param (default `'be'`); middilgard hardcodes big-endian. 3 call sites need updating. |
-| `src/data/AssetLoader.ts` | `@seer/core` `assets.ts` | **Not a drop-in replacement.** middilgard's loader does game-specific normalisation. Keep middilgard's version. |
+| `src/utils/binary.ts` | `@seer-project/core` `binary.ts` | **Near-identical.** middilgard has extra `detectEndian()`, `r16()`, `r24()`, `r32()` helpers — keep these in-repo. |
+| `src/utils/binary-reader.ts` | `@seer-project/core` `binary-reader.ts` | **Near-identical.** seer adds an `endian` constructor param (default `'be'`); middilgard hardcodes big-endian. 3 call sites need updating. |
+| `src/data/AssetLoader.ts` | `@seer-project/core` `assets.ts` | **Not a drop-in replacement.** middilgard's loader does game-specific normalisation. Keep middilgard's version. |
 
-### 2.2 `@seer/engine` — PixiJS game loop
-
-| Middilgard file | Seer counterpart | Status |
-|---|---|---|
-| `src/engine/Camera.ts` | `@seer/engine` `Camera.ts` | **Identical.** Drop-in. |
-| `src/engine/DisplayMode.ts` | `@seer/engine` `DisplayMode.ts` | **Identical.** Drop-in. |
-| `src/engine/InputManager.ts` | `@seer/engine` `InputManager.ts` | **Identical** (import path differs). Drop-in. |
-| `src/utils/pixi-helpers.ts` | `@seer/engine` `pixi-helpers.ts` | **Nearly identical.** seer renamed `makeMapLabelStyle` → `makeLabelStyle` and `MapLabelStyleOptions` → `LabelStyleOptions`. 6 importers need updating. |
-| `src/engine/Game.ts` | `@seer/engine` `Game.ts` | **Completely different.** middilgard's Game.ts is a full 472-line implementation. seer's is a 120-line template. middilgard keeps its own Game.ts; it imports subcomponents from seer instead. |
-
-### 2.3 `@seer/iff` — IFF container parser
+### 2.2 `@seer-project/engine` — PixiJS game loop
 
 | Middilgard file | Seer counterpart | Status |
 |---|---|---|
-| `src/assets/formats/iff.ts` | `@seer/iff` `iff.ts` | **Identical.** Drop-in. |
+| `src/engine/Camera.ts` | `@seer-project/engine` `Camera.ts` | **Identical.** Drop-in. |
+| `src/engine/DisplayMode.ts` | `@seer-project/engine` `DisplayMode.ts` | **Identical.** Drop-in. |
+| `src/engine/InputManager.ts` | `@seer-project/engine` `InputManager.ts` | **Identical** (import path differs). Drop-in. |
+| `src/utils/pixi-helpers.ts` | `@seer-project/engine` `pixi-helpers.ts` | **Nearly identical.** seer renamed `makeMapLabelStyle` → `makeLabelStyle` and `MapLabelStyleOptions` → `LabelStyleOptions`. 6 importers need updating. |
+| `src/engine/Game.ts` | `@seer-project/engine` `Game.ts` | **Completely different.** middilgard's Game.ts is a full 472-line implementation. seer's is a 120-line template. middilgard keeps its own Game.ts; it imports subcomponents from seer instead. |
 
-### 2.4 `@seer/pipeline` — Node-only offline utilities
+### 2.3 `@seer-project/iff` — IFF container parser
 
 | Middilgard file | Seer counterpart | Status |
 |---|---|---|
-| `tools/shared/game-config.ts` | `@seer/pipeline` `config.ts` | **Fundamentally different shapes.** See §4 below. |
-| `tools/shared/io.ts` | `@seer/pipeline` `io.ts` | **Partial overlap.** seer has `readBinary`, `writePNG`, `writeJson`, `resolveDataFile`. middilgard adds `loadRes`, `resType`, `detectPlatform`, `scanResFiles`. Keep middilgard's io.ts, use seer for the generic parts. |
-| `tools/shared/hex-dump.ts` | `@seer/pipeline` `hex-dump.ts` | seer's `hexDump()` is more parameterised. middilgard can switch to it. |
+| `src/assets/formats/iff.ts` | `@seer-project/iff` `iff.ts` | **Identical.** Drop-in. |
+
+### 2.4 `@seer-project/pipeline` — Node-only offline utilities
+
+| Middilgard file | Seer counterpart | Status |
+|---|---|---|
+| `tools/shared/game-config.ts` | `@seer-project/pipeline` `config.ts` | **Fundamentally different shapes.** See §4 below. |
+| `tools/shared/io.ts` | `@seer-project/pipeline` `io.ts` | **Partial overlap.** seer has `readBinary`, `writePNG`, `writeJson`, `resolveDataFile`. middilgard adds `loadRes`, `resType`, `detectPlatform`, `scanResFiles`. Keep middilgard's io.ts, use seer for the generic parts. |
+| `tools/shared/hex-dump.ts` | `@seer-project/pipeline` `hex-dump.ts` | seer's `hexDump()` is more parameterised. middilgard can switch to it. |
 
 ### 2.5 What stays entirely in middilgard
 
@@ -87,24 +87,24 @@ All game-specific code has no seer counterpart and stays in-repo:
 Before middilgard can consume seer packages, a few things need resolving on
 the seer side first.
 
-### 3.1 Export `makeLabelStyle` + `LabelStyleOptions` from `@seer/engine`
+### 3.1 Export `makeLabelStyle` + `LabelStyleOptions` from `@seer-project/engine`
 
 seer's `pixi-helpers.ts` already exports these under the new names.
 middilgard will adopt the new names (the `makeMapLabelStyle` name was only
 ever used for WIME's map labels — the function is generic).
 
-### 3.2 Export `dataViewOf` from `@seer/core`
+### 3.2 Export `dataViewOf` from `@seer-project/core`
 
 seer's `binary.ts` exports `dataViewOf`. Verify it matches middilgard's
 version (it does — both create a `DataView` over a `Uint8Array` with
 safe bounds).
 
-### 3.3 Export `detectEndian` from `@seer/core` (or keep locally)
+### 3.3 Export `detectEndian` from `@seer-project/core` (or keep locally)
 
 `detectEndian()` reads the first u32 to auto-detect Amiga (big-endian) vs
 DOS (little-endian) byte order. Only used by `resource-fork.ts`. Option A:
 seer core exports it. Option B: middilgard keeps its own copy. **Recommend
-Option B** — it's 13 lines, game-specific, and `@seer/core` aims to stay
+Option B** — it's 13 lines, game-specific, and `@seer-project/core` aims to stay
 minimal.
 
 ### 3.4 Verify `BinaryReader` endian param doesn't break existing callers
@@ -113,16 +113,16 @@ seer's `BinaryReader` accepts `new BinaryReader(buffer, offset, endian)`.
 The default is `'be'` — identical to middilgard's hardcoded behaviour. So
 switching to seer's `BinaryReader` requires **zero changes** to existing
 `new BinaryReader(buffer)` call sites. The 3 files that import `BinaryReader`
-(`iff.ts`, `smus.ts`, `sampled-sound.ts`) can switch to `@seer/core`'s
+(`iff.ts`, `smus.ts`, `sampled-sound.ts`) can switch to `@seer-project/core`'s
 export without modifying their constructor calls.
 
-### 3.5 Decide on `@seer/smus` vs keeping SMUS in middilgard
+### 3.5 Decide on `@seer-project/smus` vs keeping SMUS in middilgard
 
-seer's `@seer/smus` is a placeholder. middilgard has a complete SMUS parser,
+seer's `@seer-project/smus` is a placeholder. middilgard has a complete SMUS parser,
 WebAudio engine, and music manager (800+ lines). Options:
 
 - **A. Keep SMUS in middilgard** — simplest, no seer changes needed.
-- **B. Contribute SMUS upstream to `@seer/smus`** — benefits other consumers
+- **B. Contribute SMUS upstream to `@seer-project/smus`** — benefits other consumers
   but requires seer to accept a large chunk of game-specific code.
 
 **Recommend Option A** for now. SMUS is specific to Melbourne House games.
@@ -196,7 +196,7 @@ middilgard's tools depend on.
 
 ```ts
 // tools/shared/seer-adapter.ts
-import type { GameConfig, PlatformConfig } from '@seer/pipeline';
+import type { GameConfig, PlatformConfig } from '@seer-project/pipeline';
 import { GAME_PLATFORMS, type GamePlatformConfig } from './game-config.ts';
 
 /** Convert middilgard's config to seer's GameConfig[] shape. */
@@ -237,17 +237,17 @@ middilgard's own tools continue to import from `game-config.ts` directly
 Ordered from lowest risk to highest. Each step is independently shippable —
 middilgard should pass all tests and build cleanly after each one.
 
-### Step 1: Add `@seer/*` dependencies to middilgard's `package.json`
+### Step 1: Add `@seer-project/*` dependencies to middilgard's `package.json`
 
 Add workspace-local dependencies pointing at the sibling seer repo:
 
 ```json
 {
   "dependencies": {
-    "@seer/core": "file:../seer/packages/core",
-    "@seer/engine": "file:../seer/packages/engine",
-    "@seer/iff": "file:../seer/packages/iff",
-    "@seer/pipeline": "file:../seer/packages/pipeline"
+    "@seer-project/core": "file:../seer/packages/core",
+    "@seer-project/engine": "file:../seer/packages/engine",
+    "@seer-project/iff": "file:../seer/packages/iff",
+    "@seer-project/pipeline": "file:../seer/packages/pipeline"
   }
 }
 ```
@@ -256,27 +256,27 @@ Run `npm install` and verify no peer dependency warnings.
 
 **Files changed:** `package.json`, `package-lock.json`
 
-### Step 2: Replace `src/assets/formats/iff.ts` with `@seer/iff`
+### Step 2: Replace `src/assets/formats/iff.ts` with `@seer-project/iff`
 
 The files are identical. Delete `src/assets/formats/iff.ts` and update all
 importers:
 
 | File | Old import | New import |
 |---|---|---|
-| `src/assets/formats/smus.ts` | `../../utils/binary-reader.ts` | (unchanged — uses `@seer/core` in step 3) |
+| `src/assets/formats/smus.ts` | `../../utils/binary-reader.ts` | (unchanged — uses `@seer-project/core` in step 3) |
 | `src/assets/formats/sampled-sound.ts` | `../../utils/binary-reader.ts` | (unchanged) |
 | `src/utils/__tests__/binary-reader.test.ts` | (tests middilgard's copy) | **Delete this test** — seer has its own |
-| `src/assets/formats/__tests__/iff.test.ts` | `../iff.ts` | `@seer/iff` |
+| `src/assets/formats/__tests__/iff.test.ts` | `../iff.ts` | `@seer-project/iff` |
 
 Add the re-export to `src/utils/index.ts`:
 
 ```ts
-export { parseIff, findChunk, findChunks, type IffChunk, type IffForm } from '@seer/iff';
+export { parseIff, findChunk, findChunks, type IffChunk, type IffForm } from '@seer-project/iff';
 ```
 
 **Verify:** `npm test`, `npm run lint`
 
-### Step 3: Replace `src/utils/binary-reader.ts` with `@seer/core`
+### Step 3: Replace `src/utils/binary-reader.ts` with `@seer-project/core`
 
 seer's `BinaryReader` defaults to big-endian — identical to middilgard's
 behaviour. Delete `src/utils/binary-reader.ts` and update imports:
@@ -284,13 +284,13 @@ behaviour. Delete `src/utils/binary-reader.ts` and update imports:
 | File | Import path change |
 |---|---|
 | `src/assets/formats/iff.ts` | Already removed in step 2 |
-| `src/assets/formats/smus.ts` | `../../utils/binary-reader.ts` → `@seer/core` |
-| `src/assets/formats/sampled-sound.ts` | `../../utils/binary-reader.ts` → `@seer/core` |
-| `src/utils/index.ts` | `./binary-reader.ts` → `@seer/core` |
+| `src/assets/formats/smus.ts` | `../../utils/binary-reader.ts` → `@seer-project/core` |
+| `src/assets/formats/sampled-sound.ts` | `../../utils/binary-reader.ts` → `@seer-project/core` |
+| `src/utils/index.ts` | `./binary-reader.ts` → `@seer-project/core` |
 
 **Verify:** `npm test`, `npm run lint`
 
-### Step 4: Replace `src/utils/binary.ts` with `@seer/core` (partial)
+### Step 4: Replace `src/utils/binary.ts` with `@seer-project/core` (partial)
 
 seer's `binary.ts` exports `dataViewOf` — identical to middilgard's version.
 middilgard's file also exports `detectEndian`, `r16`, `r24`, `r32`, and the
@@ -301,7 +301,7 @@ from seer and keep only the middilgard-specific helpers locally:
 
 ```ts
 // src/utils/binary.ts
-export { dataViewOf } from '@seer/core';
+export { dataViewOf } from '@seer-project/core';
 
 // middilgard-specific helpers (not in seer)
 export function detectEndian(buffer: ArrayBuffer): 'be' | 'le' { ... }
@@ -313,7 +313,7 @@ export type Endianness = 'be' | 'le';
 
 **Verify:** `npm test`, `npm run lint`
 
-### Step 5: Replace `src/utils/pixi-helpers.ts` with `@seer/engine`
+### Step 5: Replace `src/utils/pixi-helpers.ts` with `@seer-project/engine`
 
 seer renamed `makeMapLabelStyle` → `makeLabelStyle` and
 `MapLabelStyleOptions` → `LabelStyleOptions`. middilgard must adopt the
@@ -331,8 +331,8 @@ export {
   sliceAtlasKeyed,
   findNearestByWorldCoord,
   screenToWorld,
-} from '@seer/engine';
-export type { LabelStyleOptions } from '@seer/engine';  // was MapLabelStyleOptions
+} from '@seer-project/engine';
+export type { LabelStyleOptions } from '@seer-project/engine';  // was MapLabelStyleOptions
 ```
 
 Then rename all call sites:
@@ -344,7 +344,7 @@ Then rename all call sites:
 | `src/map/ItemLayer.ts` | `makeMapLabelStyle` → `makeLabelStyle` |
 | `src/map/SettlementLayer.ts` | `makeMapLabelStyle` → `makeLabelStyle` |
 | `src/entities/EntityManager.ts` | `makeMapLabelStyle` → `makeLabelStyle` |
-| `src/engine/InputManager.ts` | Import `screenToWorld` from `@seer/engine` instead of `../utils/pixi-helpers.ts` |
+| `src/engine/InputManager.ts` | Import `screenToWorld` from `@seer-project/engine` instead of `../utils/pixi-helpers.ts` |
 
 Also update the `MapLabelStyleOptions` type reference if used in any type
 annotations (check with grep — likely only in `pixi-helpers.ts` itself,
@@ -352,24 +352,24 @@ which is being deleted).
 
 **Verify:** `npm test`, `npm run lint`, `npx tsc --noEmit`
 
-### Step 6: Replace engine subcomponents with `@seer/engine`
+### Step 6: Replace engine subcomponents with `@seer-project/engine`
 
 `Camera.ts`, `DisplayMode.ts`, and `InputManager.ts` are identical. Delete
-the local copies and re-export from `@seer/engine`:
+the local copies and re-export from `@seer-project/engine`:
 
 ```ts
 // src/engine/Camera.ts
-export { Camera } from '@seer/engine';
+export { Camera } from '@seer-project/engine';
 
 // src/engine/DisplayMode.ts
-export { DisplayMode } from '@seer/engine';
+export { DisplayMode } from '@seer-project/engine';
 
 // src/engine/InputManager.ts
-export { InputManager } from '@seer/engine';
+export { InputManager } from '@seer-project/engine';
 ```
 
 Alternatively, update the 5–6 files that import these directly to import
-from `@seer/engine` instead. The re-export approach is less invasive since
+from `@seer-project/engine` instead. The re-export approach is less invasive since
 `Game.ts` imports them via relative paths.
 
 **Keep `src/engine/Game.ts`** — it's middilgard-specific (472 lines vs
@@ -377,7 +377,7 @@ seer's 120-line template).
 
 **Verify:** `npm test`, `npm run lint`, `npx tsc --noEmit`
 
-### Step 7: Wire `@seer/pipeline` for CLI commands (optional)
+### Step 7: Wire `@seer-project/pipeline` for CLI commands (optional)
 
 middilgard can adopt seer's `seer extract`/`seer hex-dump`/`seer doctor`
 CLI binary for developer-facing DX, while keeping its own
@@ -391,7 +391,7 @@ To enable it, add a `bin` entry to middilgard's `package.json`:
 ```json
 {
   "bin": {
-    "middilgard": "./node_modules/@seer/pipeline/bin/seer.mjs"
+    "middilgard": "./node_modules/@seer-project/pipeline/bin/seer.mjs"
   }
 }
 ```
@@ -399,7 +399,7 @@ To enable it, add a `bin` entry to middilgard's `package.json`:
 And create `seer.config.ts` at the project root (using the adapter from §4):
 
 ```ts
-import { defineGameConfig } from '@seer/pipeline';
+import { defineGameConfig } from '@seer-project/pipeline';
 import { toSeerConfigs } from './tools/shared/seer-adapter.ts';
 
 export default defineGameConfig(toSeerConfigs());
@@ -414,10 +414,10 @@ middilgard's `tools/shared/io.ts` partially overlaps with seer's pipeline
 
 | Function | Action |
 |---|---|
-| `readBinary` | Switch to `@seer/pipeline`'s `readBinary` |
-| `writePNG` | Switch to `@seer/pipeline`'s `writePNG` |
-| `writeJson` | Switch to `@seer/pipeline`'s `writeJson` |
-| `hexDump` | Switch to `@seer/pipeline`'s `hexDump` |
+| `readBinary` | Switch to `@seer-project/pipeline`'s `readBinary` |
+| `writePNG` | Switch to `@seer-project/pipeline`'s `writePNG` |
+| `writeJson` | Switch to `@seer-project/pipeline`'s `writeJson` |
+| `hexDump` | Switch to `@seer-project/pipeline`'s `hexDump` |
 | `loadRes` | **Keep** — middilgard-specific (loads resource forks) |
 | `resType` | **Keep** — middilgard-specific (platform type codes) |
 | `detectPlatform` | **Keep** — middilgard-specific |
@@ -464,10 +464,10 @@ this migration:
 |---|---|
 | **Delete** | `src/utils/binary-reader.ts`, `src/utils/pixi-helpers.ts`, `src/assets/formats/iff.ts` |
 | **Rewrite** | `src/utils/binary.ts` (re-export `dataViewOf` from seer, keep local helpers) |
-| **Rewrite** | `src/utils/index.ts` (re-export from `@seer/core`, `@seer/engine`, `@seer/iff`) |
+| **Rewrite** | `src/utils/index.ts` (re-export from `@seer-project/core`, `@seer-project/engine`, `@seer-project/iff`) |
 | **Re-export** | `src/engine/Camera.ts`, `src/engine/DisplayMode.ts`, `src/engine/InputManager.ts` |
 | **Rename** | `makeMapLabelStyle` → `makeLabelStyle` in 5 files |
-| **Add** | `package.json` `@seer/*` dependencies |
+| **Add** | `package.json` `@seer-project/*` dependencies |
 | **Add** | `tools/shared/seer-adapter.ts` (config adapter) |
 | **Optional** | `seer.config.ts` at project root |
 | **Keep** | Everything else (35+ files unchanged) |
@@ -480,8 +480,8 @@ this migration:
 |---|---|---|---|
 | seer `BinaryReader` API diverges from middilgard's usage | Low | High | seer's `BinaryReader` is a superset — defaults match, extra param is opt-in |
 | seer `pixi-helpers.ts` changes break middilgard | Low | Medium | Function signatures are stable; rename is one-time |
-| `@seer/pipeline` config shape evolves further | Medium | Medium | Adapter layer isolates middilgard from seer config changes |
-| seer `@seer/core` or `@seer/engine` publish breaking changes | Medium | High | Pin to exact versions; update during seer's semver discipline rollout (§10) |
+| `@seer-project/pipeline` config shape evolves further | Medium | Medium | Adapter layer isolates middilgard from seer config changes |
+| seer `@seer-project/core` or `@seer-project/engine` publish breaking changes | Medium | High | Pin to exact versions; update during seer's semver discipline rollout (§10) |
 | `file:../seer` link breaks when seer packages change | Low | Low | Expected during active iteration — both repos are local |
 
 ---
@@ -496,7 +496,7 @@ After migration, the following must hold:
 4. `npm run extract-data` runs the full pipeline for all games
 5. `npm run dev` launches the browser game and it works
 6. `npm run build-assets` produces correct output
-7. No `@seer/*` function is called with arguments that would fail at runtime
+7. No `@seer-project/*` function is called with arguments that would fail at runtime
    (verify by running the full pipeline end-to-end)
 
 ---

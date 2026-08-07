@@ -1,5 +1,5 @@
 // JavaScript ProTracker Replay (c)2017 mumart@gmail.com
-// Ported to TypeScript ESM for @seer/tracker
+// Ported to TypeScript ESM for @seer-project/tracker
 
 const fineTuning = new Int16Array([
   4340, 4308, 4277, 4247, 4216, 4186, 4156, 4126,
@@ -54,6 +54,75 @@ export class Channel {
   constructor(id: number) {
     this.panning = (id & 0x3) === 0 || (id & 0x3) === 3 ? 51 : 204
     this.randomSeed = (id + 1) * 0xABCDEF
+  }
+
+  row(key: number, ins: number, effect: number, param: number, player: Micromod): void {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const ch = this
+    ch.noteKey = key
+    ch.noteIns = ins
+    ch.noteEffect = effect
+    ch.noteParam = param
+    ch.vibratoAdd = ch.tremoloAdd = ch.arpeggioAdd = ch.fxCount = 0
+
+    if (!(effect === 0x1D && param > 0)) trigger(ch, player)
+
+    switch (effect) {
+      case 0x3: if (param > 0) ch.portaSpeed = param; break
+      case 0x4:
+        if ((param & 0xF0) > 0) ch.vibratoSpeed = param >> 4
+        if ((param & 0x0F) > 0) ch.vibratoDepth = param & 0xF
+        vibrato(ch)
+        break
+      case 0x6: vibrato(ch); break
+      case 0x7:
+        if ((param & 0xF0) > 0) ch.tremoloSpeed = param >> 4
+        if ((param & 0x0F) > 0) ch.tremoloDepth = param & 0xF
+        tremolo(ch)
+        break
+      case 0x8:
+        if (player['module'].numChannels !== 4) ch.panning = param < 128 ? param << 1 : 255
+        break
+      case 0xC: ch.volume = param > 64 ? 64 : param; break
+      case 0x11: ch.period -= param; if (ch.period < 0) ch.period = 0; break
+      case 0x12: ch.period += param; if (ch.period > 65535) ch.period = 65535; break
+      case 0x14: if (param < 8) ch.vibratoType = param; break
+      case 0x17: if (param < 8) ch.tremoloType = param; break
+      case 0x1A: ch.volume = Math.min(64, ch.volume + param); break
+      case 0x1B: ch.volume = Math.max(0, ch.volume - param); break
+      case 0x1C: if (param <= 0) ch.volume = 0; break
+    }
+    updateFreq(ch)
+  }
+
+  tick(player: Micromod): void {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const ch = this
+    ch.fxCount++
+    switch (ch.noteEffect) {
+      case 0x1: ch.period -= ch.noteParam; if (ch.period < 0) ch.period = 0; break
+      case 0x2: ch.period += ch.noteParam; if (ch.period > 65535) ch.period = 65535; break
+      case 0x3: tonePortamento(ch); break
+      case 0x4: ch.vibratoPhase += ch.vibratoSpeed; vibrato(ch); break
+      case 0x5: tonePortamento(ch); volumeSlide(ch, ch.noteParam); break
+      case 0x6: ch.vibratoPhase += ch.vibratoSpeed; vibrato(ch); volumeSlide(ch, ch.noteParam); break
+      case 0x7: ch.tremoloPhase += ch.tremoloSpeed; tremolo(ch); break
+      case 0xA: volumeSlide(ch, ch.noteParam); break
+      case 0xE:
+        if (ch.fxCount > 2) ch.fxCount = 0
+        if (ch.fxCount === 0) ch.arpeggioAdd = 0
+        if (ch.fxCount === 1) ch.arpeggioAdd = ch.noteParam >> 4
+        if (ch.fxCount === 2) ch.arpeggioAdd = ch.noteParam & 0xF
+        break
+      case 0x19:
+        if (ch.fxCount >= ch.noteParam) { ch.fxCount = 0; ch.sampleIdx = 0 }
+        break
+      case 0x1C: if (ch.noteParam === ch.fxCount) ch.volume = 0; break
+      case 0x1D:
+        if (ch.noteParam === ch.fxCount) trigger(ch, player)
+        break
+    }
+    if (ch.noteEffect > 0) updateFreq(ch)
   }
 }
 
@@ -167,10 +236,11 @@ export class Module {
         inst.loopLength = 0
       }
       inst.sampleData = new Int8Array(len + 1)
-      if (modIdx + len > module.length) len = module.length - modIdx
-      for (let j = 0; j < len; j++) inst.sampleData[j] = module[modIdx + j]
+      let sampleLen = len
+      if (modIdx + sampleLen > module.length) sampleLen = module.length - modIdx
+      for (let j = 0; j < sampleLen; j++) inst.sampleData[j] = module[modIdx + j]
       inst.sampleData[inst.loopStart + inst.loopLength] = inst.sampleData[inst.loopStart]
-      modIdx += len
+      modIdx += sampleLen
       this.instruments[instIdx] = inst
     }
   }
@@ -440,76 +510,6 @@ export class Micromod {
       }
     }
   }
-}
-
-// Channel methods
-Channel.prototype.row = function(
-  key: number, ins: number, effect: number, param: number, player: Micromod,
-) {
-  const ch = this as Channel
-  ch.noteKey = key
-  ch.noteIns = ins
-  ch.noteEffect = effect
-  ch.noteParam = param
-  ch.vibratoAdd = ch.tremoloAdd = ch.arpeggioAdd = ch.fxCount = 0
-
-  if (!(effect === 0x1D && param > 0)) trigger(ch, player)
-
-  switch (effect) {
-    case 0x3: if (param > 0) ch.portaSpeed = param; break
-    case 0x4:
-      if ((param & 0xF0) > 0) ch.vibratoSpeed = param >> 4
-      if ((param & 0x0F) > 0) ch.vibratoDepth = param & 0xF
-      vibrato(ch)
-      break
-    case 0x6: vibrato(ch); break
-    case 0x7:
-      if ((param & 0xF0) > 0) ch.tremoloSpeed = param >> 4
-      if ((param & 0x0F) > 0) ch.tremoloDepth = param & 0xF
-      tremolo(ch)
-      break
-    case 0x8:
-      if (player['module'].numChannels !== 4) ch.panning = param < 128 ? param << 1 : 255
-      break
-    case 0xC: ch.volume = param > 64 ? 64 : param; break
-    case 0x11: ch.period -= param; if (ch.period < 0) ch.period = 0; break
-    case 0x12: ch.period += param; if (ch.period > 65535) ch.period = 65535; break
-    case 0x14: if (param < 8) ch.vibratoType = param; break
-    case 0x17: if (param < 8) ch.tremoloType = param; break
-    case 0x1A: ch.volume = Math.min(64, ch.volume + param); break
-    case 0x1B: ch.volume = Math.max(0, ch.volume - param); break
-    case 0x1C: if (param <= 0) ch.volume = 0; break
-  }
-  updateFreq(ch)
-}
-
-Channel.prototype.tick = function(player: Micromod) {
-  const ch = this as Channel
-  ch.fxCount++
-  switch (ch.noteEffect) {
-    case 0x1: ch.period -= ch.noteParam; if (ch.period < 0) ch.period = 0; break
-    case 0x2: ch.period += ch.noteParam; if (ch.period > 65535) ch.period = 65535; break
-    case 0x3: tonePortamento(ch); break
-    case 0x4: ch.vibratoPhase += ch.vibratoSpeed; vibrato(ch); break
-    case 0x5: tonePortamento(ch); volumeSlide(ch, ch.noteParam); break
-    case 0x6: ch.vibratoPhase += ch.vibratoSpeed; vibrato(ch); volumeSlide(ch, ch.noteParam); break
-    case 0x7: ch.tremoloPhase += ch.tremoloSpeed; tremolo(ch); break
-    case 0xA: volumeSlide(ch, ch.noteParam); break
-    case 0xE:
-      if (ch.fxCount > 2) ch.fxCount = 0
-      if (ch.fxCount === 0) ch.arpeggioAdd = 0
-      if (ch.fxCount === 1) ch.arpeggioAdd = ch.noteParam >> 4
-      if (ch.fxCount === 2) ch.arpeggioAdd = ch.noteParam & 0xF
-      break
-    case 0x19:
-      if (ch.fxCount >= ch.noteParam) { ch.fxCount = 0; ch.sampleIdx = 0 }
-      break
-    case 0x1C: if (ch.noteParam === ch.fxCount) ch.volume = 0; break
-    case 0x1D:
-      if (ch.noteParam === ch.fxCount) trigger(ch, player)
-      break
-  }
-  if (ch.noteEffect > 0) updateFreq(ch)
 }
 
 function trigger(ch: Channel, player: Micromod) {

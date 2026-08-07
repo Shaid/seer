@@ -6,7 +6,7 @@
  * render and building one would be inventing geometry the source games never
  * had.
  *
- * Consumes `@seer/engine-2d`'s `KeyState` directly rather than reimplementing
+ * Consumes `@seer-project/engine-2d`'s `KeyState` directly rather than reimplementing
  * held-key tracking — `WalkerController` only ever calls `isDown`.
  * `update(dtMs, keys)` is pure with respect to time: it takes `dtMs` as a
  * parameter rather than reading a clock itself, so step/turn throttling is
@@ -26,7 +26,7 @@ import { rotate, leftOf, rightOf, step as stepCell } from '../model/Direction.ts
 import type { BindingsFile } from '../schema/bindings.ts';
 
 /**
- * The subset of `@seer/engine-2d`'s `KeyState` this controller needs. A real
+ * The subset of `@seer-project/engine-2d`'s `KeyState` this controller needs. A real
  * `KeyState` instance satisfies this structurally (it has a public `isDown`),
  * so a host just passes one straight in; tests pass a plain object literal
  * instead of constructing a real, DOM-`EventTarget`-backed `KeyState`, which

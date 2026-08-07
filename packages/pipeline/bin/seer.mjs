@@ -5,16 +5,15 @@
  * Run via: npx seer <command> [options]
  * Or directly: node packages/pipeline/bin/seer.mjs <command>
  *
- * This file is plain .mjs so it can be invoked without tsx when the consumer's
- * project has tsx registered (via --import tsx or similar). It delegates
- * everything to packages/pipeline/src/cli.ts which contains the real logic.
+ * Delegates everything to the compiled packages/pipeline/dist/cli.js which
+ * contains the real logic.
  */
 import { pathToFileURL } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const cliPath = pathToFileURL(resolve(__dirname, '../src/cli.ts')).href;
+const cliPath = pathToFileURL(resolve(__dirname, '../dist/cli.js')).href;
 
 const cli = await import(cliPath);
 

@@ -4,10 +4,10 @@
  * Reads ?game=&platform= from the URL if your project supports multiple
  * games/platforms (see src/game-id.ts), then boots the Game engine.
  *
- * Uses `createGame()` (composition-over-inheritance) from @seer/engine-2d.
+ * Uses `createGame()` (composition-over-inheritance) from @seer-project/engine-2d.
  * For the subclass approach, import `Game` directly instead.
  */
-import { createGame } from '@seer/engine-2d';
+import { createGame } from '@seer-project/engine-2d';
 
 const container = document.getElementById('game-container');
 if (!container) {

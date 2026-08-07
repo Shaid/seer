@@ -6,7 +6,7 @@
  *
  * Run via: npx create-seer <project-name>
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Eta } from 'eta';
@@ -68,7 +68,9 @@ export function scaffold(targetDir: string, options: ScaffoldOptions = {}): void
   const p = (rel: string) => resolve(targetDir, rel);
 
   const seerPackagesDir = resolve(__dirname, '../..');
+  const inMonorepo = existsSync(resolve(seerPackagesDir, 'core/package.json'));
   const seerSpec = (name: string): string => {
+    if (!inMonorepo) return '^0.1.0';
     let rel = relative(resolve(targetDir), resolve(seerPackagesDir, name));
     if (!rel.startsWith('.') && !rel.startsWith('/')) rel = './' + rel;
     return 'file:' + rel;

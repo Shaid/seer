@@ -1,4 +1,4 @@
-import { loadAssets } from '@seer/core';
+import { loadAssets } from '@seer-project/core';
 import type { GameAssets } from './GameData.ts';
 import type { GameId, PlatformId } from '../game-id.ts';
 

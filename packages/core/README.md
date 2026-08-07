@@ -1,14 +1,14 @@
-# @seer/core
+# @seer-project/core
 
 Generic binary utilities for browser-based reverse-engineering projects.
 
 Zero runtime dependencies. Browser-safe (no Node built-ins). This is the
-foundation package that all other `@seer/*` packages depend on.
+foundation package that all other `@seer-project/*` packages depend on.
 
 ## Installation
 
 ```bash
-npm install @seer/core
+npm install @seer-project/core
 ```
 
 ## Modules
@@ -19,7 +19,7 @@ Standalone functions for reading unsigned integers from `Uint8Array` with
 configurable endianness. No format assumptions — safe for any binary target.
 
 ```ts
-import { r8, r16, r24, r32 } from '@seer/core';
+import { r8, r16, r24, r32 } from '@seer-project/core';
 
 const value = r32(data, offset, 'be'); // uint32, big-endian
 ```
@@ -38,7 +38,7 @@ const value = r32(data, offset, 'be'); // uint32, big-endian
 Endianness is a constructor parameter (default big-endian).
 
 ```ts
-import { BinaryReader } from '@seer/core';
+import { BinaryReader } from '@seer-project/core';
 
 const reader = new BinaryReader(buffer, 0, 'be');
 const magic = reader.readFourCC();   // "FORM"
@@ -63,11 +63,11 @@ const chunk = reader.readBytes(size);
 Fetch preprocessed JSON (and text) assets produced by the offline pipeline.
 Browser-safe — uses `globalThis.fetch`, no Node built-ins.
 
-Lives in `@seer/core` (not `@seer/pipeline`) to prevent Node-only
+Lives in `@seer-project/core` (not `@seer-project/pipeline`) to prevent Node-only
 dependencies from leaking into browser bundles.
 
 ```ts
-import { loadAssets, type AtlasMeta } from '@seer/core';
+import { loadAssets, type AtlasMeta } from '@seer-project/core';
 
 interface MyAssets {
   atlas: AtlasMeta;
@@ -83,7 +83,7 @@ const assets = await loadAssets<MyAssets>('/assets/mygame/amiga', {
 Or use the factory for reusable loading:
 
 ```ts
-import { createAssetLoader } from '@seer/core';
+import { createAssetLoader } from '@seer-project/core';
 
 const load = createAssetLoader('/assets/mygame/amiga');
 const assets = await load<MyAssets>({ atlas: 'atlas.json', map: 'map.json' });
@@ -97,7 +97,7 @@ a shelf-packed atlas (arbitrarily positioned/sized frames), not a uniform
 grid, since real extracted sprite art is essentially never uniformly sized.
 
 ```ts
-import type { AtlasFrame, AtlasMeta } from '@seer/core';
+import type { AtlasFrame, AtlasMeta } from '@seer-project/core';
 
 const atlas: AtlasMeta = {
   width: 256,

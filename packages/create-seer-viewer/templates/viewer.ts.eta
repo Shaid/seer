@@ -6,7 +6,7 @@ import {
   type ManifestEntry,
   type GamesManifestEntry,
 } from './shared.ts';
-import { cyclePalette } from '@seer/core';
+import { cyclePalette } from '@seer-project/core';
 
 // ── Game / platform selection ───────────────────────────────────────────
 // ASSET_BASE is data-driven: populated from /assets/games.json (written by
@@ -308,7 +308,7 @@ function drawFullAtlas(asset: ManifestEntry, atlas: AtlasMeta, zoom: number) {
 // ── WebGL2 indexed-texture + palette shader ─────────────────────────────
 //
 // The generic "no-op" base case: sample an 8-bit index out of an indexed
-// PNG (index in the R channel, written by @seer/pipeline's writeIndexedPNG),
+// PNG (index in the R channel, written by @seer-project/pipeline's writeIndexedPNG),
 // look that index up in a small 1D palette texture, output the color. No
 // bitplane permutation, no per-entity mode table — this is intentionally
 // the extension point a project layers its own game-specific recolor

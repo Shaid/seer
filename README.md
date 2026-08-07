@@ -7,8 +7,8 @@ web-native assets, and then a browser engine that consumes the preprocessed
 output.
 
 Structured as an npm workspace: genuinely reusable, game-agnostic code lives
-in scoped `packages/*` (`@seer/core`, `@seer/engine-2d`, `@seer/pipeline`,
-`@seer/iff`, `@seer/smus`). Everything at the project root (`src/`, `tools/`)
+in scoped `packages/*` (`@seer-project/core`, `@seer-project/engine-2d`, `@seer-project/pipeline`,
+`@seer-project/iff`, `@seer-project/smus`). Everything at the project root (`src/`, `tools/`)
 is your project — templates and placeholders you edit and diverge from
 freely.
 
@@ -69,3 +69,17 @@ npm run build-assets   # Run only the asset-build stage
 
 Each package under `packages/*` also has its own `npm test`/`npm run lint`
 scripts, runnable standalone from within that package's directory.
+
+## ⚖️ Licensing & Commercial Use
+
+This framework is dual-licensed to accommodate both open-source and commercial use cases:
+
+1. **Open Source (AGPL-3.0-or-later):** Free to use, modify, and distribute for personal, educational, or open-source projects. However, if you build a web application or cloud service using this framework, **you must open-source your entire application's source code** under the AGPL v3.
+2. **Commercial License:** If you wish to use this framework to build a proprietary, closed-source application or SaaS platform, you must purchase a Commercial License. This license waives the AGPL web-sharing requirement, allowing your codebase to remain fully private.
+
+### 💼 Need a Commercial License?
+
+If your team or company needs a commercial exemption, we offer simple flat-fee and subscription options.
+
+To request a commercial license or custom terms, please reach out via email:
+👉 **[dr.shaid@gmail.com](mailto:dr.shaid@gmail.com)** with the subject line `[Commercial License Request - Project Name]`

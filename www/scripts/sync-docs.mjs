@@ -34,7 +34,11 @@ const SOURCES = [
   { src: 'packages/iff/README.md', out: 'packages/iff.md' },
   { src: 'packages/smus/README.md', out: 'packages/smus.md' },
   { src: 'packages/tracker/README.md', out: 'packages/tracker.md' },
+  { src: 'packages/audio-ui/README.md', out: 'packages/audio-ui.md' },
+  { src: 'packages/dungeon/README.md', out: 'packages/dungeon.md' },
   { src: 'packages/create-seer/README.md', out: 'packages/create-seer.md' },
+  { src: 'packages/create-seer-viewer/README.md', out: 'packages/create-seer-viewer.md' },
+  { src: 'packages/create-seer-website/README.md', out: 'packages/create-seer-website.md' },
 ];
 
 /** Directories under OUT_ROOT this script owns entirely — cleared each run

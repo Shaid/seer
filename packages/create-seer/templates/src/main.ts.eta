@@ -1,4 +1,4 @@
-import { createGame } from '@seer/engine-2d';
+import { createGame } from '@seer-project/engine-2d';
 
 const container = document.getElementById('game-container');
 if (!container) {

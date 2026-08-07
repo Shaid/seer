@@ -9,7 +9,7 @@ import {
   getSupportedPlatforms as _getSupportedPlatforms,
   type GameConfig as BaseGameConfig,
   type PlatformConfig as BasePlatformConfig,
-} from '@seer/pipeline';
+} from '@seer-project/pipeline';
 import {
   GAME_IDS,
   PLATFORM_IDS,

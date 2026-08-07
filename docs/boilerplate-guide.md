@@ -21,11 +21,11 @@ any target. Import from them; don't edit their source directly.
 
 | Package | Contains |
 |---------|----------|
-| `@seer/core` | `binary.ts` — endian-aware byte-reading primitives (`r8`/`r16`/`r24`/`r32`); `binary-reader.ts` — cursor-based `BinaryReader`, endianness is a constructor param |
-| `@seer/engine-2d` | `Camera.ts` — 2D pan/zoom/bounds-clamped camera; `InputManager.ts` — keyboard + mouse input (pan, edge-scroll, wheel zoom, drag, click); `DisplayMode.ts` — zoom-bounds/scale-mode config; `Game.ts` — top-level orchestrator shape; `pixi-helpers.ts` — viewport culling, atlas slicing, label styling (PixiJS-specific; peer dep on `pixi.js`) |
-| `@seer/pipeline` | Node-only: `resolveDataDir()`/`findFileCI()` — breadth-first, case-insensitive discovery of wherever the user dropped their game files; `io.ts` — generic file I/O (`readBinary`, `writePNG`, `writeIndexedPNG`, `writeJson`, `scanFilesByExtension`, `resolveDataFile`); `hex-dump.ts` — CLI binary inspector, your first tool when reverse-engineering a new format |
-| `@seer/iff` | Generic EA IFF-85 FORM/chunk parser (depends on `@seer/core`). **Optional** — delete this package if your target doesn't use IFF-derived formats (8SVX, ILBM, ANIM, SMUS, or a custom FORM-based format) |
-| `@seer/smus` | SMUS (Simple Musical Score) interpreter — EA IFF 85 SMUS format parser, SampledSound .instr/.ss parser, Sonix audio engine with instrument converters. **Optional** — only relevant if your target uses SMUS audio |
+| `@seer-project/core` | `binary.ts` — endian-aware byte-reading primitives (`r8`/`r16`/`r24`/`r32`); `binary-reader.ts` — cursor-based `BinaryReader`, endianness is a constructor param |
+| `@seer-project/engine-2d` | `Camera.ts` — 2D pan/zoom/bounds-clamped camera; `InputManager.ts` — keyboard + mouse input (pan, edge-scroll, wheel zoom, drag, click); `DisplayMode.ts` — zoom-bounds/scale-mode config; `Game.ts` — top-level orchestrator shape; `pixi-helpers.ts` — viewport culling, atlas slicing, label styling (PixiJS-specific; peer dep on `pixi.js`) |
+| `@seer-project/pipeline` | Node-only: `resolveDataDir()`/`findFileCI()` — breadth-first, case-insensitive discovery of wherever the user dropped their game files; `io.ts` — generic file I/O (`readBinary`, `writePNG`, `writeIndexedPNG`, `writeJson`, `scanFilesByExtension`, `resolveDataFile`); `hex-dump.ts` — CLI binary inspector, your first tool when reverse-engineering a new format |
+| `@seer-project/iff` | Generic EA IFF-85 FORM/chunk parser (depends on `@seer-project/core`). **Optional** — delete this package if your target doesn't use IFF-derived formats (8SVX, ILBM, ANIM, SMUS, or a custom FORM-based format) |
+| `@seer-project/smus` | SMUS (Simple Musical Score) interpreter — EA IFF 85 SMUS format parser, SampledSound .instr/.ss parser, Sonix audio engine with instrument converters. **Optional** — only relevant if your target uses SMUS audio |
 
 Also reusable as-is at the project root:
 
@@ -52,7 +52,7 @@ placeholder values you must replace as soon as you know your actual target:
 - **`tools/shared/game-config.ts`** — replace the single placeholder
   `GAME_PLATFORMS` entry with your real config(s). This is the **one file**
   you should need to edit when adding a new game or platform port. It
-  re-exports the generic lookup functions from `@seer/pipeline` and defines
+  re-exports the generic lookup functions from `@seer-project/pipeline` and defines
   a locally-narrowed `PlatformConfig` type (`game: GameId`, not bare
   `string`) so typos in your config table are still caught at compile
   time — see `docs/architecture-overview.md` §5 for why this narrowing
@@ -68,7 +68,7 @@ placeholder values you must replace as soon as you know your actual target:
   interface, one loader function, parallel `fetch()`" convention. Replace
   the placeholder `AtlasMeta` fields with whatever your build-assets script
   actually produces.
-- **`src/main.ts`** — boots `Game` from `@seer/engine-2d` with placeholder world
+- **`src/main.ts`** — boots `Game` from `@seer-project/engine-2d` with placeholder world
   dimensions. Replace `worldWidth`/`worldHeight` with your actual content
   size once known, and adjust if you support multiple games/platforms via
   URL params.
@@ -76,15 +76,15 @@ placeholder values you must replace as soon as you know your actual target:
   type (typically audio) is decoded at runtime rather than precompiled.
   Delete it if your pipeline precompiles everything.
 
-`@seer/engine-2d`'s `Game.ts` is technically inside the packages workspace, but
-unlike the rest of `@seer/engine-2d` it's meant to be edited, not imported
+`@seer-project/engine-2d`'s `Game.ts` is technically inside the packages workspace, but
+unlike the rest of `@seer-project/engine-2d` it's meant to be edited, not imported
 as-is: it's the top-level orchestrator shape (async init → camera/input
 wiring → ticker loop) with `TODO`s for your actual rendering — tilemap,
 sprite layers, dialogue screens, whatever your genre needs. **This is not
 assumed to be a map-based game** — see `docs/architecture-overview.md` §8.
 If you outgrow the single-file template, move your game-specific rendering
 logic into your own `src/` code and have it import `Camera`/`InputManager`/
-`DisplayMode` from `@seer/engine-2d` directly, rather than continuing to edit
+`DisplayMode` from `@seer-project/engine-2d` directly, rather than continuing to edit
 the package file.
 
 ---
@@ -96,10 +96,10 @@ for you:
 
 1. **Your container format decoder** (if the target bundles multiple assets
    into one file — a resource fork, a PAK/WAD file, ROM banks, etc). Use
-   `@seer/pipeline`'s `hex-dump.ts` and `@seer/core`'s `BinaryReader` to
+   `@seer-project/pipeline`'s `hex-dump.ts` and `@seer-project/core`'s `BinaryReader` to
    start probing; write your own `parseContainer()`/`findResource()` once
    you understand the layout. If your container format is IFF-derived,
-   `@seer/iff` already gives you the generic FORM/chunk parsing.
+   `@seer-project/iff` already gives you the generic FORM/chunk parsing.
 2. **Your bitmap/sprite decoder(s).** Depends entirely on the platform:
    planar bitplane graphics (Amiga/Atari ST), tile-based (SNES/Genesis),
    packed indexed pixels (VGA), etc.
@@ -110,9 +110,9 @@ for you:
    loader in the sibling project's `src/assets/formats/exe-data.ts`
    (`parseHunks()`) is a reasonable reference — the table *offsets* are still
    unique to each compiled binary and must be found via disassembly.
-5. **Your audio format decoder**, if applicable — `@seer/smus` is populated
+5. **Your audio format decoder**, if applicable — `@seer-project/smus` is populated
    with a working SMUS interpreter if your target uses SMUS.
-6. **Your actual game/rendering logic**, built out from `@seer/engine-2d`'s
+6. **Your actual game/rendering logic**, built out from `@seer-project/engine-2d`'s
    `Game.ts` template.
 
 ---
@@ -128,6 +128,6 @@ for you:
 5. Fill in `tools/<game>/export-game-data.ts` and `build-assets.ts`.
 6. Wire up `src/data/GameData.ts` / `AssetLoader.ts` to match what stage 2
    actually produces.
-7. Build out `@seer/engine-2d`'s `Game.ts` (or your own `src/` code importing
+7. Build out `@seer-project/engine-2d`'s `Game.ts` (or your own `src/` code importing
    from it) to render your actual content.
 8. Run `npm test` and `npm run lint` before considering anything done.

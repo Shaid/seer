@@ -1,5 +1,5 @@
 /**
- * @seer/smus — SMUS (Simple Musical Score) interpreter and Sonix audio engine.
+ * @seer-project/smus — SMUS (Simple Musical Score) interpreter and Sonix audio engine.
  *
  * A working reference implementation of the EA IFF 85 SMUS format and
  * the Sonix synthesis/sample playback engine used by Melbourne House on

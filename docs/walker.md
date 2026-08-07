@@ -1,8 +1,8 @@
 # Generic first-person dungeon walker — architecture & implementation plan
 
-> **Note (2026-08-03):** `@seer/engine` was renamed to `@seer/engine-2d`
-> after this plan was written (ahead of a future `@seer/engine-3d`) — every
-> `@seer/engine` reference below refers to what is now `@seer/engine-2d`,
+> **Note (2026-08-03):** `@seer-project/engine` was renamed to `@seer-project/engine-2d`
+> after this plan was written (ahead of a future `@seer-project/engine-3d`) — every
+> `@seer-project/engine` reference below refers to what is now `@seer-project/engine-2d`,
 > and `packages/engine/` paths are now `packages/engine-2d/`. Not renamed in
 > place throughout to avoid touching a large, precise planning document
 > line-by-line without re-verifying every citation; the substance of every
@@ -10,7 +10,7 @@
 
 **Status:** plan only, nothing implemented. Written 2026-08-02. Lives in
 this repo (`seer/docs/walker.md`) rather than the consumer project's
-repo because it targets a new framework package (`@seer/dungeon`, §4);
+repo because it targets a new framework package (`@seer-project/dungeon`, §4);
 `sorcery` (Wizardry 6) is its primary driving consumer, and `crawl`
 (Black Crypt) is the second consumer used to pressure-test the design.
 **Scope:** a reusable, game-agnostic first-person grid dungeon renderer +
@@ -37,12 +37,12 @@ docs, and are labelled with the confidence level those docs assign.
   A slot-addressed piece compositor is therefore the correct core
   abstraction, and **raycasting is actively wrong** — the art has baked-in
   perspective and no wall textures exist to project.
-- **Recommendation: new browser-safe framework package `@seer/dungeon`**
+- **Recommendation: new browser-safe framework package `@seer-project/dungeon`**
   at `/home/ctemplet/Development/seer/packages/dungeon/`, with a
   `./schema` subpath export carrying zero-dependency types that the
   Node-side `tools/` can import. Rationale and tradeoffs in §4.
-- **Do not build on `@seer/engine`'s `Camera` or `InputManager`.** Both
-  are verified hostile to a first-person view (§3.3). `@seer/engine`'s
+- **Do not build on `@seer-project/engine`'s `Camera` or `InputManager`.** Both
+  are verified hostile to a first-person view (§3.3). `@seer-project/engine`'s
   `Game` lifecycle shape is worth copying, not importing.
 - **Recommended renderer: an indexed-framebuffer software compositor**
   that writes palette indices into a `Uint8Array` at the game's native
@@ -93,7 +93,7 @@ later, so v1 doesn't design them out):
 | Spells, inventory, party state | None — the walker takes a pose and a level, and owns no game state beyond the pose |
 | Automap persistence / fog of war | `CellQuery` is already the single read path; a `VisitedSet` decorator wraps it |
 | Runtime mutation of level geometry (secret doors opening) | The `CellQuery` interface is read-only by design but `MutableCellQuery` is a trivial extension; W6 confirms the original engine mutates maze state via `SetBitField` (A4 entry 47, `CODE+0x2984`, §4.7.3) |
-| Audio | Nothing — `@seer/smus`/`@seer/tracker` are already separate packages |
+| Audio | Nothing — `@seer-project/smus`/`@seer-project/tracker` are already separate packages |
 | Smooth (non-quantised) motion | See §7.3 — deliberately deferred, and it is a bigger change than it looks |
 
 ### 1.2 Non-goals
@@ -558,7 +558,7 @@ must sit *inside* the world and carry a facing; neither is expressible.
 (`isDown(code)`), no pointer lock, no relative mouse motion. `onKey`
 (`:83`) is one-shot-per-keydown, fine for menus, wrong for held movement.
 
-**`@seer/core`** (`packages/core/src/index.ts`): six functions, one
+**`@seer-project/core`** (`packages/core/src/index.ts`): six functions, one
 class, three types. `BinaryReader`, `r8/r16/r24/r32`, `dataViewOf`,
 `loadAssets`, `createAssetLoader`, `AssetSchema`, `InferredAssets`.
 `loadAssets<T>(basePath, schema)` is a `Promise.all` over `fetch` that
@@ -566,9 +566,9 @@ class, three types. `BinaryReader`, `r8/r16/r24/r32`, `dataViewOf`,
 (`packages/core/src/assets.ts:39-73`) — **there is no binary fetch path**
 despite the file header claiming otherwise at `assets.ts:2-3`.
 **There are no atlas, palette, manifest, grid or tilemap types anywhere
-in any `@seer/*` package.**
+in any `@seer-project/*` package.**
 
-**`@seer/pipeline`** exports `PlatformConfig`, `GameConfig`,
+**`@seer-project/pipeline`** exports `PlatformConfig`, `GameConfig`,
 `defineGameConfig`, `runPipeline`, `readBinary`, `writePNG`,
 `writeIndexedPNG`, `writeJson`, `resolveDataDir`, `findFileCI`,
 `hexDump`, and more. It **defines zero asset-output schemas** — it has
@@ -612,13 +612,13 @@ extend the root tsconfig, done. Tests are Vitest, colocated in
 ### 4.1 Recommendation
 
 **Create a new browser-safe package
-`@seer/dungeon` at `/home/ctemplet/Development/seer/packages/dungeon/`**,
+`@seer-project/dungeon` at `/home/ctemplet/Development/seer/packages/dungeon/`**,
 with two export subpaths:
 
 ```jsonc
 // packages/dungeon/package.json
 {
-  "name": "@seer/dungeon",
+  "name": "@seer-project/dungeon",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -627,12 +627,12 @@ with two export subpaths:
     "./schema": "./src/schema/index.ts"  // pure types + validators, ZERO deps
   },
   "peerDependencies": { "pixi.js": "^8.9.0" },
-  "dependencies": { "@seer/core": "*" },
+  "dependencies": { "@seer-project/core": "*" },
   "scripts": { "test": "vitest run", "lint": "eslint src/" }
 }
 ```
 
-This mirrors `@seer/engine`'s existing dual-export precedent
+This mirrors `@seer-project/engine`'s existing dual-export precedent
 (`"."` and `"./pixi-helpers"`) and its `peerDependencies: {pixi.js}`
 convention, so it needs no new framework machinery.
 
@@ -642,7 +642,7 @@ must not drag PixiJS into a `tsx` script. The subpath makes that a
 module-resolution guarantee rather than a convention, in the spirit of
 `seer/docs/framework-plan.md` §8.
 
-Do **not** add it to `@seer/engine`. `@seer/engine` is a 2D pan/zoom
+Do **not** add it to `@seer-project/engine`. `@seer-project/engine` is a 2D pan/zoom
 map-viewer scaffold whose two most prominent exports are actively
 incompatible with a first-person view (§3.3), and mixing them would
 force every existing consumer to carry dungeon code they will never use.
@@ -684,7 +684,7 @@ packages/dungeon/
       CanvasPresenter.ts             # IndexedSurface -> ImageData (viewer/tests/node)
       SpriteGraphRenderer.ts         # ALTERNATE backend: DrawItem[] -> Pixi scene graph
     input/
-      KeyState.ts                    # held-key tracker (what @seer/engine lacks)
+      KeyState.ts                    # held-key tracker (what @seer-project/engine lacks)
       WalkerController.ts            # key bindings -> pose transitions, step throttling
     debug/
       Minimap.ts                     # top-down grid + view cone
@@ -697,10 +697,10 @@ packages/dungeon/
 
 | Option | Pros | Cons | Verdict |
 |---|---|---|---|
-| **New `@seer/dungeon` package** (recommended) | Reusable across sorcery/crawl/future titles, which is the stated requirement. Clean browser/Node boundary via the `./schema` subpath. Testable in isolation with Vitest, no game data needed. Adding a package is mechanical (§3.3). | A second repo to keep in sync during rapid iteration (mitigated: consumers link it via `file:../seer/packages/*` already, so edits are live). Risk of premature generalisation from n=1. | **Do this**, but see the sequencing guard below. |
+| **New `@seer-project/dungeon` package** (recommended) | Reusable across sorcery/crawl/future titles, which is the stated requirement. Clean browser/Node boundary via the `./schema` subpath. Testable in isolation with Vitest, no game data needed. Adding a package is mechanical (§3.3). | A second repo to keep in sync during rapid iteration (mitigated: consumers link it via `file:../seer/packages/*` already, so edits are live). Risk of premature generalisation from n=1. | **Do this**, but see the sequencing guard below. |
 | Project-local `sorcery/src/dungeon/` | Fastest to start; free to churn interfaces. | Guarantees a painful extraction later, and the extraction is exactly where generic design gets skipped. crawl would copy-paste. Contradicts the explicit "other games of a similar nature" goal. | No. |
-| Extend `@seer/engine` | One fewer package. | `Camera`/`InputManager` are incompatible (§3.3), `pixi-helpers` assumes a 2D affine camera, and every existing consumer pays for it. | No. |
-| Two packages (`@seer/dungeon-core` schema-only + `@seer/dungeon-pixi`) | Maximum boundary rigour. | The `./schema` subpath already achieves it; a second package is ceremony the framework has no precedent for. | No. |
+| Extend `@seer-project/engine` | One fewer package. | `Camera`/`InputManager` are incompatible (§3.3), `pixi-helpers` assumes a 2D affine camera, and every existing consumer pays for it. | No. |
+| Two packages (`@seer-project/dungeon-core` schema-only + `@seer-project/dungeon-pixi`) | Maximum boundary rigour. | The `./schema` subpath already achieves it; a second package is ceremony the framework has no precedent for. | No. |
 
 **Sequencing guard against premature generalisation.** Build M1-M4
 (Wizardry 6) *inside the package from day one*, but do not treat any
@@ -1320,11 +1320,11 @@ state on a timer.
 
 ### 7.4 Input
 
-`@seer/engine`'s `InputManager` cannot be used (§3.3). Add to
-`@seer/dungeon`:
+`@seer-project/engine`'s `InputManager` cannot be used (§3.3). Add to
+`@seer-project/dungeon`:
 
 ```ts
-// input/KeyState.ts — the primitive @seer/engine lacks
+// input/KeyState.ts — the primitive @seer-project/engine lacks
 export class KeyState {
   constructor(target: HTMLElement | Window);
   isDown(code: string): boolean;
@@ -1354,10 +1354,10 @@ export const DEFAULT_BINDINGS: WalkerBindings = {
 The controller is pure w.r.t. time: `update(dtMs, keyState) -> Pose | null`.
 That makes step-throttling and binding logic unit-testable without a DOM.
 
-**Note for `@seer/engine`:** `KeyState` is generically useful and its
+**Note for `@seer-project/engine`:** `KeyState` is generically useful and its
 absence is a real framework gap. Recommend landing it in
-`@seer/dungeon` first (where it is needed and testable), and proposing
-it for promotion to `@seer/engine` once it has settled — rather than
+`@seer-project/dungeon` first (where it is needed and testable), and proposing
+it for promotion to `@seer-project/engine` once it has settled — rather than
 blocking the walker on an engine change.
 
 ### 7.5 Walker lifecycle
@@ -1383,7 +1383,7 @@ export function createWalker(o: WalkerOptions): Promise<Walker>;
 `Walker` exposes `pose` (get/set — set is the debug teleport),
 `redraw()`, `surface` (the `IndexedSurface`, for tests and the viewer),
 `destroy()`. It **does not** own the PixiJS `Application` — it takes a
-`Container`. That keeps it composable with `@seer/engine`'s `Game` (a
+`Container`. That keeps it composable with `@seer-project/engine`'s `Game` (a
 host can `game.stage.addChild(walker.view)`) without depending on it.
 
 ---
@@ -1432,7 +1432,7 @@ Emit palette indices instead:
   `writeIndexedPNG(path, indices, w, h, opts?: {transparentIndex?: number | null})`
   defaulting to `0` for backward compatibility, and pass `null` from the
   maze extractor. This is a small, additive, non-breaking framework
-  change; propose it alongside the `@seer/dungeon` package.
+  change; propose it alongside the `@seer-project/dungeon` package.
 - **Fallback if the framework change is unwelcome:** write the RGBA PNG
   from the dungeon extractor directly with a local helper. Do not work
   around it by post-processing alpha in the browser.
@@ -1459,7 +1459,7 @@ The harness:
 - reads `platform` / `level` / `x` / `y` / `facing` from URL params, so a
   broken pose is a shareable link;
 - loads `dungeon/*.json` + the atlas + palette via `loadAssets` from
-  `@seer/core`;
+  `@seer-project/core`;
 - mounts `createWalker` with `backend: 'indexed'`;
 - renders the debug minimap and slot inspector side by side with the
   view;
@@ -1491,7 +1491,7 @@ sized so that a failure is localised.
 - Extend `decode-scenario-maze.ts` to emit `dungeon/levels.json`, and
   `decode-maze.ts` to emit `dungeon/slots.json` (`staticSlots` only) and
   indexed art (§8.2). Add `dungeon-semantics.ts`.
-- Add `@seer/dungeon` to `sorcery/package.json` as
+- Add `@seer-project/dungeon` to `sorcery/package.json` as
   `file:../seer/packages/dungeon`.
 
 **Done when:** `npm run build-assets` produces all three `dungeon/*.json`
@@ -1575,7 +1575,7 @@ Prerequisite work in `crawl` (neither exists today, §3.2):
    (`crawl/docs/blackcrypt/amiga/data-structure.md:5037-5060`,
    `:4542-4553`) into `dungeon/slots.json`.
 
-**Done when:** `@seer/dungeon` renders a walkable Black Crypt level with
+**Done when:** `@seer-project/dungeon` renders a walkable Black Crypt level with
 **zero Wizardry-6-specific code paths** in the package (grep the package
 for `wizardry`, `wallA`, `mazedata`, `region*64` — must be empty outside
 `__tests__/` fixtures), and the W6 golden tests from M1/M2 still pass
@@ -1586,10 +1586,10 @@ unchanged.
 - `SpriteGraphRenderer` backend + the cross-check test (§6.4).
 - Headless `--golden` compositor script (§8.3).
 - Package README with a worked "plug in a new game" guide.
-- Promote `KeyState` to `@seer/engine` if it has settled.
+- Promote `KeyState` to `@seer-project/engine` if it has settled.
 
 **Done when:** a developer can follow the README to wire a third game's
-extracted assets to the walker without reading `@seer/dungeon`'s source.
+extracted assets to the walker without reading `@seer-project/dungeon`'s source.
 
 ### Sequencing summary
 
@@ -1680,7 +1680,7 @@ entities, so this blocks nothing. `DungeonLevelData.entities?: unknown`
 | Does W6's outer 4-step depth loop mean 4 visible depths, or 3 + a backdrop? | Treat `depthCount: 4` with `frontWallMaxDepth: 3`, matching Black Crypt's confirmed gating exactly | M2 |
 | Are the two `flagP`/`flagQ` overlay planes needed for rendering? | No — they drive per-level scripted 14-way dispatches (§4.7.2). Expose as planes; bind nothing | M4 |
 | Should the walker own the PixiJS `Application`? | No — take a `Container` (§7.5) | — |
-| Should `KeyState` live in `@seer/engine`? | Eventually yes; ship in `@seer/dungeon` first | M6 |
+| Should `KeyState` live in `@seer-project/engine`? | Eventually yes; ship in `@seer-project/dungeon` first | M6 |
 | One `slots.json` per platform, or one shared with per-platform art refs? | Per platform. W6's DOS directory format differs (5-byte records, no offset field, `dosega/data-structure.md:3.2`) even though the art is identical; keeping them separate avoids a conditional | — |
 | How does the host game replace the view (combat, menus)? | Walker renders into a `Container`; host adds siblings above it and calls `walker.pause()` | M6 |
 
@@ -1698,7 +1698,7 @@ entities, so this blocks nothing. `DungeonLevelData.entities?: unknown`
 | 6 | **PixiJS v8 `BufferImageSource` re-upload is slow or awkward** | Low | Presenter rewrite | The view changes only on pose change (§7.3), so even a slow path is fine. `CanvasPresenter` is an always-available fallback, and the compositor is presenter-agnostic by design. |
 | 7 | **The existing extracted art has more baked-in errors than the index-15 alpha issue** (§6.5) | Low-Medium | Wrong pixels, hard to attribute | M1's golden test is a full-frame byte comparison against the disassembly-sourced recipe — it catches art-level errors, not just compositor errors. Fix at the extractor, never in the renderer. |
 | 8 | **`semantics.json` guesses ossify** — the placeholder gets treated as fact | Medium | Wrong walker presented as verification | The `confidence` field is rendered in the debug banner and must be checked in every screenshot shared as evidence. Treat any doc claim sourced from a `confidence: 'rendered'` walker render as `rendered`, never `confirmed`. |
-| 9 | **`@seer/*` framework churn** — no semver, no release process (`seer/docs/framework-plan.md` §10 is the one unimplemented item) | Low | Breakage across three linked repos | Consumers use `file:` links, so breakage is immediate and local rather than latent. Keep `@seer/dungeon`'s dependency on `@seer/core` to `BinaryReader` and `loadAssets` only — both are stable and trivially replaceable. |
+| 9 | **`@seer-project/*` framework churn** — no semver, no release process (`seer/docs/framework-plan.md` §10 is the one unimplemented item) | Low | Breakage across three linked repos | Consumers use `file:` links, so breakage is immediate and local rather than latent. Keep `@seer-project/dungeon`'s dependency on `@seer-project/core` to `BinaryReader` and `loadAssets` only — both are stable and trivially replaceable. |
 | 10 | **Scope creep into combat/entities** because the walker is the first thing that looks like a game | High | M5 never happens | The out-of-scope table in §1.1 names the hook for each deferred system. Point at it. |
 
 ---

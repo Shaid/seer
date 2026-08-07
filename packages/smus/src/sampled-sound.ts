@@ -9,8 +9,8 @@
  * Also parses .ss (Sampled Sound) multi-octave sample files.
  */
 
-import { BinaryReader } from '@seer/core';
-import { parseIff, findChunk } from '@seer/iff';
+import { BinaryReader } from '@seer-project/core';
+import { parseIff, findChunk } from '@seer-project/iff';
 
 // ─── Parsed types ──────────────────────────────────────────────────────
 

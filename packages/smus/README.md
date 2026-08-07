@@ -1,4 +1,4 @@
-# @seer/smus
+# @seer-project/smus
 
 SMUS (Simple Musical Score) interpreter and Sonix audio engine.
 
@@ -11,10 +11,10 @@ in real time.
 ## Installation
 
 ```bash
-npm install @seer/smus
+npm install @seer-project/smus
 ```
 
-Depends on `@seer/core` and `@seer/iff`.
+Depends on `@seer-project/core` and `@seer-project/iff`.
 
 ## Modules
 
@@ -23,7 +23,7 @@ Depends on `@seer/core` and `@seer/iff`.
 Parses IFF FORM SMUS files into structured song data.
 
 ```ts
-import { parseSMUS } from '@seer/smus';
+import { parseSMUS } from '@seer-project/smus';
 
 const song = parseSMUS(buffer);
 if (song) {
@@ -93,7 +93,7 @@ import {
   instrumentFromSynth,
   defaultInstrument,
   type Instrument,
-} from '@seer/smus';
+} from '@seer-project/smus';
 
 const score = parseSmusScore(smusFileBuffer);
 

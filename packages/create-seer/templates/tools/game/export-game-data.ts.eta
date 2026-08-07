@@ -4,7 +4,7 @@
  */
 import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { writeJson } from '@seer/pipeline';
+import { writeJson } from '@seer-project/pipeline';
 
 function main() {
   const dataDir = process.argv[2];

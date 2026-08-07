@@ -3,22 +3,24 @@
   "private": true,
   "version": "0.1.0",
   "description": "Boilerplate for browser-based, data-file-first game reverse-engineering projects",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "dev": "vite --host",
-    "build": "tsc && vite build",
+    "dev": "npm run build:packages && vite --host",
+    "build": "npm run build:packages && tsc && vite build",
+    "build:packages": "npm run build --workspaces",
     "preview": "vite preview --host",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "npm run build:packages && vitest run",
+    "test:watch": "npm run build:packages && vitest",
     "lint": "eslint packages/*/src/ packages/*/bin/ src/ tools/",
     "format": "prettier --write 'packages/*/src/**/*.ts' 'src/**/*.ts' 'tools/**/*.ts'",
-    "hex-dump": "tsx packages/pipeline/src/hex-dump.ts",
-    "extract-data": "tsx tools/extract-game-data.ts",
-    "build-assets": "tsx tools/extract-game-data.ts --assets-only",
-    "create": "tsx packages/create-seer/bin/seer-create.mjs",
+    "hex-dump": "npm run build:packages && tsx packages/pipeline/src/hex-dump.ts",
+    "extract-data": "npm run build:packages && tsx tools/extract-game-data.ts",
+    "build-assets": "npm run build:packages && tsx tools/extract-game-data.ts --assets-only",
+    "create": "npm run build:packages && node packages/create-seer/bin/seer-create.mjs",
     "dev:www": "npm run dev --prefix www",
     "build:www": "npm run build --prefix www",
     "preview:www": "npm run preview --prefix www"
@@ -36,10 +38,10 @@
     "vitest": "^3.2.0"
   },
   "dependencies": {
-    "@seer/core": "*",
-    "@seer/engine-2d": "*",
-    "@seer/pipeline": "*",
-    "@seer/iff": "*",
+    "@seer-project/core": "^0.1.0",
+    "@seer-project/engine-2d": "^0.1.0",
+    "@seer-project/pipeline": "^0.1.0",
+    "@seer-project/iff": "^0.1.0",
     "pixi.js": "^8.9.0",
     "pngjs": "^7.0.0"
   }

@@ -8,7 +8,7 @@
  * Node-only config data (this file uses `node:fs`/`node:path`, so it must
  * never be imported from browser-bundled code under src/).
  *
- * The config table is defined via defineGameConfig() from @seer/pipeline —
+ * The config table is defined via defineGameConfig() from @seer-project/pipeline —
  * the nested GameConfig[] shape that runPipeline() and create-seer templates
  * target.
  */
@@ -23,7 +23,7 @@ import {
   getSupportedPlatforms as _getSupportedPlatforms,
   type PlatformConfig as BasePlatformConfig,
   type GameConfig as BaseGameConfig,
-} from '@seer/pipeline';
+} from '@seer-project/pipeline';
 import {
   GAME_IDS,
   PLATFORM_IDS,
@@ -46,7 +46,7 @@ export {
 export type { GameId, PlatformId };
 
 /**
- * Consumer-narrowed platform type. `@seer/pipeline`'s PlatformConfig uses
+ * Consumer-narrowed platform type. `@seer-project/pipeline`'s PlatformConfig uses
  * bare `string` for `platform` since the library can't know this project's
  * specific IDs. Narrowing here restores compile-time typo checking.
  */

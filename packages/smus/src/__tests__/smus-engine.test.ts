@@ -97,7 +97,7 @@ describe('SmusEngine --pal flag', () => {
     // `finished` treats a track as done once its last queued event has been
     // dequeued (`t.index >= t.events.length`), matching the reference
     // implementation (middilgard's tools/shared/smus-player.ts, verified
-    // byte-exact against real .smus fixtures during the @seer/smus
+    // byte-exact against real .smus fixtures during the @seer-project/smus
     // consolidation). For a track whose *last* event is a rest, this means
     // rendering stops as soon as that rest is dequeued rather than waiting
     // out its nominal duration — there's no note and nothing else pending,

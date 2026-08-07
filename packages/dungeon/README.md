@@ -1,4 +1,4 @@
-# `@seer/dungeon`
+# `@seer-project/dungeon`
 
 A generic first-person grid-dungeon walker — the schema, raster and
 presenter layers shared by every game-specific dungeon renderer in Seer.
@@ -36,15 +36,15 @@ A game provides three config files per platform, each with a
   (blocks movement, blocks sight, which piece kind), with a
   `confidence: 'confirmed' | 'rendered' | 'hypothesis'` field per entry.
 
-Import types and validators from `@seer/dungeon/schema` — that subpath is
+Import types and validators from `@seer-project/dungeon/schema` — that subpath is
 zero-dependency (no PixiJS) so Node-side exporters can use it without
 pulling in a browser rendering stack.
 
 ## Quickstart
 
 ```ts
-import { validateSlotTableFile } from '@seer/dungeon/schema';
-import { PieceBank, IndexedSurface, compositeSlotTable } from '@seer/dungeon';
+import { validateSlotTableFile } from '@seer-project/dungeon/schema';
+import { PieceBank, IndexedSurface, compositeSlotTable } from '@seer-project/dungeon';
 
 const slots = validateSlotTableFile(await (await fetch('/assets/<game>/<platform>/dungeon/slots.json')).json());
 // decode the atlas PNG to RGBA yourself (pngjs in Node, canvas in the

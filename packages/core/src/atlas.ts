@@ -8,7 +8,7 @@
  * never uniformly sized) — so the shape is a flat list of named, arbitrarily
  * positioned/sized frames within one atlas image, not a grid.
  *
- * This lives in `@seer/core` specifically so there is exactly one
+ * This lives in `@seer-project/core` specifically so there is exactly one
  * definition shared by runtime code and offline tooling alike — it used to
  * be independently redeclared in the `create-seer` scaffold's
  * `src/data/GameData.ts` (as a *different*, incompatible uniform-grid shape)

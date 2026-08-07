@@ -4,7 +4,7 @@ import {
   type GameId,
   type PlatformId,
 } from './shared/game-config.ts';
-import { runPipeline } from '@seer/pipeline';
+import { runPipeline } from '@seer-project/pipeline';
 
 function parseArgs(argv: string[]): { game: GameId | "all"; platform: PlatformId | "all" } {
   const args = argv.slice(2);

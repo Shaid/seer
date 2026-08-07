@@ -4,7 +4,7 @@
  */
 import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { writeJson, writePNG, writeIndexedPNG } from '@seer/pipeline';
+import { writeJson, writePNG, writeIndexedPNG } from '@seer-project/pipeline';
 import { getGameConfig, writeGamesManifest } from '../shared/game-config.ts';
 
 const EXAMPLE_SIZE = 16;

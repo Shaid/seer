@@ -1,7 +1,7 @@
 /**
- * `@seer/engine-2d/input` — low-level, camera-agnostic input primitives.
+ * `@seer-project/engine-2d/input` — low-level, camera-agnostic input primitives.
  *
- * Exported as a separate subpath (mirroring `@seer/engine-2d/pixi-helpers`)
+ * Exported as a separate subpath (mirroring `@seer-project/engine-2d/pixi-helpers`)
  * because `KeyState`/`PointerState` have zero dependency on `Camera`,
  * `TopDownCamera`, or `InputManager` and are useful standalone.
  */

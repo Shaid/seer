@@ -11,8 +11,8 @@
  */
 import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { readBinary, writeJson } from '@seer/pipeline';
-import { BinaryReader } from '@seer/core';
+import { readBinary, writeJson } from '@seer-project/pipeline';
+import { BinaryReader } from '@seer-project/core';
 
 function main() {
   const dataDir = process.argv[2];

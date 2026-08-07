@@ -1,7 +1,7 @@
 /**
  * TopDownCamera — Viewport management with pan, zoom, and bounds clamping.
  *
- * Formerly named `Camera`; `@seer/engine-2d`'s index still exports `Camera`
+ * Formerly named `Camera`; `@seer-project/engine-2d`'s index still exports `Camera`
  * as a backward-compatible alias for this class (see `index.ts`).
  */
 

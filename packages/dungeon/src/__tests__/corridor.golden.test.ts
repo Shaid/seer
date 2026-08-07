@@ -27,7 +27,7 @@ import { PieceBank } from '../raster/PieceBank.ts';
 import { IndexedSurface } from '../raster/IndexedSurface.ts';
 import { compositeSlotTable } from '../raster/composite.ts';
 import { validateSlotTableFile } from '../schema/validate.ts';
-import type { AtlasMeta } from '@seer/core';
+import type { AtlasMeta } from '@seer-project/core';
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
 

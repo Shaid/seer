@@ -33,7 +33,7 @@
  * drawn (mask blits skip it, and non-mask blits shouldn't be sourcing
  * transparent pixels in the first place).
  */
-import type { AtlasFrame, AtlasMeta } from '@seer/core';
+import type { AtlasFrame, AtlasMeta } from '@seer-project/core';
 import type { BlitSource } from './IndexedSurface.ts';
 import { BACKGROUND_COLOR, type RGBAColor } from './palette.ts';
 

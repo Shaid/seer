@@ -5,8 +5,8 @@
  * (Jerry Morrison, Electronic Arts, Feb 1987)
  */
 
-import { BinaryReader } from '@seer/core';
-import { parseIff, findChunk, findChunks } from '@seer/iff';
+import { BinaryReader } from '@seer-project/core';
+import { parseIff, findChunk, findChunks } from '@seer-project/iff';
 
 // ─── SEvent type codes ────────────────────────────────────────────────
 

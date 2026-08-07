@@ -13,19 +13,19 @@ these are read findings, not impressions.
 
 > **Status update (2026-08-03).** Two items below are now resolved: §6
 > (conflicting `AtlasMeta` definitions) — fixed by moving a single canonical
-> `AtlasMeta`/`AtlasFrame` into `@seer/core`, both scaffold templates now
+> `AtlasMeta`/`AtlasFrame` into `@seer-project/core`, both scaffold templates now
 > import it instead of redeclaring (commit `7b931e0`). §7 (`writeIndexedPNG`
 > hardcoding index 0 as transparent) — fixed with the exact
 > `opts.transparentIndex` parameter recommended below, defaulting to `0` for
 > backward compatibility (commit `efb3cca`). §5 is **partially** resolved:
 > the atlas-shape half of "no atlas, palette, manifest... types anywhere in
-> any `@seer/*` package" is fixed by the same §6 work, and a `cyclePalette()`
-> utility was also added to `@seer/core`, but there's still no canonical
+> any `@seer-project/*` package" is fixed by the same §6 work, and a `cyclePalette()`
+> utility was also added to `@seer-project/core`, but there's still no canonical
 > `PaletteData` type there (still locally declared per-project) and no
 > `fetchBinary`/`.bin` path on `loadAssets` — both still open. Also note
-> `@seer/engine` was renamed to `@seer/engine-2d` after this review was
-> written (ahead of a future `@seer/engine-3d`) — mentions of `@seer/engine`
-> below refer to what is now `@seer/engine-2d`; file paths citing
+> `@seer-project/engine` was renamed to `@seer-project/engine-2d` after this review was
+> written (ahead of a future `@seer-project/engine-3d`) — mentions of `@seer-project/engine`
+> below refer to what is now `@seer-project/engine-2d`; file paths citing
 > `packages/engine/` have been updated to `packages/engine-2d/` in place
 > since those are just pointers, not findings. The rest of this document is
 > left as-written, not re-verified against current state.
@@ -36,7 +36,7 @@ The doc's ASCII diagram (`docs/architecture-overview.md:291-299`) lists
 `Game / Camera / InputManager / AssetLoader / SceneRenderer /
 EntityManager / AudioManager` as the browser runtime engine's structure.
 **`SceneRenderer`, `EntityManager`, and `AudioManager` do not exist
-anywhere in `@seer/engine` or any other package.** `packages/engine-2d/src/index.ts`
+anywhere in `@seer-project/engine` or any other package.** `packages/engine-2d/src/index.ts`
 is 19 lines — 13 values and 8 types, the entire package surface — and
 none of those three names appear.
 
@@ -119,7 +119,7 @@ helper that takes the packed-frames shape directly, since that's the de
 facto standard already (see item 6 below on the template inconsistency
 this connects to).
 
-## 5. `@seer/core` has no binary fetch path, despite documenting one
+## 5. `@seer-project/core` has no binary fetch path, despite documenting one
 
 `packages/core/src/assets.ts:2-3`'s header comment describes binary
 asset support, but `loadAssets<T>(basePath, schema)`
@@ -131,12 +131,12 @@ audio data, or other non-text asset at runtime rather than at
 pipeline-build time.
 
 Related: **there are no atlas, palette, manifest, grid, or tilemap types
-anywhere in any `@seer/*` package.** Every project (viewer tooling,
+anywhere in any `@seer-project/*` package.** Every project (viewer tooling,
 runtime loaders) currently redefines its own `AtlasMeta`/`PaletteData`
 shape locally, which is how item 6 happened.
 
 **Recommendation:** add a `fetchBinary`/`.bin` case to `loadAssets`, and
-consider hoisting the packed-atlas and palette shapes into `@seer/core`
+consider hoisting the packed-atlas and palette shapes into `@seer-project/core`
 as canonical types once a second or third project needs them — they're
 already effectively a de facto standard, just not a declared one.
 
@@ -159,7 +159,7 @@ inconsistency.
 
 **Recommendation:** delete the uniform-grid `AtlasMeta` from the
 `GameData.ts.eta` template and replace it with the packed-frames shape
-(or import it from `@seer/core` once item 5's recommendation lands), so
+(or import it from `@seer-project/core` once item 5's recommendation lands), so
 new projects don't start from a template that's already wrong on day
 one.
 
@@ -222,7 +222,7 @@ None of this is a case against the framework's actual design — `Game`/
 `Camera`/`InputManager` do what they say for their actual use case (a
 2D pan/zoom strategy map), the monorepo mechanics are clean (no build
 step, workspace packages resolve live via `file:../seer/packages/*`,
-adding a package is mechanical), and `@seer/pipeline`'s IO helpers
+adding a package is mechanical), and `@seer-project/pipeline`'s IO helpers
 (`readBinary`, `writePNG`, `hexDump`, etc.) are solid. The gaps are
 specifically where a second, structurally different consumer (a
 first-person dungeon walker) hit assumptions baked in for the first one

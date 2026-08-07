@@ -1,4 +1,4 @@
-import { defineGameConfig } from '@seer/pipeline';
+import { defineGameConfig } from '@seer-project/pipeline';
 
 export default defineGameConfig([{
   id: '<%= it.game %>',

@@ -10,7 +10,7 @@
  * Structure: FORM <size> <type> <chunks...>
  * Each chunk: <fourCC> <size:uint32> <data...> [pad byte if odd size]
  */
-import { BinaryReader } from '@seer/core';
+import { BinaryReader } from '@seer-project/core';
 
 export interface IffChunk {
   id: string;

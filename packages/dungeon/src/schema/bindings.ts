@@ -11,7 +11,7 @@
  *
  * `mode` is carried through for a future rebinding UI that wants to offer
  * genuine letter/character matching instead (`'literal'`) — nothing in
- * `@seer/dungeon` currently changes behaviour based on it, since
+ * `@seer-project/dungeon` currently changes behaviour based on it, since
  * `WalkerController` only ever compares `KeyState`'s `.code` values against
  * this file's arrays regardless of `mode`. Actually switching to literal
  * (layout-aware) matching is out of scope for M3; `mode` is data for that

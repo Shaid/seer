@@ -1,6 +1,6 @@
 /**
- * Barrel for `@seer/dungeon`. Re-exports the schema types/validators
- * (also independently available, dependency-free, at `@seer/dungeon/schema`)
+ * Barrel for `@seer-project/dungeon`. Re-exports the schema types/validators
+ * (also independently available, dependency-free, at `@seer-project/dungeon/schema`)
  * alongside the raster and render layers.
  */
 export * from './schema/index.ts';

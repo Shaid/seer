@@ -84,7 +84,7 @@ out across six sibling projects).
 
 - `tools/shared/game-config.ts.eta`'s `writeGamesManifest()`
   (`game-config.ts.eta:73-82`) maps `GAME_CONFIGS` to `{ id, displayName,
-  platforms: [{ id, displayName }] }[]` and writes it via `@seer/pipeline`'s
+  platforms: [{ id, displayName }] }[]` and writes it via `@seer-project/pipeline`'s
   `writeJson`. `PlatformConfig` gained an optional `displayName?: string`
   field (`game-config.ts.eta:24-28`) for this; when omitted, the platform id
   itself is used as the label (`p.displayName ?? p.platform`).
@@ -149,7 +149,7 @@ before this revision.
 ### Build side: emitting an indexed PNG variant
 
 `tools/game/build-assets.ts.eta` writes, alongside the existing baked RGBA
-`<name>.png`, an optional `<name>.indexed.png` via `@seer/pipeline`'s
+`<name>.png`, an optional `<name>.indexed.png` via `@seer-project/pipeline`'s
 `writeIndexedPNG` (palette index in the R channel). `ManifestEntry.indexedPng`
 (`shared.ts.eta`) records its presence; the viewer only offers the shader
 toggle for assets that have one (`selectAsset()`, `viewer.ts.eta:210-227`).
@@ -227,7 +227,7 @@ Animate/Stop button) drives `cycleTick()` (`:601-616`) on a
 `requestAnimationFrame` loop, gated by a simple frame-counter modulo so
 "speed" means "ticks per step" rather than raw animation-frame rate. Each
 step calls `cyclePalette(workingPalette, start, end, direction)` — imported
-from `@seer/core` (`packages/core/src/palette.ts`), not written inline in the
+from `@seer-project/core` (`packages/core/src/palette.ts`), not written inline in the
 template. `cyclePalette()` is a small, pure, DOM/WebGL-free utility: it
 rotates a sub-range of any array by one step, wrapping only within that
 range, and is unit-tested with real (non-mocked) data in

@@ -1,7 +1,7 @@
 /**
  * extract-game-data — Unified extraction pipeline orchestrator.
  *
- * Chains the offline pipeline stages via runPipeline() from @seer/pipeline:
+ * Chains the offline pipeline stages via runPipeline() from @seer-project/pipeline:
  * export-game-data → build-assets (see docs/architecture-overview.md §6).
  * Each step's functions are registered directly on the config table
  * (tools/shared/game-config.ts) — no execSync or file-path convention.
@@ -28,7 +28,7 @@ import {
   type GameId,
   type PlatformId,
 } from './shared/game-config.ts';
-import { runPipeline } from '@seer/pipeline';
+import { runPipeline } from '@seer-project/pipeline';
 
 interface Options {
   game: GameId | 'all';

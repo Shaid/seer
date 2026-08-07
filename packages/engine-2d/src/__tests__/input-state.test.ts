@@ -1,6 +1,6 @@
 /**
  * Tests for the camera-agnostic KeyState/PointerState primitives
- * (`@seer/engine-2d/input`).
+ * (`@seer-project/engine-2d/input`).
  *
  * No jsdom is configured in this workspace (see vite.config.ts's `test`
  * block and the lack of a `jsdom`/`happy-dom` dependency), so these tests

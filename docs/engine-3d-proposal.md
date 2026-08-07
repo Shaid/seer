@@ -1,4 +1,4 @@
-# `@seer/engine-3d` — scoping proposal
+# `@seer-project/engine-3d` — scoping proposal
 
 **Status: proposal, not started.** This is a scoping document, not an implementation
 plan with committed dates. It exists so that if/when the work happens, it starts
@@ -6,7 +6,7 @@ from a real assessment of what's generic vs. game-specific, not a guess.
 
 ## Why this might become a package
 
-`@seer/engine-2d` (the renamed `@seer/engine`) is a PixiJS-based 2D runtime —
+`@seer-project/engine-2d` (the renamed `@seer-project/engine`) is a PixiJS-based 2D runtime —
 camera, input, tilemap/sprite rendering. It fits every seer-family game so far
 because they're all 2D: sprite-and-tile games on Amiga/DOS/IIGS hardware.
 
@@ -23,7 +23,7 @@ viable, not just a hunch.
 ## What the prototype already gets right (the generic core)
 
 Reading `index-3d.html` in full, the following has **no game-specific
-assumptions** and is a strong basis for `@seer/engine-3d`'s core:
+assumptions** and is a strong basis for `@seer-project/engine-3d`'s core:
 
 - **Scene/camera/lighting setup** (`initScene()`) — perspective camera,
   ambient + two directional lights, a ground grid, `OrbitControls` wired to
@@ -83,7 +83,7 @@ assumptions** and is a strong basis for `@seer/engine-3d`'s core:
 ## Proposed package shape (if/when this is built)
 
 ```
-@seer/engine-3d/
+@seer-project/engine-3d/
   src/
     scene.ts       # initScene(), animate loop, resize handling — generic
     model.ts       # Model3D type (the verts/edges/faces shape), buildMesh()
@@ -95,9 +95,9 @@ assumptions** and is a strong basis for `@seer/engine-3d`'s core:
   package.json     # peerDependency: three
 ```
 
-Mirrors `@seer/engine-2d`'s shape: a thin, opinionated runtime core plus an
+Mirrors `@seer-project/engine-2d`'s shape: a thin, opinionated runtime core plus an
 explicit escape hatch (the injected palette decoder) for the one piece that's
-legitimately per-game, the same way `@seer/engine-2d` leaves `Game.ts` as an
+legitimately per-game, the same way `@seer-project/engine-2d` leaves `Game.ts` as an
 edit-me template rather than a locked-down class.
 
 ## What this would take, roughly
@@ -117,11 +117,11 @@ edit-me template rather than a locked-down class.
 5. Tests: at minimum, `buildMesh()` against synthetic vert/face fixtures
    (triangulation correctness, edge dedup), and the auto-fit camera math.
    Real GPU rendering isn't practically unit-testable — that stays a manual
-   "does it look right" check, same as `@seer/engine-2d`'s current state.
+   "does it look right" check, same as `@seer-project/engine-2d`'s current state.
 
 ## What this does NOT require
 
-- No changes to `@seer/engine-2d` — the two packages don't interact. A
+- No changes to `@seer-project/engine-2d` — the two packages don't interact. A
   project could depend on both if it has both 2D and 3D content (plausible
   for a game with an overworld sprite view and a 3D combat view), or either
   alone.

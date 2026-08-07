@@ -1,20 +1,20 @@
 # Common Tooling Candidates
 
 A cross-repo DRY audit of the six sibling game-reimplementation projects that
-consume `@seer/*` — `crawl` (Black Crypt / EOTB / Lands of Lore), `wyrm`
+consume `@seer-project/*` — `crawl` (Black Crypt / EOTB / Lands of Lore), `wyrm`
 (Dune / KGB), `nicodemus` (Phantasie I–III), `sorcery` (Wizardry 6),
 `middilgard` (War in Middle Earth / Spirit / Vengeance / Conan / Legend), and
 `strike` (Desert / Jungle / Urban Strike).
 
 **Question asked:** what is currently duplicated — fully or in spirit — across
-two or more of those repos that could reasonably become shared `@seer/*`
+two or more of those repos that could reasonably become shared `@seer-project/*`
 tooling instead?
 
 **Method.** Read every `tools/shared/`, `tools/*.ts` entrypoint, `src/`
 format decoder and `src/data`/`src/engine` file across the six repos, plus
 their project configs, test suites and `docs/` trees, and diffed
 same-named/same-shaped implementations against each other and against the
-`@seer/*` package sources. Every claim below cites a real path; where a
+`@seer-project/*` package sources. Every claim below cites a real path; where a
 verdict says "identical" it means an actual `diff` was run.
 
 **Companion docs.** This is a breadth review of everything *except* the asset
@@ -27,21 +27,21 @@ contradicts, or adds to those.
 
 > **Status update (2026-08-03).** Several items below are now resolved,
 > acted on directly rather than left as candidates: §7 (WAV writer) —
-> `writeWav()` added to `@seer/pipeline` (commit `efb3cca`), consolidating
+> `writeWav()` added to `@seer-project/pipeline` (commit `efb3cca`), consolidating
 > the writers this section names, including middilgard's. §13b (SMUS engine)
-> — fully consolidated onto `@seer/smus`; verifying it properly surfaced 5
+> — fully consolidated onto `@seer-project/smus`; verifying it properly surfaced 5
 > real behavioral bugs in the package itself, since fixed (`4acde27`). §13c
-> (middilgard's hand-rolled IFF walking) and §13d (`@seer/pipeline` adoption,
+> (middilgard's hand-rolled IFF walking) and §13d (`@seer-project/pipeline` adoption,
 > "execute seer-migration.md Step 9") — both done for middilgard (`68ce3b2`).
 > §13e (verbatim package test copies) — middilgard's three stale copies
-> deleted; not verified for the other repos this section names. `@seer/engine`
-> was also renamed to `@seer/engine-2d` since this was written (ahead of a
-> future `@seer/engine-3d` — see `docs/engine-3d-proposal.md`). Everything
+> deleted; not verified for the other repos this section names. `@seer-project/engine`
+> was also renamed to `@seer-project/engine-2d` since this was written (ahead of a
+> future `@seer-project/engine-3d` — see `docs/engine-3d-proposal.md`). Everything
 > else below is left as-written, not re-verified against current state.
 > **A seventh consumer joined since this survey was written**: `ceres`
 > (SNES/FFVI-V-IV, not one of the original six). It independently rediscovered
-> §13a/§13b's core finding on its own ("don't build a third player, `@seer/tracker`
-> and `@seer/smus` already do this") and adds a forward-looking architecture
+> §13a/§13b's core finding on its own ("don't build a third player, `@seer-project/tracker`
+> and `@seer-project/smus` already do this") and adds a forward-looking architecture
 > note for SNES audio, not yet RE'd anywhere — see §19.
 
 ---
@@ -59,9 +59,9 @@ candidate:
 > **Five of the six repos have an empty `src/engine/` and a placeholder
 > `src/main.ts`.** `crawl/src/main.ts`, `wyrm/src/main.ts`,
 > `nicodemus/src/main.ts`, `sorcery/src/main.ts` and `strike/src/main.ts` are
-> byte-identical scaffolds whose only `@seer/engine` import is `createGame`,
+> byte-identical scaffolds whose only `@seer-project/engine` import is `createGame`,
 > with `onInit`/`onUpdate` still `// TODO`. Only `middilgard` has a real
-> PixiJS runtime. Meanwhile `@seer/engine` — `Camera`, `InputManager`,
+> PixiJS runtime. Meanwhile `@seer-project/engine` — `Camera`, `InputManager`,
 > `DisplayMode`, `Game`, `pixi-helpers` — is the largest browser-side package
 > and has exactly one real consumer.
 >
@@ -72,20 +72,20 @@ candidate:
 
 **Top three by impact:**
 
-1. **§1 — Retro bitmap graphics primitives (`@seer/gfx`).** Bitplane/chunky
+1. **§1 — Retro bitmap graphics primitives (`@seer-project/gfx`).** Bitplane/chunky
    pixel decode, 12-bit Amiga colour expansion, indices→RGBA, atlas blit and
    shelf-packing exist in *all six repos*, in at least six independently
    written implementations, with four mutually incompatible `indicesToRGBA`
    signatures. `strike/tools/shared/amiga-planar.ts`'s own docblock admits it
    copied `crawl`'s. This is the largest, cleanest, lowest-risk extraction
    available.
-2. **§2 — Canonical asset-output types (`@seer/core`).** `AtlasMeta`,
+2. **§2 — Canonical asset-output types (`@seer-project/core`).** `AtlasMeta`,
    `PaletteData` and `ManifestEntry` are redeclared 11+ times across the six
    repos — twice *within* `crawl` and `strike` alone — and the
    `create-seer` templates still ship two mutually contradictory `AtlasMeta`
    definitions. This is the root cause of `weaknesses.md` §6 and it has now
    propagated into six repos.
-3. **§9/§10 — An Amiga/retro-platform package (`@seer/amiga`).** AmigaOS
+3. **§9/§10 — An Amiga/retro-platform package (`@seer-project/amiga`).** AmigaOS
    HUNK executable parsing exists in **seven** independent implementations
    across four repos; the UAE/Amiberry `.uss` savestate reader was
    reverse-engineered twice, independently, with divergent (both correct,
@@ -165,11 +165,11 @@ Test coverage is uneven: nicodemus (`__tests__/bitplane.test.ts`,
 `describe.skipIf(!dataDirAvailable)` — no unconditional coverage) have tests;
 crawl and wyrm's planar modules have none.
 
-**Verdict: extract now. New package — `@seer/gfx`.** Not `@seer/core` (which
-is meant to stay tiny and dependency-free) and not `@seer/pipeline` (this is
+**Verdict: extract now. New package — `@seer-project/gfx`.** Not `@seer-project/core` (which
+is meant to stay tiny and dependency-free) and not `@seer-project/pipeline` (this is
 pure computation with no `node:fs`, and the browser-side viewers want it too —
 `middilgard/tools/viewer/components/palette-editor.ts` does index-remapping in
-the browser). Browser-safe, zero-dependency, depends only on `@seer/core`.
+the browser). Browser-safe, zero-dependency, depends only on `@seer-project/core`.
 
 Suggested surface, chosen as the union of what the six already need:
 
@@ -231,10 +231,10 @@ it is just latent wrong-by-default code sitting in two more places.
 **Quality.** The types themselves are fine and stable — that's the point.
 Nobody has meaningfully improved on them in six copies.
 
-**Verdict: extract now, into `@seer/core`.** `weaknesses.md` §5 already
+**Verdict: extract now, into `@seer-project/core`.** `weaknesses.md` §5 already
 recommends this "once a second or third project needs them". Six do. Ship
 `AtlasFrame`, `AtlasMeta`, `PaletteColor`, `PaletteData`, `ManifestEntry` from
-`@seer/core`, delete the uniform-grid `AtlasMeta` from
+`@seer-project/core`, delete the uniform-grid `AtlasMeta` from
 `packages/create-seer/templates/src/data/GameData.ts.eta`, and have the
 template import instead of redeclare.
 
@@ -255,7 +255,7 @@ category), `manifestEntry()`, `writeManifest()` (merge-by-name upsert into
 **Evidence.** `crawl/tools/shared/asset-paths.ts` (88 L) and
 `strike/tools/shared/asset-paths.ts` (93 L). `diff` is ~30 lines, and all of
 it is comments, prettier reflow, and strike having already hoisted `writeJson`
-and `ManifestEntry` out to `@seer/pipeline` / `src/data/GameData.ts`. Strike's
+and `ManifestEntry` out to `@seer-project/pipeline` / `src/data/GameData.ts`. Strike's
 own header says "Pattern mirrors `../../../crawl/tools/shared/asset-paths.ts`".
 
 The other four repos solve the same problem differently rather than not at
@@ -274,7 +274,7 @@ framework-level concern, not a game-level one.
 `try/catch` a corrupt existing manifest and clear rather than crash). Neither
 is tested.
 
-**Verdict: extract later — `@seer/pipeline`.** Blocked on §2 (it needs a
+**Verdict: extract later — `@seer-project/pipeline`.** Blocked on §2 (it needs a
 canonical `ManifestEntry` first) and on deciding whether the
 write-as-you-go (crawl/strike) or scan-afterwards (sorcery) model is the
 framework's. Once §2 lands this is a ~60-line addition to `io.ts`.
@@ -297,7 +297,7 @@ file plus a `--assets-only` flag. `middilgard/tools/extract-game-data.ts` is a
 352-line hand-rolled orchestrator that does not use `runPipeline` at all.
 
 **Assessment: truly duplicated, and already solved upstream but unused.**
-`@seer/pipeline` already ships `parseArgs()`, `cmdExtract()`, `cmdDoctor()`
+`@seer-project/pipeline` already ships `parseArgs()`, `cmdExtract()`, `cmdDoctor()`
 and a `bin/seer.mjs` shim (`packages/pipeline/src/cli.ts:74-88`) that do
 exactly this. **No repo invokes it from any npm script** — all six go through
 their own `tools/extract-game-data.ts`.
@@ -318,7 +318,7 @@ logs each Stage 1 as "not registered — skipping". That is a hack around
 **Quality.** The four identical copies are clean but pointless. Strike's
 workaround is well-commented and honest about being a workaround.
 
-**Verdict: extract now — `@seer/pipeline`.** Two small changes:
+**Verdict: extract now — `@seer-project/pipeline`.** Two small changes:
 1. Add a `steps?: ('export' | 'assets')[]` option to `runPipeline()`, so
    `--assets-only` stops needing config surgery.
 2. Export a `runPipelineCli(configs, argv, { defaultGame })` helper so the
@@ -336,7 +336,7 @@ whichever way §4 goes determines whether `seer.config.ts` stays in the
 
 ## 5. The `game-config.ts` narrowing header
 
-**What it is.** The ~35-line preamble that re-exports `@seer/pipeline`'s
+**What it is.** The ~35-line preamble that re-exports `@seer-project/pipeline`'s
 generic helpers, defines locally-narrowed `PlatformConfig`/`GameConfig`
 interfaces (`game: GameId` instead of bare `string`), and wraps
 `getGameConfig`/`getSupportedPlatforms` with narrowing casts.
@@ -363,12 +363,12 @@ ever edited. The decision can be kept while the cost is reduced.
 
 **Quality.** Correct and well-explained in the boilerplate guide. Just verbose.
 
-**Verdict: extract later — `@seer/pipeline`.** A generic factory keeps
+**Verdict: extract later — `@seer-project/pipeline`.** A generic factory keeps
 option 2's semantics (library stays identifier-agnostic; consumer owns the
 narrowing) while collapsing the boilerplate:
 
 ```ts
-// @seer/pipeline
+// @seer-project/pipeline
 export function defineNarrowedConfig<G extends string, P extends string>(
   configs: GameConfig[],
 ): {
@@ -427,8 +427,8 @@ tested. `middilgard`'s is well covered
 and converts, which is slow on 32 KB screens. `wyrm`'s is undocumented,
 untested on the codec path, and behaviourally divergent.
 
-**Verdict: extract now, alongside §1 in `@seer/gfx`** (PackBits is
-overwhelmingly used for bitmap payloads here; a separate `@seer/codec`
+**Verdict: extract now, alongside §1 in `@seer-project/gfx`** (PackBits is
+overwhelmingly used for bitmap payloads here; a separate `@seer-project/codec`
 package for one function is not worth the install). Ship
 `byteRun1Decode(data, { expectedLength?, elementSize?: 1 | 2 })`. That single
 signature subsumes all three strike/middilgard copies.
@@ -458,7 +458,7 @@ signed, mono vs stereo) are two parameters, not two designs.
 
 `strike/tools/shared/wav.ts`'s own docblock is the most useful artifact here:
 
-> "Kept local (not a dependency on `@seer/pipeline`, which has no WAV
+> "Kept local (not a dependency on `@seer-project/pipeline`, which has no WAV
 > helper)… adding a new shared package mid-session risks colliding with a
 > concurrent agent's `package.json` edits. This is a single, self-contained
 > ~30-line RIFF/WAVE writer, not worth a package."
@@ -469,7 +469,7 @@ That is a **process** reason for duplication, not a technical one — see §15.
 (`strike/tools/desertstrike/__tests__/dmca-extract.test.ts` exercises its
 output indirectly).
 
-**Verdict: extract now — `@seer/pipeline` `io.ts`.** Not a new package.
+**Verdict: extract now — `@seer-project/pipeline` `io.ts`.** Not a new package.
 `writeWav(path, samples, { sampleRate, bits: 8 | 16, channels: 1 | 2 })`
 covers all four call sites, sits next to `writePNG` where it belongs
 conceptually, and costs one function.
@@ -530,7 +530,7 @@ config" long after the config stopped being a placeholder. `strike:29-33` and
 `middilgard/tools/__tests__/game-config.test.ts:241-249` independently wrote
 the *same* "every registered platform resolves to a real data dir" test.
 
-Separately, `middilgard` keeps **verbatim copies of `@seer/*`'s own test
+Separately, `middilgard` keeps **verbatim copies of `@seer-project/*`'s own test
 files**, retargeted at the package import: `diff
 middilgard/src/assets/formats/__tests__/iff.test.ts
 seer/packages/iff/src/__tests__/iff.test.ts` is *one line* (the import). Same
@@ -546,7 +546,7 @@ philosophy (construct real bytes, assert on real decoded output, never mock
 the decoder) is genuinely good and consistently applied. It's the plumbing
 around them that's six-times-reinvented.
 
-**Verdict: extract later — new package `@seer/testing`** (a `devDependency`).
+**Verdict: extract later — new package `@seer-project/testing`** (a `devDependency`).
 Small surface, high leverage:
 
 ```
@@ -612,7 +612,7 @@ inverted from quality: nicodemus (#4), wyrm (#5) and strike's
 implementation — has no test at all**; middilgard's is only exercised
 indirectly.
 
-**Verdict: extract now — new package `@seer/amiga`.** HUNK is a published
+**Verdict: extract now — new package `@seer-project/amiga`.** HUNK is a published
 AmigaOS format with zero game-specific content, and four of six repos target
 Amiga. Take strike's `amiga-hunk.ts` as the base, add `hunk-wrapper.ts`'s
 reloc decoding as an option, add wyrm's `buildHunkExe` writer (needed by
@@ -662,7 +662,7 @@ documentation (it documents the variable-length string header, which wyrm
 sidesteps by scanning). `locate-files.ts` is the genuinely valuable part and
 exists nowhere else.
 
-**Verdict: extract later — `@seer/amiga`, alongside §9.** Reconcile the two
+**Verdict: extract later — `@seer-project/amiga`, alongside §9.** Reconcile the two
 chunk models first (that discrepancy is worth resolving on its own merits),
 then ship `loadSavestate`, `findChunk`, `inflateChunk`, and a
 `findVerbatimFiles(savestate, dataDir)` port of `locate-files.ts`.
@@ -724,7 +724,7 @@ richer inline layout docs; middilgard's has the better stop condition and an
 `conan_decompress`) and a full `musashi/` git clone — which is the more
 pressing hygiene problem.
 
-**Verdict: extract later — a `create-seer` template / `@seer/m68k-harness`
+**Verdict: extract later — a `create-seer` template / `@seer-project/m68k-harness`
 scaffold, not an npm package.** This is C plus a build script; it does not
 belong in the TypeScript package graph. The right shape is a scaffoldable
 `tools/m68k-harness/` template with the memory map, callbacks, BPTR chain and
@@ -744,7 +744,7 @@ than sharing the harness.
 
 **What it is.** Two-line big-endian `readU16BE`/`readU32BE`/`u16` functions.
 
-**Evidence.** `@seer/core` already exports `BinaryReader`, `dataViewOf`, `r8`,
+**Evidence.** `@seer-project/core` already exports `BinaryReader`, `dataViewOf`, `r8`,
 `r16`, `r24`, `r32`. Local redefinitions still present:
 
 - wyrm: `tools/kgb/uss.ts:35`, `anc.ts:49`, `tet.ts:68`, `cma.ts:219`,
@@ -752,7 +752,7 @@ than sharing the harness.
 - strike: `readU32BE` **exported** from `tools/shared/strike-lzss.ts:77` and
   separately redefined in `tools/shared/megadrive-catalog.ts:75`; `u16` twice,
   in `megadrive-overlay-bank.ts:118` and `megadrive-tilemap.ts:154`. Strike
-  imports zero binary helpers from `@seer/core` despite four local copies.
+  imports zero binary helpers from `@seer-project/core` despite four local copies.
 - middilgard: `src/utils/binary.ts` re-exports core's `dataViewOf` but
   **redefines** `r8`/`r16`/`r24`/`r32` locally (lines 21-46) rather than
   re-exporting core's identical versions;
@@ -765,7 +765,7 @@ shift-and-or. Pure noise.
 **Quality.** N/A — they're two lines each.
 
 **Verdict: not worth a coordinated effort; fix opportunistically.** No new
-package needed; `@seer/core` already has all of it. Worth one cleanup pass in
+package needed; `@seer-project/core` already has all of it. Worth one cleanup pass in
 strike and middilgard's `src/utils/binary.ts` (the highest-value two), and
 worth a line in `boilerplate-guide.md` saying "don't write `readU16BE`, import
 `r16`" — which is a documentation fix, not a code one.
@@ -776,46 +776,46 @@ worth a line in `boilerplate-guide.md` saying "don't write `readU16BE`, import
 
 ## 13. Packages that already exist and are being reimplemented
 
-Five distinct instances of a consumer writing code that a `@seer/*` package it
+Five distinct instances of a consumer writing code that a `@seer-project/*` package it
 already depends on provides. These are **adoption gaps, not extraction
 candidates** — the verdict for all five is "delete the local copy", and the
 interesting question is why they happened.
 
-**13a. ProTracker MOD playback vs `@seer/tracker`.**
+**13a. ProTracker MOD playback vs `@seer-project/tracker`.**
 `wyrm/tools/viewer/music-player.ts` (308 L) is a full FLT4/M.K. module parser
 plus a Paula-accurate playback engine — sample tables, period/finetune
-handling, PAL/NTSC clock selection. `@seer/tracker` (`micromod.ts` 587 L,
+handling, PAL/NTSC clock selection. `@seer-project/tracker` (`micromod.ts` 587 L,
 `player.ts` 116 L) already does this, with an AudioWorklet. **wyrm declares
-`@seer/tracker` in `package.json` and imports it from nowhere.**
-`strike/tools/desertstrike/audio.ts:42` references `@seer/tracker` in a
+`@seer-project/tracker` in `package.json` and imports it from nowhere.**
+`strike/tools/desertstrike/audio.ts:42` references `@seer-project/tracker` in a
 comment as the thing that *would* play its confirmed `M.K.` modules, without
 depending on it.
 *Verdict: adopt now.* wyrm's Dune-specific part (HSQ-compressed module
 container) stays; the replay engine goes.
 
-**13b. SMUS offline rendering vs `@seer/smus`.**
+**13b. SMUS offline rendering vs `@seer-project/smus`.**
 `middilgard/tools/shared/smus-player.ts` (1358 L) contains `parseSmus`,
 `sonixOneFilter`, `sampleOctaveForMidi`, `sonixRateUnits`,
 `defaultInstrument` and a `SmusEngine` class — every one of those names is an
-**existing export of `@seer/smus`**, which middilgard itself upstreamed
+**existing export of `@seer-project/smus`**, which middilgard itself upstreamed
 (`middilgard/docs/seer-migration.md` §3.5) and already depends on. The one
 thing the package genuinely lacks is the offline path: render-to-PCM without
 WebAudio, plus a WAV writer.
-*Verdict: extend `@seer/smus` with `renderToPCM()` (reusing §7's `writeWav`),
+*Verdict: extend `@seer-project/smus` with `renderToPCM()` (reusing §7's `writeWav`),
 then delete ~1200 lines from middilgard.* This is the single largest
 line-count win in the survey.
 
-**13c. IFF chunk walking vs `@seer/iff`.**
+**13c. IFF chunk walking vs `@seer-project/iff`.**
 `strike/tools/desertstrike/screens.ts:60-75` hand-rolls `fourCC`, `u32` and
 `walkFormChunks` — a functional duplicate of `parseIff`/`findChunk`.
 `middilgard/tools/shared/smus-player.ts:40+` hand-rolls another. Strike's
-docblock gives the reason explicitly: "this project has no `@seer/iff`
+docblock gives the reason explicitly: "this project has no `@seer-project/iff`
 dependency installed; adding one mid-session risked colliding with a
 concurrent agent's `package.json` edits, so this stays local".
 *Verdict: adopt now in strike (add the dep); fold middilgard's into 13b.*
 
 **13d. PNG writing.** Five repos import `writePNG`/`writeIndexedPNG` from
-`@seer/pipeline`. `middilgard/tools/shared/io.ts:82-104` keeps its own
+`@seer-project/pipeline`. `middilgard/tools/shared/io.ts:82-104` keeps its own
 identical copies — the "Step 9 (optional): adopt seer's pipeline utilities"
 that `middilgard/docs/seer-migration.md` §5 deferred. Consequence worth
 flagging: **`weaknesses.md` §7's silent-corruption bug now exists in two
@@ -827,10 +827,10 @@ exposed. Same for `readBinary`, `writeJson`, `resolveResFile`
 `hex-dump.ts` (`middilgard/tools/shared/hex-dump.ts` is the un-parameterised
 ancestor of `packages/pipeline/src/hex-dump.ts`).
 *Verdict: execute seer-migration.md Step 9.* Note that `middilgard/tools/`
-imports **zero** `@seer/*` modules today, which is why `@seer/pipeline` is a
+imports **zero** `@seer-project/*` modules today, which is why `@seer-project/pipeline` is a
 declared-but-unused dependency there.
 
-**13e. `@seer/*` package tests copied into a consumer.** `diff
+**13e. `@seer-project/*` package tests copied into a consumer.** `diff
 middilgard/src/assets/formats/__tests__/iff.test.ts
 seer/packages/iff/src/__tests__/iff.test.ts` differs by **one line** (the
 import). Same for `display-mode.test.ts`; `camera.test.ts` differs by one
@@ -845,10 +845,10 @@ explicit written reason (`strike/tools/shared/wav.ts`,
 risks a `package.json` write conflict with a concurrent agent.* That is a
 rational local decision producing a bad global outcome, and it is a workflow
 problem, not an architecture problem. It is worth a documented answer in
-`boilerplate-guide.md` — e.g. declare all `@seer/*` packages in the
+`boilerplate-guide.md` — e.g. declare all `@seer-project/*` packages in the
 `create-seer` scaffold up front (they are `file:` links with no install cost),
 so no session ever needs to edit `package.json` to import one. Three repos
-already carry unused `@seer/*` deps (crawl: iff, smus; wyrm: tracker;
+already carry unused `@seer-project/*` deps (crawl: iff, smus; wyrm: tracker;
 middilgard: pipeline), so this is closer to normalising existing practice than
 introducing a new one.
 
@@ -955,7 +955,7 @@ thing as a loose root-level file).
 **Confirms:**
 
 - `weaknesses.md` §5 ("consider hoisting the packed-atlas and palette shapes
-  into `@seer/core` once a second or third project needs them") — six do, with
+  into `@seer-project/core` once a second or third project needs them") — six do, with
   11+ redeclarations. §2 above.
 - `weaknesses.md` §6 (conflicting `AtlasMeta` in the templates) — the stale
   uniform-grid shape is now sitting untouched in two more repos.
@@ -969,7 +969,7 @@ thing as a loose root-level file).
   grids, while every real extractor emits packed frames) — **and adds**: those
   two helpers, along with `computeViewportBounds`, `createDiamondMarker`,
   `findNearestByWorldCoord`, `screenToWorld` and `computeUIScale`, have
-  **exactly one consumer between them (middilgard)**. `@seer/engine`'s entire
+  **exactly one consumer between them (middilgard)**. `@seer-project/engine`'s entire
   non-`createGame` surface is single-consumer.
 - `weaknesses.md` §1 (`SceneRenderer`/`EntityManager`/`AudioManager` don't
   exist) — confirmed, and the reason is now visible: five of six repos have an
@@ -1010,7 +1010,7 @@ thing as a loose root-level file).
 - `build/cache/` as an undocumented fifth zone (§15b).
 - Consumers duplicating rather than depending because of **session-level
   `package.json` write-conflict avoidance** (§13) — a workflow cause with an
-  architectural symptom, and cheap to fix by pre-declaring all `@seer/*` deps
+  architectural symptom, and cheap to fix by pre-declaring all `@seer-project/*` deps
   in the scaffold.
 - `docs/todos.md` currently reads "(all done)". Whatever else comes of this
   review, that file is now inaccurate.
@@ -1056,7 +1056,7 @@ external-tool-wrapper shape, which is ~20 lines.
 TypeScript `tools/shared/amiga-planar.ts` and `asset-paths.ts` in another
 language, and `crawl/tools/shared/asset-paths.ts`'s docblock notes the two
 "must agree". That's a real DRY problem — but it's crawl-internal and the fix
-is convergence on TypeScript, not a `@seer/*` package.
+is convergence on TypeScript, not a `@seer-project/*` package.
 
 **Intra-repo duplicates worth fixing locally, not extracting.**
 `wyrm/src/formats/hsq.ts:13` and `wyrm/src/formats/cryo-image.ts:505` are the
@@ -1080,17 +1080,17 @@ wrapper that are now *stale* — both gate on
 
 | # | Candidate | Home | Effort |
 |---|---|---|---|
-| 2 | Canonical `AtlasMeta` / `PaletteData` / `ManifestEntry` | `@seer/core` | S |
-| 1 | Retro bitmap graphics primitives | **new `@seer/gfx`** | M |
-| 6 | PackBits / ByteRun1 | `@seer/gfx` | S |
-| 13b | SMUS offline render + WAV → delete middilgard's 1358-line duplicate | `@seer/smus` | S |
-| 7 | Minimal WAV writer | `@seer/pipeline` `io.ts` | XS |
-| 13a | wyrm adopts `@seer/tracker` (already a declared dep) | — | S |
-| 13c | strike adopts `@seer/iff` | — | XS |
-| 9 | AmigaOS HUNK parser (superset API + the missing tests) | **new `@seer/amiga`** | M |
-| 4 | `runPipeline` step selection + CLI entry consolidation | `@seer/pipeline` | S |
+| 2 | Canonical `AtlasMeta` / `PaletteData` / `ManifestEntry` | `@seer-project/core` | S |
+| 1 | Retro bitmap graphics primitives | **new `@seer-project/gfx`** | M |
+| 6 | PackBits / ByteRun1 | `@seer-project/gfx` | S |
+| 13b | SMUS offline render + WAV → delete middilgard's 1358-line duplicate | `@seer-project/smus` | S |
+| 7 | Minimal WAV writer | `@seer-project/pipeline` `io.ts` | XS |
+| 13a | wyrm adopts `@seer-project/tracker` (already a declared dep) | — | S |
+| 13c | strike adopts `@seer-project/iff` | — | XS |
+| 9 | AmigaOS HUNK parser (superset API + the missing tests) | **new `@seer-project/amiga`** | M |
+| 4 | `runPipeline` step selection + CLI entry consolidation | `@seer-project/pipeline` | S |
 | 14 | `create-seer` fixes: `AtlasMeta`, viewer build entry, `.prettierrc`, `seer.config.ts` decision | templates | S |
-| — | Fix `writeIndexedPNG`'s transparent-index bug in **both** places (`weaknesses.md` §7) | `@seer/pipeline` + middilgard | XS |
+| — | Fix `writeIndexedPNG`'s transparent-index bug in **both** places (`weaknesses.md` §7) | `@seer-project/pipeline` + middilgard | XS |
 
 Order matters: §2 unblocks §1, §3 and §8; §7 unblocks §13b.
 
@@ -1098,14 +1098,14 @@ Order matters: §2 unblocks §1, §3 and §8; §7 unblocks §13b.
 
 | # | Candidate | Home | Why later |
 |---|---|---|---|
-| 3 | Asset paths + manifest merge + platform index | `@seer/pipeline` | Blocked on §2 and on picking one manifest model |
-| 8 | Test-harness conventions (`describeWithCorpus`, fixture builder, invariant assertions) | **new `@seer/testing`** | High leverage, but wants §1/§2's types first |
-| 10 | UAE `.uss` savestate reader | `@seer/amiga` | Reconcile the two chunk models first; two consumers today |
+| 3 | Asset paths + manifest merge + platform index | `@seer-project/pipeline` | Blocked on §2 and on picking one manifest model |
+| 8 | Test-harness conventions (`describeWithCorpus`, fixture builder, invariant assertions) | **new `@seer-project/testing`** | High leverage, but wants §1/§2's types first |
+| 10 | UAE `.uss` savestate reader | `@seer-project/amiga` | Reconcile the two chunk models first; two consumers today |
 | 13d | middilgard executes seer-migration Step 9 (`io.ts`) | — | Mechanical, but middilgard is mid-iteration |
-| 5 | `defineNarrowedConfig` factory | `@seer/pipeline` | Touches a documented decision (`architecture-overview.md` §5) |
+| 5 | `defineNarrowedConfig` factory | `@seer-project/pipeline` | Touches a documented decision (`architecture-overview.md` §5) |
 | 15 | Link-don't-copy framework docs; document `build/cache/` as a fifth zone; relocate `walker.md` | `docs/` + templates | Cheap, but no forcing function |
 | 11 | Musashi 68k harness as a scaffoldable template | `create-seer` | Real value, only 2 consumers, C toolchain cost |
-| 19 | `ceres` SNES N-SPC → likely extends `@seer/smus`'s instrument shape | `@seer/smus` | Blocked on `ceres` RE'ing N-SPC's sequence format first — not started anywhere |
+| 19 | `ceres` SNES N-SPC → likely extends `@seer-project/smus`'s instrument shape | `@seer-project/smus` | Blocked on `ceres` RE'ing N-SPC's sequence format first — not started anywhere |
 
 ### Not worth it
 
@@ -1116,10 +1116,10 @@ Order matters: §2 unblocks §1, §3 and §8; §7 unblocks §13b.
   shared wrapper.
 - **crawl's Python `bclib/`** (§17) — real duplication, but crawl-internal and
   cross-language.
-- **Byte-reader micro-helpers** (§12) — `@seer/core` already has them; fix
+- **Byte-reader micro-helpers** (§12) — `@seer-project/core` already has them; fix
   opportunistically, don't run a campaign.
 - **Promoting middilgard's `EntityManager`/`MusicManager`/`TileMap` into
-  `@seer/engine`** — single consumer, and `@seer/engine`'s existing
+  `@seer-project/engine`** — single consumer, and `@seer-project/engine`'s existing
   single-consumer surface is already the framework's least-earning
   investment. Revisit only if a second repo grows a real runtime.
 - **Implementing `weaknesses.md` §1's missing engine stubs** — five of six
@@ -1136,7 +1136,7 @@ Not part of the original six-repo survey — added 2026-08-03 when `ceres`
 before this document was pointed out to it.
 
 **What `ceres` confirmed on its own, matching this survey:** real WebAudio
-playback already exists in `@seer/tracker` (MOD) and `@seer/smus` (SMUS) —
+playback already exists in `@seer-project/tracker` (MOD) and `@seer-project/smus` (SMUS) —
 neither is parse-only. No third player is planned.
 
 **The open question this survey doesn't yet have an answer to, because the
@@ -1148,10 +1148,10 @@ dump + WASM emulator playback, vs. RE'ing the sequence/instrument data into
 structured notes) and, for the second path, a structural hunch worth
 recording here since it bears directly on where that work would land in this
 package graph: the SNES DSP's 8 sample-voices-with-hardware-ADSR-and-echo
-model reads as much closer to `@seer/smus`'s Sonix-derived `Instrument` shape
+model reads as much closer to `@seer-project/smus`'s Sonix-derived `Instrument` shape
 (ADSR + filter + LFO + sample, per §13b/`sampled-sound.ts`) than to
-`@seer/tracker`'s flat-sample-no-envelope MOD model — so *if* that RE work
-happens and confirms the format is tractable, extending `@seer/smus` looks
+`@seer-project/tracker`'s flat-sample-no-envelope MOD model — so *if* that RE work
+happens and confirms the format is tractable, extending `@seer-project/smus` looks
 like the likely target, not a new package or a new format designed from
 scratch.
 
@@ -1160,7 +1160,7 @@ sequence data (the note/pattern data itself, as opposed to the instrument
 model) is a free-running per-track event stream — matching SMUS's shape,
 § above — or a fixed-grid pattern sequence — matching MOD's shape. Nobody
 has RE'd this yet in any of these repos. That answer determines whether
-`@seer/smus`'s existing stream-based event model extends cleanly or needs
+`@seer-project/smus`'s existing stream-based event model extends cleanly or needs
 real rework, and it can't be settled from this survey's read-only pass —
 it needs an actual RE session against a ROM.
 
@@ -1177,7 +1177,7 @@ per-consumer.
 
 - Line counts and diffs are as of this survey; `middilgard` in particular is
   under active iteration.
-- The `@seer/gfx` API sketch in §1 is a synthesis of six existing call sites,
+- The `@seer-project/gfx` API sketch in §1 is a synthesis of six existing call sites,
   not a validated design. The palette-representation question (flat
   `number[]` vs `RGB[]`) is a real decision that four repos have already
   answered four ways.
@@ -1189,5 +1189,5 @@ per-consumer.
 - The viewer tooling is deliberately under-covered here; see
   `docs/viewer-tooling-review.md`. The one viewer-adjacent thing this review
   does claim is §2 — five near-identical `tools/viewer/shared.ts` files whose
-  *types* belong in `@seer/core` regardless of what happens to the viewers
+  *types* belong in `@seer-project/core` regardless of what happens to the viewers
   themselves.

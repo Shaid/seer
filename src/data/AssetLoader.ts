@@ -2,7 +2,7 @@
  * AssetLoader.ts — Fetches preprocessed assets produced by the offline
  * pipeline (tools/) from `public/assets/<game>/<platform>/` at runtime.
  *
- * Uses `loadAssets` from @seer/core (browser-safe — NOT @seer/pipeline,
+ * Uses `loadAssets` from @seer-project/core (browser-safe — NOT @seer-project/pipeline,
  * which is Node-only and must never be imported by browser-bundled code
  * under src/, see docs/architecture-overview.md §8) — define the schema
  * mapping asset keys to file paths, and the loader handles parallel
@@ -10,7 +10,7 @@
  * filtering), add that as a post-processing step in the consumer layer —
  * see docs/architecture-overview.md §8.
  */
-import { loadAssets } from '@seer/core';
+import { loadAssets } from '@seer-project/core';
 import type { GameAssets } from './GameData.ts';
 import type { GameId, PlatformId } from '../game-id.ts';
 

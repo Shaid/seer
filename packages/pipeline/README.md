@@ -1,4 +1,4 @@
-# @seer/pipeline
+# @seer-project/pipeline
 
 Node-only utilities for the offline data extraction pipeline.
 
@@ -10,7 +10,7 @@ code.
 ## Installation
 
 ```bash
-npm install @seer/pipeline
+npm install @seer-project/pipeline
 ```
 
 Requires `pngjs ^7.0.0` as a peer dependency (for PNG writing).
@@ -35,7 +35,7 @@ The config file exports a `GameConfig[]` array defining games and their
 platforms:
 
 ```ts
-import { defineGameConfig } from '@seer/pipeline';
+import { defineGameConfig } from '@seer-project/pipeline';
 
 export default defineGameConfig([{
   id: 'mygame',
@@ -63,8 +63,8 @@ export default defineGameConfig([{
 ## Programmatic API
 
 ```ts
-import { runPipeline } from '@seer/pipeline';
-import { defineGameConfig } from '@seer/pipeline';
+import { runPipeline } from '@seer-project/pipeline';
+import { defineGameConfig } from '@seer-project/pipeline';
 
 const configs = defineGameConfig([/* ... */]);
 const results = await runPipeline(configs, { game: 'mygame', platform: 'amiga' });
@@ -99,7 +99,7 @@ const results = await runPipeline(configs, { game: 'mygame', platform: 'amiga' }
 | `decompressLZEXE(input)` | Decompress an LZEXE v0.91-compressed DOS executable, returning `{ data, bodyOffset }` — a faithful port of the classic `unlzexe.c`. Common on DOS-era executables; throws if `input` isn't v0.91-shaped. |
 
 ```ts
-import { decompressLZEXE } from '@seer/pipeline';
+import { decompressLZEXE } from '@seer-project/pipeline';
 
 const compressed = readBinary('GAME.EXE');
 const { data, bodyOffset } = decompressLZEXE(compressed);

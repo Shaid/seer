@@ -1,4 +1,4 @@
-# @seer/iff
+# @seer-project/iff
 
 IFF-85 (Interchange File Format) parser.
 
@@ -11,15 +11,15 @@ FORM-based formats.
 ## Installation
 
 ```bash
-npm install @seer/iff
+npm install @seer-project/iff
 ```
 
-Depends on `@seer/core` (for `BinaryReader`).
+Depends on `@seer-project/core` (for `BinaryReader`).
 
 ## Usage
 
 ```ts
-import { parseIff, findChunk, findChunks } from '@seer/iff';
+import { parseIff, findChunk, findChunks } from '@seer-project/iff';
 
 const form = parseIff(buffer);
 if (!form) throw new Error('Not a valid IFF file');

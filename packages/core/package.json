@@ -1,14 +1,38 @@
 {
-  "name": "@seer/core",
+  "name": "@seer-project/core",
   "version": "0.1.0",
   "description": "Generic binary utilities for browser-based reverse-engineering projects",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shaid/seer.git"
+  },
+  "keywords": [
+    "binary",
+    "reverse-engineering",
+    "romhack",
+    "game"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "prepack": "npm run build",
     "test": "vitest run",
     "lint": "eslint src/"
   },

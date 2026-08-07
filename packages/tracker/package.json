@@ -1,19 +1,45 @@
 {
-  "name": "@seer/tracker",
+  "name": "@seer-project/tracker",
   "version": "0.1.0",
   "description": "Custom 4-channel Paula sample-based tracker module parser and player — Dune Amiga audio engine",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shaid/seer.git"
+  },
+  "keywords": [
+    "tracker",
+    "mod",
+    "amiga",
+    "audio",
+    "reverse-engineering"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "THIRD-PARTY-LICENSES.md"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "prepack": "npm run build",
     "test": "vitest run",
     "lint": "eslint src/"
   },
   "dependencies": {
-    "@seer/core": "*"
+    "@seer-project/core": "^0.1.0"
   },
   "devDependencies": {
     "typescript": "~6.0.2",

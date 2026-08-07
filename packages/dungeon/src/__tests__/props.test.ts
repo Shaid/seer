@@ -20,7 +20,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
-import type { AtlasMeta } from '@seer/core';
+import type { AtlasMeta } from '@seer-project/core';
 import { PieceBank } from '../raster/PieceBank.ts';
 import { IndexedSurface } from '../raster/IndexedSurface.ts';
 import { compositeDrawList } from '../raster/composite.ts';
