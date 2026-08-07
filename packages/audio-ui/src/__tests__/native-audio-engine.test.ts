@@ -161,4 +161,42 @@ describe('NativeAudioEngine', () => {
   it('constructing without an element creates its own (no element option required)', () => {
     expect(() => new NativeAudioEngine()).not.toThrow();
   });
+
+  it('disposing a superseded engine leaves the shared element alone', () => {
+    // flower's pattern: one static <audio> reused across selections, a fresh
+    // engine per track. AudioBarController.attach() disposes the *previous*
+    // engine only after the new one has loaded and started the element, so a
+    // blind teardown here would silently kill the track that just began.
+    const el = new FakeAudioElement();
+    const first = new NativeAudioEngine({ element: el as unknown as HTMLAudioElement });
+    first.load('/a.mp3');
+
+    const second = new NativeAudioEngine({ element: el as unknown as HTMLAudioElement });
+    second.load('/b.mp3', { autoplay: true });
+    expect(el.src).toBe('/b.mp3');
+
+    first.dispose();
+    expect(el.src).toBe('/b.mp3'); // not cleared out from under the new engine
+    expect(el.paused).toBe(false); // and still playing
+
+    // The superseded engine still releases its own element subscriptions.
+    const cb = vi.fn();
+    first.onStateChange(cb);
+    el.dispatchEvent(new Event('timeupdate'));
+    expect(cb).not.toHaveBeenCalled();
+
+    // The current owner still tears the element down properly.
+    second.dispose();
+    expect(el.removedAttr).toBe('src');
+    expect(el.paused).toBe(true);
+  });
+
+  it('dispose() is idempotent', () => {
+    const { el, engine } = makeEngine();
+    engine.load('/x.mp3');
+    engine.dispose();
+    const pausesAfterFirst = el.pauseCalls;
+    expect(() => engine.dispose()).not.toThrow();
+    expect(el.pauseCalls).toBe(pausesAfterFirst);
+  });
 });

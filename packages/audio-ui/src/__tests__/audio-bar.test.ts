@@ -12,7 +12,10 @@ import { AudioBarController, type AudioBarElements } from '../audio-bar.ts';
  * `seek`, `setVolume`) independently of each other, which a single real
  * engine wouldn't cover in one place.
  */
-function makeFakeEngine(initial: Partial<PlaybackState>, opts: { stop?: boolean; seek?: boolean; setVolume?: boolean } = {}) {
+function makeFakeEngine(
+  initial: Partial<PlaybackState>,
+  opts: { stop?: boolean; seek?: boolean; setVolume?: boolean; noPause?: boolean } = {},
+) {
   let state: PlaybackState = {
     isPlaying: false,
     currentTime: 0,
@@ -45,6 +48,9 @@ function makeFakeEngine(initial: Partial<PlaybackState>, opts: { stop?: boolean;
     },
   };
 
+  // `pause` is optional on PlaybackEngine — @seer-project/tracker's player has
+  // only play()/stop(), with no paused state to resume from.
+  if (opts.noPause) delete (engine as Partial<PlaybackEngine>).pause;
   if (opts.stop) engine.stop = vi.fn(() => engine.setState({ isPlaying: false, currentTime: 0 }));
   if (opts.seek) engine.seek = vi.fn((seconds: number) => engine.setState({ currentTime: seconds }));
   if (opts.setVolume) engine.setVolume = vi.fn((v: number) => engine.setState({ volume: v }));
@@ -104,19 +110,58 @@ describe('AudioBarController', () => {
     expect(engine.pause).toHaveBeenCalledTimes(1);
   });
 
+  it('toggle falls back to stop() for an engine that implements no pause()', () => {
+    // A tracker-shaped engine: play()/stop() only. Requiring pause() would
+    // force such an adapter to fake it, so the bar degrades instead.
+    const engine = makeFakeEngine({ isPlaying: true }, { stop: true, noPause: true });
+    controller.attach(engine);
+    expect(engine.pause).toBeUndefined();
+    els.toggleBtn.click();
+    expect(engine.stop).toHaveBeenCalledTimes(1);
+    expect(engine.getState().isPlaying).toBe(false);
+  });
+
+  it('does not throw for an engine with neither pause() nor stop()', () => {
+    const engine = makeFakeEngine({ isPlaying: true }, { noPause: true });
+    controller.attach(engine);
+    expect(() => els.toggleBtn.click()).not.toThrow();
+    expect(() => controller.detach()).not.toThrow();
+  });
+
   it('reflects a non-seekable engine by hiding the seek input and showing detail text', () => {
     const engine = makeFakeEngine({ seekable: false, detail: 'Order 2/9 · Row 12' });
     controller.attach(engine);
-    expect(els.seekInput!.style.display).toBe('none');
+    expect(els.seekInput!.classList.contains('hidden')).toBe(true);
     expect(els.timeLabel.textContent).toBe('Order 2/9 · Row 12');
   });
 
   it('reflects a seekable engine with a live time readout and a visible slider', () => {
+    const engine = makeFakeEngine({ seekable: true, currentTime: 30, duration: 120 }, { seek: true });
+    controller.attach(engine);
+    expect(els.seekInput!.classList.contains('hidden')).toBe(false);
+    expect(els.seekInput!.value).toBe('250'); // 30/120 of the slider's 0-1000 range
+    expect(els.timeLabel.textContent).toBe('0:30 / 2:00');
+  });
+
+  it('hides the seek slider for an engine that reports seekable but implements no seek()', () => {
+    // `seek` is optional on PlaybackEngine, so this shape is legal — and a
+    // visible slider whose drag handler silently no-ops is worse than none.
     const engine = makeFakeEngine({ seekable: true, currentTime: 30, duration: 120 });
     controller.attach(engine);
-    expect(els.seekInput!.style.display).toBe('');
-    expect(els.seekInput!.value).toBe('250'); // 30/120 * 1000
-    expect(els.timeLabel.textContent).toBe('0:30 / 2:00');
+    expect(els.seekInput!.classList.contains('hidden')).toBe(true);
+  });
+
+  it('scales seek by the slider\'s own min/max rather than a hardcoded range', () => {
+    const plainRangeEls = makeElements();
+    // HTML's default range scale, instead of the 0-1000 real projects use.
+    plainRangeEls.seekInput!.max = '100';
+    const plainController = new AudioBarController(plainRangeEls);
+    const engine = makeFakeEngine({ seekable: true, duration: 100 }, { seek: true });
+    plainController.attach(engine);
+
+    plainRangeEls.seekInput!.value = '50';
+    plainRangeEls.seekInput!.dispatchEvent(new Event('input'));
+    expect(engine.seek).toHaveBeenCalledWith(50); // half of a 100s track, not 5s
   });
 
   it('dragging the seek slider calls engine.seek() scaled by duration, only when seek() exists', () => {
@@ -179,12 +224,71 @@ describe('AudioBarController', () => {
     expect(els.bar.classList.contains('hidden')).toBe(false);
   });
 
-  it('detach() disposes the engine and hides the bar', () => {
+  it('detach() stops the engine and hides the bar, but does not dispose it', () => {
+    // Disposing here would break the documented "construct once, store in a
+    // module-level const, attach/detach per selection" pattern — see the
+    // re-attach test below.
+    const engine = makeFakeEngine({ isPlaying: true }, { stop: true });
+    controller.attach(engine);
+    controller.detach();
+    expect(engine.stop).toHaveBeenCalledTimes(1);
+    expect(engine.dispose).not.toHaveBeenCalled();
+    expect(els.bar.classList.contains('hidden')).toBe(true);
+  });
+
+  it('detach() pauses an engine that has no stop()', () => {
+    const engine = makeFakeEngine({ isPlaying: true });
+    controller.attach(engine);
+    controller.detach();
+    expect(engine.pause).toHaveBeenCalledTimes(1);
+    expect(engine.getState().isPlaying).toBe(false);
+  });
+
+  it('re-attaching a detached engine resurrects it — the bar keeps tracking its state', () => {
+    const engine = makeFakeEngine({ isPlaying: false }, { stop: true });
+    controller.attach(engine);
+    controller.detach();
+    controller.attach(engine);
+
+    expect(engine.dispose).not.toHaveBeenCalled();
+    expect(els.bar.classList.contains('hidden')).toBe(false);
+    // The live subscription is what actually broke when detach() disposed:
+    // the bar rendered once and then froze.
+    engine.setState({ isPlaying: true });
+    expect(els.toggleBtn.textContent).toBe('⏸');
+  });
+
+  it('disposes a detached engine once a different one is attached (no leak per switch-away)', () => {
+    const first = makeFakeEngine({});
+    const second = makeFakeEngine({});
+    controller.attach(first);
+    controller.detach();
+    expect(first.dispose).not.toHaveBeenCalled(); // still parked for possible reuse
+    controller.attach(second);
+    expect(first.dispose).toHaveBeenCalledTimes(1);
+    expect(second.dispose).not.toHaveBeenCalled();
+  });
+
+  it('controller dispose() disposes a parked (detached) engine too', () => {
     const engine = makeFakeEngine({});
     controller.attach(engine);
     controller.detach();
+    controller.dispose();
     expect(engine.dispose).toHaveBeenCalledTimes(1);
-    expect(els.bar.classList.contains('hidden')).toBe(true);
+  });
+
+  it('swallows a synchronous throw from play(), not just a rejected promise', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const engine = makeFakeEngine({ isPlaying: false });
+    // play() is typed `void | Promise<void>`, so throwing synchronously is a
+    // legal way for an engine to report failure.
+    engine.play = vi.fn(() => {
+      throw new Error('no track loaded');
+    });
+    controller.attach(engine);
+    expect(() => els.toggleBtn.click()).not.toThrow();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('autoplay:true on attach() calls play() immediately', () => {

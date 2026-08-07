@@ -16,9 +16,33 @@ export interface NativeAudioEngineOptions {
 export interface LoadOptions {
   title?: string;
   detail?: string;
-  /** Start playing as soon as the source is set, same as flower's "selecting an asset autoplays it" behavior. Autoplay-block rejections are swallowed with a console warning, matching the original implementation — the user can still hit the bar's play button manually. */
+  /**
+   * Start playing as soon as the source is set, same as flower's "selecting
+   * an asset autoplays it" behavior. Autoplay-block rejections are swallowed
+   * with a console warning, matching the original implementation — the user
+   * can still hit the bar's play button manually.
+   *
+   * This overlaps with `AudioBarController.attach()`'s own `autoplay` option:
+   * both ultimately call `play()`. Pick one — setting both on the same
+   * selection calls `play()` twice (harmless on an `<audio>` element, which
+   * ignores a play request for already-playing media, but it produces two
+   * independent rejection warnings if autoplay is blocked). Load-time
+   * autoplay is the better fit when the caller builds the engine itself
+   * (flower/hunter); attach-time autoplay suits a long-lived engine whose
+   * `load` happened earlier.
+   */
   autoplay?: boolean;
 }
+
+/**
+ * Which engine currently owns each `<audio>` element, so a disposed engine
+ * can't tear down an element a *newer* engine has already taken over. Only
+ * matters for the caller-supplied-element case: constructing an engine on an
+ * element claims it, and `dispose()` skips element teardown unless the
+ * disposing engine is still the claimant. Keyed weakly so an element going
+ * out of scope isn't retained by this map.
+ */
+const elementOwner = new WeakMap<HTMLAudioElement, NativeAudioEngine>();
 
 /**
  * `PlaybackEngine` wrapping a plain `<audio>` element — the engine for any
@@ -42,6 +66,9 @@ export class NativeAudioEngine implements PlaybackEngine {
   constructor(opts: NativeAudioEngineOptions = {}) {
     this.el = opts.element ?? new Audio();
     this.el.preload = 'auto';
+    // Claim the element: whichever engine most recently wrapped it is the one
+    // entitled to tear it down. See `dispose()`.
+    elementOwner.set(this.el, this);
 
     const fire = () => this.fireUpdate();
     const events: Array<keyof HTMLMediaElementEventMap> = ['timeupdate', 'loadedmetadata', 'play', 'pause', 'ended'];
@@ -108,11 +135,30 @@ export class NativeAudioEngine implements PlaybackEngine {
     return () => this.listeners.delete(cb);
   }
 
-  /** Pauses and releases the source. The underlying `<audio>` element itself is left intact (matching flower's `stopAudioPlayback`, which reuses `#audio-player` forever rather than recreating it) — only its `src`/listeners are cleared. */
+  /**
+   * Pauses and releases the source. The underlying `<audio>` element itself
+   * is left intact (matching flower's `stopAudioPlayback`, which reuses
+   * `#audio-player` forever rather than recreating it) — only its
+   * `src`/listeners are cleared.
+   *
+   * The element teardown is skipped when a *newer* engine has since claimed
+   * the same element. This is the normal case for the shared-element pattern
+   * (`new NativeAudioEngine({ element })` per selection): the new engine is
+   * constructed and `load()`ed first, and only then does
+   * `AudioBarController.attach()` dispose the previous one — pausing and
+   * clearing `src` here would silently kill the track that just started.
+   * Listener unbinding always happens, so a superseded engine still releases
+   * its element subscriptions rather than leaking them.
+   *
+   * Idempotent: disposing twice is a no-op the second time.
+   */
   dispose(): void {
-    this.el.pause();
-    this.el.removeAttribute('src');
-    this.el.load();
+    if (elementOwner.get(this.el) === this) {
+      elementOwner.delete(this.el);
+      this.el.pause();
+      this.el.removeAttribute('src');
+      this.el.load();
+    }
     this.unbindEl?.();
     this.unbindEl = null;
     this.listeners.clear();

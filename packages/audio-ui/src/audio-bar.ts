@@ -29,7 +29,16 @@ export interface AudioBarElements {
 }
 
 export interface AttachOptions {
-  /** Start playback immediately on attach — flower's "selecting an asset autoplays it" behavior. Rejected autoplay promises are swallowed with a console warning; the bar's own play button still works. */
+  /**
+   * Start playback immediately on attach — flower's "selecting an asset
+   * autoplays it" behavior. Rejected autoplay promises are swallowed with a
+   * console warning; the bar's own play button still works.
+   *
+   * Note this overlaps with `NativeAudioEngine.load()`'s own `autoplay`
+   * option — both end up calling `play()`, so setting both for one selection
+   * calls it twice. Use whichever layer owns the "should this start
+   * playing?" decision, not both.
+   */
   autoplay?: boolean;
 }
 
@@ -51,6 +60,14 @@ export interface AttachOptions {
 export class AudioBarController {
   private els: AudioBarElements;
   private engine: PlaybackEngine | null = null;
+  /**
+   * An engine that `detach()` released but deliberately did *not* dispose,
+   * kept only so re-attaching the same instance can resurrect it. Disposed
+   * as soon as a *different* engine is attached (or the controller itself is
+   * disposed), which is what keeps the create-an-engine-per-track callers
+   * from leaking one engine per switch away from audio.
+   */
+  private detached: PlaybackEngine | null = null;
   private unsubscribe: (() => void) | null = null;
   private seeking = false;
   private teardownStatic: Array<() => void> = [];
@@ -66,13 +83,59 @@ export class AudioBarController {
     this.teardownStatic.push(() => target.removeEventListener(type, fn));
   }
 
+  /**
+   * Calls `play()` and swallows failure as a console warning, whether the
+   * engine reports it by rejecting or by throwing synchronously — `play()`
+   * is typed `void | Promise<void>`, so a synchronous throw (an
+   * unloaded-track guard, a failed `AudioContext.resume()`) is a legal way
+   * for an engine to fail and must not escape a click handler uncaught.
+   */
+  private safePlay(engine: PlaybackEngine, message: string): void {
+    try {
+      Promise.resolve(engine.play()).catch((err: unknown) => console.warn(message, err));
+    } catch (err) {
+      console.warn(message, err);
+    }
+  }
+
+  /**
+   * The seek slider's own `min`/`max` define its scale — read from the
+   * element rather than assuming one, so markup using HTML's default 0-100
+   * range works identically to the 0-1000 range every real project's viewer
+   * uses for sub-second resolution. Falls back to the HTML defaults when the
+   * attributes are absent.
+   */
+  private seekRange(): { min: number; span: number } {
+    const el = this.els.seekInput!;
+    const min = Number(el.min || 0);
+    const max = Number(el.max || 100);
+    return { min, span: max - min };
+  }
+
+  /** Where the slider's thumb currently sits, as a 0..1 fraction of its range. */
+  private seekFraction(): number {
+    const { min, span } = this.seekRange();
+    if (!(span > 0)) return 0;
+    return (Number(this.els.seekInput!.value) - min) / span;
+  }
+
+  /** Moves the thumb to a 0..1 fraction of the slider's range. */
+  private setSeekFraction(fraction: number): void {
+    const { min, span } = this.seekRange();
+    this.els.seekInput!.value = String(Math.round(min + fraction * span));
+  }
+
   private bindStaticControls(): void {
     this.on(this.els.toggleBtn, 'click', () => {
       if (!this.engine) return;
       if (this.engine.getState().isPlaying) {
-        this.engine.pause();
+        // `pause()` keeps position so `play()` resumes, which is what the
+        // toggle means — but it's optional, so an engine that only has
+        // `stop()` (a tracker that tears its worklet down) degrades to that.
+        if (this.engine.pause) this.engine.pause();
+        else this.engine.stop?.();
       } else {
-        Promise.resolve(this.engine.play()).catch((err: unknown) => console.warn('Playback failed:', err));
+        this.safePlay(this.engine, 'Playback failed:');
       }
     });
 
@@ -86,7 +149,7 @@ export class AudioBarController {
         this.seeking = true;
         const state = this.engine.getState();
         if (state.duration !== null) {
-          this.engine.seek((Number(this.els.seekInput!.value) / 1000) * state.duration);
+          this.engine.seek(this.seekFraction() * state.duration);
         }
         this.render(this.engine.getState());
       });
@@ -120,10 +183,21 @@ export class AudioBarController {
    * (`loadSong`'s caller checks `songId` first) — disposing on every
    * reselect of an already-playing track here would stop it regardless of
    * that guard, which is not what any pre-migration project did.
+   *
+   * Re-attaching an engine that `detach()` released is likewise safe: it was
+   * stopped but not disposed, so this simply re-subscribes to it. That is
+   * what makes the documented attach/detach/attach cycle over one
+   * module-level engine work.
    */
   attach(engine: PlaybackEngine, opts: AttachOptions = {}): void {
     if (engine !== this.engine) {
-      this.detachEngine();
+      // A genuinely different engine is taking over: the one we're currently
+      // subscribed to is finished, and so is any engine `detach()` parked for
+      // possible reuse (re-attaching *this* one proves it wasn't reused).
+      this.disposeEngine(this.engine);
+      if (this.detached !== engine) this.disposeEngine(this.detached);
+      this.detached = null;
+
       this.engine = engine;
       this.unsubscribe = engine.onStateChange((state) => this.render(state));
       if (this.els.stopBtn) setHidden(this.els.stopBtn, !engine.stop);
@@ -134,22 +208,50 @@ export class AudioBarController {
     this.render(engine.getState());
 
     if (opts.autoplay) {
-      Promise.resolve(engine.play()).catch((err: unknown) => console.warn('Autoplay was blocked:', err));
+      this.safePlay(engine, 'Autoplay was blocked:');
     }
   }
 
-  /** Detaches and disposes the current engine (if any) and hides the bar. Call on every asset switch away from an audio entry and on viewer teardown — mirrors `stopAudioPlayback()`/`stopMeshViewer()`'s existing self-contained cleanup pattern. */
+  /**
+   * Stops the current engine, unsubscribes from it, and hides the bar. Call
+   * on every asset switch away from an audio entry and on viewer teardown —
+   * mirrors `stopAudioPlayback()`/`stopMeshViewer()`'s existing
+   * self-contained cleanup pattern.
+   *
+   * Deliberately does **not** `dispose()` the engine. The same instance may
+   * legitimately be attached again later — wyrm's and middilgard's engines
+   * are constructed once and stored in a module-level `const`, so disposing
+   * here would leave a re-`attach()` silently wired to a dead engine (a bar
+   * that renders once and then never updates). Playback is stopped instead,
+   * which is the observable behavior callers actually depend on. The parked
+   * engine is disposed as soon as a different one is attached, or when the
+   * controller itself is disposed, so nothing leaks.
+   */
   detach(): void {
-    this.detachEngine();
+    if (this.engine) {
+      this.unsubscribe?.();
+      this.unsubscribe = null;
+      // `stop()` when the engine has one (a hard reset to the start), else
+      // `pause()` — either way the track is no longer audible. Both are
+      // optional, so an engine implementing neither simply keeps playing;
+      // the contract asks for at least one.
+      if (this.engine.stop) this.engine.stop();
+      else this.engine.pause?.();
+      this.detached = this.engine;
+      this.engine = null;
+    }
     setHidden(this.els.bar, true);
   }
 
-  private detachEngine(): void {
-    if (!this.engine) return;
-    this.unsubscribe?.();
-    this.unsubscribe = null;
-    this.engine.dispose();
-    this.engine = null;
+  private disposeEngine(engine: PlaybackEngine | null): void {
+    if (!engine) return;
+    if (engine === this.engine) {
+      this.unsubscribe?.();
+      this.unsubscribe = null;
+      this.engine = null;
+    }
+    if (engine === this.detached) this.detached = null;
+    engine.dispose();
   }
 
   private render(state: PlaybackState): void {
@@ -162,9 +264,15 @@ export class AudioBarController {
     // `detail` text where the time readout would go, rather than rendering
     // a seek control that can't do anything.
     if (this.els.seekInput) {
-      this.els.seekInput.style.display = state.seekable ? '' : 'none';
-      if (state.seekable && !this.seeking) {
-        this.els.seekInput.value = state.duration ? String(Math.round((state.currentTime / state.duration) * 1000)) : '0';
+      // Gated on the engine implementing `seek()` as well as on `seekable`,
+      // matching `stopBtn`/`volumeInput` and `AudioBarElements`' documented
+      // contract: `seek` is optional, so an engine can know its duration
+      // without being able to act on a seek request. Showing a live slider
+      // whose drag handler silently no-ops would be worse than showing none.
+      const canSeek = state.seekable && !!this.engine?.seek;
+      setHidden(this.els.seekInput, !canSeek);
+      if (canSeek && !this.seeking) {
+        this.setSeekFraction(state.duration ? state.currentTime / state.duration : 0);
       }
     }
     this.els.timeLabel.textContent = state.seekable
@@ -181,7 +289,8 @@ export class AudioBarController {
 
   /** Tears down the controller itself — unbinds the static element listeners bound in the constructor and disposes any attached engine. Call when the bar's elements are being removed from the page entirely (not needed for ordinary asset-to-asset switching — use `detach()`/`attach()` for that). */
   dispose(): void {
-    this.detachEngine();
+    this.disposeEngine(this.engine);
+    this.disposeEngine(this.detached);
     for (const off of this.teardownStatic) off();
     this.teardownStatic = [];
   }

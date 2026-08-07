@@ -74,7 +74,19 @@ export interface PlaybackState {
  */
 export interface PlaybackEngine {
   play(): void | Promise<void>;
-  pause(): void;
+  /**
+   * Optional pause that keeps the current position, so `play()` resumes
+   * rather than restarts.
+   *
+   * Optional because not every real engine has one: `@seer-project/tracker`'s
+   * `TrackerPlayer` exposes only `play()`/`stop()` (its worklet is torn down
+   * on stop, so there is no paused state to resume from). Requiring `pause`
+   * would force such an adapter to fake it with a full stop — silently
+   * breaking the resume semantics the shared UI implies — so the contract
+   * admits the gap instead. An engine with neither `pause` nor `stop` cannot
+   * be halted from the bar at all; implement at least one.
+   */
+  pause?(): void;
   /**
    * Optional hard reset to the start, distinct from `pause()` — e.g.
    * wyrm's tracker engine resets its order/row position to zero so the
