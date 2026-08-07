@@ -1,4 +1,4 @@
-import { formatClock } from '@seer-project/core';
+import { attemptPlayback, formatClock } from '@seer-project/core';
 import type { PlaybackEngine, PlaybackState } from '@seer-project/core';
 
 /** Shows/hides an element via the `.hidden { display: none }` class every seer project's own `viewer.css` already defines — the exact convention independently duplicated as `setHidden()` in flower/wyrm/middilgard/hunter's own `shared.ts`. Re-implemented here (rather than imported) so this package has no dependency on any consumer project's local module. */
@@ -83,19 +83,9 @@ export class AudioBarController {
     this.teardownStatic.push(() => target.removeEventListener(type, fn));
   }
 
-  /**
-   * Calls `play()` and swallows failure as a console warning, whether the
-   * engine reports it by rejecting or by throwing synchronously — `play()`
-   * is typed `void | Promise<void>`, so a synchronous throw (an
-   * unloaded-track guard, a failed `AudioContext.resume()`) is a legal way
-   * for an engine to fail and must not escape a click handler uncaught.
-   */
+  /** Starts an engine, reporting either failure shape (rejection or synchronous throw) as a console warning — the bar's own play button still works afterwards. */
   private safePlay(engine: PlaybackEngine, message: string): void {
-    try {
-      Promise.resolve(engine.play()).catch((err: unknown) => console.warn(message, err));
-    } catch (err) {
-      console.warn(message, err);
-    }
+    attemptPlayback(() => engine.play(), (err) => console.warn(message, err));
   }
 
   /**
@@ -148,7 +138,8 @@ export class AudioBarController {
         if (!this.engine?.seek) return;
         this.seeking = true;
         const state = this.engine.getState();
-        if (state.duration !== null) {
+        // Narrowing on `seekable` gives us `duration: number` here.
+        if (state.seekable) {
           this.engine.seek(this.seekFraction() * state.duration);
         }
         this.render(this.engine.getState());
@@ -269,10 +260,13 @@ export class AudioBarController {
       // contract: `seek` is optional, so an engine can know its duration
       // without being able to act on a seek request. Showing a live slider
       // whose drag handler silently no-ops would be worse than showing none.
-      const canSeek = state.seekable && !!this.engine?.seek;
-      setHidden(this.els.seekInput, !canSeek);
-      if (canSeek && !this.seeking) {
-        this.setSeekFraction(state.duration ? state.currentTime / state.duration : 0);
+      if (state.seekable && this.engine?.seek) {
+        setHidden(this.els.seekInput, false);
+        if (!this.seeking) {
+          this.setSeekFraction(state.duration > 0 ? state.currentTime / state.duration : 0);
+        }
+      } else {
+        setHidden(this.els.seekInput, true);
       }
     }
     this.els.timeLabel.textContent = state.seekable

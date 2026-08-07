@@ -12,38 +12,60 @@ import { AudioBarController, type AudioBarElements } from '../audio-bar.ts';
  * `seek`, `setVolume`) independently of each other, which a single real
  * engine wouldn't cover in one place.
  */
+/**
+ * A flat, non-discriminated view of `PlaybackState`, so a test can set
+ * `seekable` and `duration` independently and patch either one on its own.
+ * `toState` reconciles the pair into a valid discriminated `PlaybackState` —
+ * which is exactly the invariant the union exists to enforce on real engines.
+ */
+interface StateInput {
+  isPlaying?: boolean;
+  currentTime?: number;
+  duration?: number | null;
+  seekable?: boolean;
+  title?: string;
+  detail?: string;
+  volume?: number;
+}
+
+function toState(input: StateInput): PlaybackState {
+  const common = {
+    isPlaying: input.isPlaying ?? false,
+    currentTime: input.currentTime ?? 0,
+    title: input.title ?? 'Test Track',
+    detail: input.detail,
+    volume: input.volume,
+  };
+  return input.seekable
+    ? { ...common, seekable: true, duration: input.duration ?? 0 }
+    : { ...common, seekable: false, duration: null };
+}
+
 function makeFakeEngine(
-  initial: Partial<PlaybackState>,
+  initial: StateInput,
   opts: { stop?: boolean; seek?: boolean; setVolume?: boolean; noPause?: boolean } = {},
 ) {
-  let state: PlaybackState = {
-    isPlaying: false,
-    currentTime: 0,
-    duration: null,
-    seekable: false,
-    title: 'Test Track',
-    ...initial,
-  };
+  let input: StateInput = { ...initial };
   const listeners = new Set<(s: PlaybackState) => void>();
-  const fire = () => listeners.forEach((cb) => cb(state));
+  const fire = () => listeners.forEach((cb) => cb(toState(input)));
 
-  const engine: PlaybackEngine & { setState(s: Partial<PlaybackState>): void } = {
+  const engine: PlaybackEngine & { setState(s: StateInput): void } = {
     play: vi.fn(() => {
-      state = { ...state, isPlaying: true };
+      input = { ...input, isPlaying: true };
       fire();
     }),
     pause: vi.fn(() => {
-      state = { ...state, isPlaying: false };
+      input = { ...input, isPlaying: false };
       fire();
     }),
-    getState: () => state,
+    getState: () => toState(input),
     onStateChange: (cb) => {
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
     dispose: vi.fn(),
-    setState(s: Partial<PlaybackState>) {
-      state = { ...state, ...s };
+    setState(s: StateInput) {
+      input = { ...input, ...s };
       fire();
     },
   };

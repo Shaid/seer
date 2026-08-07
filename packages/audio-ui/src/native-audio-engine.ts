@@ -1,3 +1,4 @@
+import { attemptPlayback } from '@seer-project/core';
 import type { PlaybackEngine, PlaybackState } from '@seer-project/core';
 
 export interface NativeAudioEngineOptions {
@@ -85,14 +86,9 @@ export class NativeAudioEngine implements PlaybackEngine {
     this.el.src = url;
     this.el.load();
     if (opts.autoplay) {
-      const p = this.el.play();
-      if (p && typeof p.catch === 'function') {
-        p.catch((err: unknown) => {
-          // Autoplay can be blocked by browser policy outside a user-gesture
-          // call stack; the bar's own play button still works.
-          console.warn('Autoplay was blocked:', err);
-        });
-      }
+      // Autoplay can be blocked by browser policy outside a user-gesture call
+      // stack; the bar's own play button still works.
+      attemptPlayback(() => this.play(), (err) => console.warn('Autoplay was blocked:', err));
     }
     this.fireUpdate();
   }
@@ -118,16 +114,20 @@ export class NativeAudioEngine implements PlaybackEngine {
 
   getState(): PlaybackState {
     const duration = this.el.duration;
-    const hasDuration = Number.isFinite(duration) && duration > 0;
-    return {
+    const common = {
       isPlaying: !this.el.paused && !this.el.ended,
       currentTime: this.el.currentTime,
-      duration: hasDuration ? duration : null,
-      seekable: hasDuration,
       title: this.title,
       detail: this.detail,
       volume: this.el.volume,
     };
+    // `duration` is NaN until metadata loads, and Infinity for a live stream —
+    // neither is seekable. Branching here (rather than setting both fields
+    // from one boolean) is what lets `PlaybackState`'s discriminated union
+    // guarantee the two can never disagree.
+    return Number.isFinite(duration) && duration > 0
+      ? { ...common, seekable: true, duration }
+      : { ...common, seekable: false, duration: null };
   }
 
   onStateChange(cb: (state: PlaybackState) => void): () => void {
