@@ -166,7 +166,7 @@ describe('FlatGridLevel with shared-edge wall storage', () => {
     expect(() => new FlatGridLevel(file, file.units[0]!)).toThrow(/no plane "edgeW"/);
   });
 
-  it('throws if planeDirs share an axis (misconfigured schema, not a valid shared-edge pair)', () => {
+  it('rejects planeDirs sharing the same value at construction time', () => {
     const file: DungeonLevelFile = {
       schemaVersion: 1,
       game: 'test',
@@ -176,9 +176,33 @@ describe('FlatGridLevel with shared-edge wall storage', () => {
       yAxisDown: false,
       units: [{ id: 1, planes: { edgeN: new Array(9).fill(0), edgeS: new Array(9).fill(0) } }],
     };
-    const level = new FlatGridLevel(file, file.units[0]!);
-    // dir=1 (E) matches neither planeDirs[i]=0 nor its opposite (2).
-    expect(() => level.wallAt(1, 1, 1)).toThrow(/matches neither planeDirs entry nor its opposite/);
+    expect(() => new FlatGridLevel(file, file.units[0]!)).toThrow(/must be perpendicular/);
+  });
+
+  it('rejects planeDirs opposing the same axis at construction time (the [0,2] case: not a crash, a silent-data-loss trap)', () => {
+    // Before the constructor validated this, [0, 2] didn't throw for every
+    // facing -- dir=0 and dir=2 both resolved via planeDirs[0]=0's own/
+    // opposite branches, so planeDirs[1]'s plane ("edgeS" here) was silently
+    // never read at all, for any facing. Only dir=1/3 hit the "matches
+    // neither" throw. That's the bug this test guards against: rejecting it
+    // eagerly, at construction, rather than letting 2 facings silently
+    // ignore an entire plane.
+    const file: DungeonLevelFile = {
+      schemaVersion: 1,
+      game: 'test',
+      platform: 'test',
+      cellSpace: { kind: 'flat', width: 3, height: 3 },
+      wallStorage: { kind: 'shared-edge', planes: ['edgeN', 'edgeS'], planeDirs: [0, 2], offMapValue: 0 },
+      yAxisDown: false,
+      units: [{ id: 1, planes: { edgeN: new Array(9).fill(0), edgeS: new Array(9).fill(0) } }],
+    };
+    expect(() => new FlatGridLevel(file, file.units[0]!)).toThrow(/must be perpendicular/);
+  });
+
+  it('rejects yAxisDown:true rather than silently using the wrong step convention', () => {
+    const file = makeSharedEdgeFile(new Array(9).fill(0), new Array(9).fill(0));
+    file.yAxisDown = true;
+    expect(() => new FlatGridLevel(file, file.units[0]!)).toThrow(/yAxisDown:true is not yet supported/);
   });
 
   it('does not infinite-loop on a self-referential chainNext', () => {

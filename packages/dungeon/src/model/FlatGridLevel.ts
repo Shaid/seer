@@ -21,12 +21,29 @@ export class FlatGridLevel implements CellQuery {
   readonly height: number;
   readonly unit: LevelUnit;
   private readonly wallStorage: WallStorage;
+  /** Resolved once in the constructor so `wallAt` never does a `Record` lookup by plane name in its hot inner-loop path. */
+  private readonly bitflagsPlane: number[] | undefined;
+  /** Same caching, for `shared-edge`'s two planes, indexed the same way as `wallStorage.planes`/`planeDirs`. */
+  private readonly sharedEdgePlanes: [number[], number[]] | undefined;
   private readonly entities: Record<string, EntityRecord> | undefined;
   private readonly entityHandlePlane: string | undefined;
 
   constructor(file: DungeonLevelFile, unit: LevelUnit) {
     if (file.cellSpace.kind !== 'flat') {
       throw new Error(`FlatGridLevel: cellSpace.kind must be "flat", got "${file.cellSpace.kind}"`);
+    }
+    if (file.yAxisDown) {
+      // Direction.ts's FACING_DELTAS/step() hardcode a fixed "Y increases
+      // northward" convention (Black Crypt's own, doc-commented there) and
+      // take no yAxisDown parameter at all -- every consumer of `step`
+      // (Pose, buildViewList, and this class's own shared-edge neighbour
+      // lookup below) shares that same unconditional assumption. A
+      // yAxisDown:true game would therefore get silently wrong
+      // neighbour/movement geometry, not a schema violation -- so this
+      // throws instead of guessing. Fix Direction.ts to actually consult
+      // yAxisDown (threaded through every step()/project() call site) before
+      // removing this guard for a real yAxisDown:true game.
+      throw new Error('FlatGridLevel: yAxisDown:true is not yet supported -- see this constructor\'s comment');
     }
     this.width = file.cellSpace.width;
     this.height = file.cellSpace.height;
@@ -44,11 +61,26 @@ export class FlatGridLevel implements CellQuery {
     };
     switch (file.wallStorage.kind) {
       case 'bitflags':
-        requirePlane(file.wallStorage.plane);
+        this.bitflagsPlane = requirePlane(file.wallStorage.plane);
         break;
-      case 'shared-edge':
-        for (const name of file.wallStorage.planes) requirePlane(name);
+      case 'shared-edge': {
+        const [dirA, dirB] = file.wallStorage.planeDirs;
+        // The two planeDirs must span perpendicular axes (differ by 1 or 3
+        // mod 4) so that, together with each one's "opposite" facing, they
+        // partition all 4 facings exactly once. A degenerate pair sharing
+        // or opposing the same axis (e.g. [0,0] or [0,2]) doesn't just fail
+        // to cover 2 facings (which already throws below, in
+        // sharedEdgeValueAt) -- for the 2 facings it DOES match, it makes
+        // one of the two planes permanently unreachable (silently ignored,
+        // not a wrong-but-visible read), because the loop's first matching
+        // branch short-circuits before the second plane is ever consulted.
+        // Reject that at construction time rather than let it through.
+        if (dirA === dirB || ((dirA + 2) % 4) === dirB) {
+          throw new Error(`FlatGridLevel: wallStorage.planeDirs [${dirA}, ${dirB}] must be perpendicular (differ by 1 or 3 mod 4) -- a pair sharing or opposing the same axis leaves one plane unreachable`);
+        }
+        this.sharedEdgePlanes = [requirePlane(file.wallStorage.planes[0]), requirePlane(file.wallStorage.planes[1])];
         break;
+      }
       default:
         throw new Error(`FlatGridLevel: wallStorage.kind "${(file.wallStorage as WallStorage).kind}" is not yet implemented`);
     }
@@ -70,8 +102,7 @@ export class FlatGridLevel implements CellQuery {
       throw new Error(`FlatGridLevel.wallAt: (${x}, ${y}) is out of bounds (${this.width}x${this.height})`);
     }
     if (this.wallStorage.kind === 'bitflags') {
-      const plane = this.unit.planes[this.wallStorage.plane]!;
-      const bits = plane[this.index(x, y)] ?? 0;
+      const bits = this.bitflagsPlane![this.index(x, y)] ?? 0;
       return (bits & this.wallStorage.bits[dir]) !== 0;
     }
     if (this.wallStorage.kind === 'shared-edge') {
@@ -103,7 +134,7 @@ export class FlatGridLevel implements CellQuery {
   ): number {
     for (let i = 0; i < 2; i++) {
       const planeDir = storage.planeDirs[i]!;
-      const plane = this.unit.planes[storage.planes[i]!]!;
+      const plane = this.sharedEdgePlanes![i];
       if (dir === planeDir) {
         return plane[this.index(x, y)] ?? 0;
       }
@@ -113,6 +144,9 @@ export class FlatGridLevel implements CellQuery {
         return plane[this.index(neighbour.x, neighbour.y)] ?? 0;
       }
     }
+    // Unreachable: the constructor rejects any planeDirs pair that isn't
+    // perpendicular, and a perpendicular pair's two (own, opposite) facing
+    // sets always partition all 4 facings exactly once between them.
     throw new Error(`FlatGridLevel.sharedEdgeValueAt: dir ${dir} matches neither planeDirs entry nor its opposite`);
   }
 
