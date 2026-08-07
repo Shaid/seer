@@ -8,12 +8,22 @@
  * Delegates everything to the compiled packages/pipeline/dist/cli.js which
  * contains the real logic.
  */
+import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const cliPath = pathToFileURL(resolve(__dirname, '../dist/cli.js')).href;
+const distEntry = resolve(__dirname, '../dist/cli.js');
+if (!existsSync(distEntry)) {
+  console.error(
+    'seer: dist/cli.js not found. Run `npm run build` in packages/pipeline ' +
+      '(or `npm run build:packages` from the repo root) before invoking this script directly.',
+  );
+  process.exit(1);
+}
+
+const cliPath = pathToFileURL(distEntry).href;
 
 const cli = await import(cliPath);
 

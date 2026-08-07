@@ -34,6 +34,7 @@
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
     "prepack": "npm run build",
+    "pretest": "npm run build",
     "test": "vitest run",
     "lint": "eslint src/"
   },

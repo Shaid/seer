@@ -71,6 +71,12 @@ export function scaffold(targetDir: string, options: ScaffoldOptions = {}): void
   const inMonorepo = existsSync(resolve(seerPackagesDir, 'core/package.json'));
   const seerSpec = (name: string): string => {
     if (!inMonorepo) return '^0.1.0';
+    if (!existsSync(resolve(seerPackagesDir, name, 'dist'))) {
+      throw new Error(
+        `create-seer: packages/${name}/dist not found. Run \`npm run build:packages\` from the ` +
+          'repo root before scaffolding a project that links to monorepo packages.',
+      );
+    }
     let rel = relative(resolve(targetDir), resolve(seerPackagesDir, name));
     if (!rel.startsWith('.') && !rel.startsWith('/')) rel = './' + rel;
     return 'file:' + rel;

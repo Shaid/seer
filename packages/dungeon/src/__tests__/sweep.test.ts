@@ -121,5 +121,9 @@ describe('M2 sweep: all 13 maps x sampled poses x 4 facings', () => {
     expect(poseCount).toBe(expectedPoseCount);
     expect(poseCount).toBeGreaterThan(0);
     console.log(`sweep: ${levelFile.units.length} units, ${poseCount} poses, ${frameCount} draw items composited, zero exceptions`);
-  });
+    // Composites thousands of poses in one test, so it lands just over
+    // vitest's 5s default when the suite runs its files in parallel — fast on
+    // its own, flaky under load. Given an explicit ceiling rather than a
+    // default it was always brushing against.
+  }, 30_000);
 });

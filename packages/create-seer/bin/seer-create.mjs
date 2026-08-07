@@ -4,6 +4,7 @@
  *
  * Run via: npx create-seer <project-name>
  */
+import { existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
@@ -27,7 +28,16 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
   process.exit(0);
 }
 
-const cliPath = pathToFileURL(resolve(__dirname, '../dist/cli.js')).href;
+const distEntry = resolve(__dirname, '../dist/cli.js');
+if (!existsSync(distEntry)) {
+  console.error(
+    'create-seer: dist/cli.js not found. Run `npm run build` in packages/create-seer ' +
+      '(or `npm run build:packages` from the repo root) before invoking this script directly.',
+  );
+  process.exit(1);
+}
+
+const cliPath = pathToFileURL(distEntry).href;
 const { main } = await import(cliPath);
 
 main(process.argv).catch((e) => {
