@@ -102,6 +102,84 @@ describe('FlatGridLevel.entitiesAt', () => {
     const level = new FlatGridLevel(file, file.units[0]!);
     expect(level.entitiesAt(50, 50)).toEqual([]);
   });
+});
+
+describe('FlatGridLevel with shared-edge wall storage', () => {
+  // 3x3 grid, index = y*3+x. planeDirs [0, 3]: edgeN carries north-facing
+  // edges, edgeW carries west-facing edges (walker.md §10.2's recommended
+  // convention) — every east/south query is really a neighbour's west/north
+  // read of the exact same physical wall.
+  function makeSharedEdgeFile(edgeN: number[], edgeW: number[], offMapValue = 0): DungeonLevelFile {
+    return {
+      schemaVersion: 1,
+      game: 'test',
+      platform: 'test',
+      cellSpace: { kind: 'flat', width: 3, height: 3 },
+      wallStorage: { kind: 'shared-edge', planes: ['edgeN', 'edgeW'], planeDirs: [0, 3], offMapValue },
+      yAxisDown: false,
+      units: [{ id: 1, planes: { edgeN, edgeW } }],
+    };
+  }
+
+  it('reads a cell\'s own edge directly for planeDirs-matching facings', () => {
+    const edgeN = [0, 0, 0, 0, 5, 0, 0, 0, 0]; // cell (1,1) N edge = 5
+    const edgeW = new Array(9).fill(0);
+    const file = makeSharedEdgeFile(edgeN, edgeW);
+    const level = new FlatGridLevel(file, file.units[0]!);
+    expect(level.wallAt(1, 1, 0)).toBe(true); // N, own plane
+    expect(level.wallAt(1, 1, 3)).toBe(false); // W, own plane (all zero)
+  });
+
+  it('reads the neighbour\'s plane for the opposite facings (S, E)', () => {
+    const edgeN = [0, 5, 0, 0, 0, 0, 0, 0, 0]; // cell (1,0) N edge = 5
+    const edgeW = [0, 0, 0, 0, 0, 3, 0, 0, 0]; // cell (2,1) W edge = 3
+    const file = makeSharedEdgeFile(edgeN, edgeW);
+    const level = new FlatGridLevel(file, file.units[0]!);
+    // (1,1)'s S edge is the same wall as (1,0)'s N edge (Y increases northward).
+    expect(level.wallAt(1, 1, 2)).toBe(true);
+    // (1,1)'s E edge is the same wall as (2,1)'s W edge.
+    expect(level.wallAt(1, 1, 1)).toBe(true);
+  });
+
+  it('agrees with its neighbour on a shared edge (both sides read the same wall)', () => {
+    const edgeN = [0, 5, 0, 0, 0, 0, 0, 0, 0]; // cell (1,0) N edge = 5
+    const edgeW = new Array(9).fill(0);
+    const file = makeSharedEdgeFile(edgeN, edgeW);
+    const level = new FlatGridLevel(file, file.units[0]!);
+    expect(level.wallAt(1, 0, 0)).toBe(level.wallAt(1, 1, 2)); // both true
+  });
+
+  it('uses offMapValue when the shared edge falls off the grid', () => {
+    const edgeN = new Array(9).fill(0);
+    const edgeW = new Array(9).fill(0);
+    const withoutBorder = new FlatGridLevel(makeSharedEdgeFile(edgeN, edgeW, 0), makeSharedEdgeFile(edgeN, edgeW, 0).units[0]!);
+    const withBorder = new FlatGridLevel(makeSharedEdgeFile(edgeN, edgeW, 9), makeSharedEdgeFile(edgeN, edgeW, 9).units[0]!);
+    // Row y=0 is the grid's south edge (Y increases northward) — its own S
+    // query has no neighbour to read.
+    expect(withoutBorder.wallAt(1, 0, 2)).toBe(false);
+    expect(withBorder.wallAt(1, 0, 2)).toBe(true);
+  });
+
+  it('rejects a plane missing from the unit', () => {
+    const file = makeSharedEdgeFile(new Array(9).fill(0), new Array(9).fill(0));
+    file.units[0]!.planes = { edgeN: new Array(9).fill(0) }; // edgeW missing
+    expect(() => new FlatGridLevel(file, file.units[0]!)).toThrow(/no plane "edgeW"/);
+  });
+
+  it('throws if planeDirs share an axis (misconfigured schema, not a valid shared-edge pair)', () => {
+    const file: DungeonLevelFile = {
+      schemaVersion: 1,
+      game: 'test',
+      platform: 'test',
+      cellSpace: { kind: 'flat', width: 3, height: 3 },
+      wallStorage: { kind: 'shared-edge', planes: ['edgeN', 'edgeS'], planeDirs: [0, 0], offMapValue: 0 },
+      yAxisDown: false,
+      units: [{ id: 1, planes: { edgeN: new Array(9).fill(0), edgeS: new Array(9).fill(0) } }],
+    };
+    const level = new FlatGridLevel(file, file.units[0]!);
+    // dir=1 (E) matches neither planeDirs[i]=0 nor its opposite (2).
+    expect(() => level.wallAt(1, 1, 1)).toThrow(/matches neither planeDirs entry nor its opposite/);
+  });
 
   it('does not infinite-loop on a self-referential chainNext', () => {
     const file = makeFile(new Array(9).fill(0));
