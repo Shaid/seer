@@ -16,9 +16,13 @@ Companion docs: [`architecture-overview.md`](architecture-overview.md) §9
 real architecture), [`weaknesses.md`](weaknesses.md) §6 (the `ManifestEntry`/
 `AtlasMeta` type-duplication issue this doc's manifest contract addresses),
 [`viewer-tooling-review.md`](viewer-tooling-review.md) (the cross-repo survey
-that this template revision was built to close the gap identified in), and
+that this template revision was built to close the gap identified in),
 [`common-tooling-candidates.md`](common-tooling-candidates.md) §15a (the
-vendoring-vs-linking call this doc's own placement follows).
+vendoring-vs-linking call this doc's own placement follows), and
+[`audio-playback.md`](audio-playback.md) (the same "divergent hand-rolled
+panels unified into shared chrome" story, told for the bottom-docked
+music/audio transport bar — `@seer-project/core`'s `PlaybackEngine` contract
+and `@seer-project/audio-ui`'s `AudioBarController`/`NativeAudioEngine`).
 
 ---
 

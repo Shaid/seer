@@ -1,0 +1,48 @@
+{
+  "name": "@seer-project/audio-ui",
+  "version": "0.1.0",
+  "description": "Shared bottom-docked audio-bar UI chrome for the viewer tool — a generic play/pause/seek/volume controller that drives any @seer-project/core PlaybackEngine, plus a NativeAudioEngine wrapping a plain <audio> element for pre-decoded files",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shaid/seer.git"
+  },
+  "keywords": [
+    "audio",
+    "ui",
+    "playback",
+    "viewer",
+    "reverse-engineering"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@seer-project/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.0",
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.0"
+  }
+}

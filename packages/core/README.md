@@ -120,11 +120,36 @@ rotation, Amiga copper-list swaps). Generic over `T`, no DOM/WebGL/canvas
 dependency; the caller owns how the result gets drawn or uploaded.
 
 ```ts
-import { cyclePalette } from '@seer/core';
+import { cyclePalette } from '@seer-project/core';
 
 // Rotate indices 10-13 forward by one step, e.g. once per animation frame.
 cyclePalette(paletteColors, 10, 13, 1);
 ```
+
+### `playback.ts` — Audio playback-engine contract
+
+`PlaybackEngine` is the interface the viewer's shared audio-bar UI
+(`@seer-project/audio-ui`'s `AudioBarController`) drives — `play()`/`pause()`, plus
+*optional* `stop()`/`seek()`/`setVolume()` an engine can leave unimplemented
+rather than faking. It intentionally does not standardize how a track is
+*loaded* (a native `<audio>` engine needs a URL; a live tracker/SMUS
+synthesis engine needs format-specific song data) — only the transport
+surface a generic UI can drive. See `@seer-project/audio-ui`'s README and
+`docs/audio-playback.md` in the seer repo for the full design and worked
+adapter examples (wyrm's FLT4 tracker, middilgard's SMUS engine).
+
+```ts
+import type { PlaybackEngine, PlaybackState } from '@seer-project/core';
+import { formatClock } from '@seer-project/core';
+
+formatClock(125.9); // "2:05"
+```
+
+| Export | Description |
+| --- | --- |
+| `PlaybackState` | `{ isPlaying, currentTime, duration, seekable, title, detail?, volume? }` |
+| `PlaybackEngine` | `{ play, pause, stop?, seek?, setVolume?, getState, onStateChange, dispose }` |
+| `formatClock(seconds)` | `mm:ss` formatting; `"0:00"` for `null`/`undefined`/negative/non-finite input |
 
 ## Testing
 
