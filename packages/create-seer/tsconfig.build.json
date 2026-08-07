@@ -1,20 +1,14 @@
 {
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "composite": true,
-    "noEmit": false,
-    "outDir": "dist",
-    "rootDir": "src",
-    "allowImportingTsExtensions": true,
-    "rewriteRelativeImportExtensions": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true
-  },
-  "include": ["src"],
-  "exclude": ["src/__tests__"],
+  "extends": [
+    "./tsconfig.json",
+    "../tsconfig.build.base.json"
+  ],
   "references": [
-    { "path": "../create-seer-viewer/tsconfig.build.json" },
-    { "path": "../create-seer-website/tsconfig.build.json" }
+    {
+      "path": "../create-seer-viewer/tsconfig.build.json"
+    },
+    {
+      "path": "../create-seer-website/tsconfig.build.json"
+    }
   ]
 }

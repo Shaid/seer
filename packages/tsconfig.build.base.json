@@ -1,0 +1,25 @@
+{
+  // Shared emit settings for every publishable package's `tsc -b` build.
+  //
+  // Each package's own tsconfig.build.json extends this *after* its
+  // tsconfig.json, so these win over the repo-root no-emit type-check config,
+  // and adds only its own `references`.
+  //
+  // `${configDir}` (TypeScript 5.5+) resolves against the *extending* config's
+  // directory rather than this file's. Plain relative paths here would all
+  // resolve to packages/ itself — outDir would become packages/dist — so every
+  // path below must keep the prefix.
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "outDir": "${configDir}/dist",
+    "rootDir": "${configDir}/src",
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["${configDir}/src"],
+  "exclude": ["${configDir}/src/__tests__"]
+}
