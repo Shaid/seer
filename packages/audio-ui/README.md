@@ -40,6 +40,11 @@ const audioBar = new AudioBarController({
 });
 ```
 
+The seek slider's scale is read from its own `min`/`max`, so any range
+works — the real projects use `0..1000` for sub-second resolution on long
+tracks, and HTML's default `0..100` behaves identically. The volume slider
+is a fixed `0..100`, mapped to the engine's `0..1`.
+
 Then, on every asset selection:
 
 ```ts
@@ -51,26 +56,44 @@ audioBar.attach(engine, { autoplay: true });
 And on deselection / switching to a non-audio asset:
 
 ```ts
-audioBar.detach(); // disposes the engine and hides the bar
+audioBar.detach(); // stops playback and hides the bar
 ```
 
-`attach()` always disposes whatever engine was attached before it — you
-never need to call `detach()` between two audio selections, only when
-leaving audio entirely (matches every real project's pre-existing
+`attach()` always disposes whatever *different* engine was attached before
+it — you never need to call `detach()` between two audio selections, only
+when leaving audio entirely (matches every real project's pre-existing
 "switching asset stops the old one" behavior).
 
-### Why `stop`/`seek`/`setVolume` are optional on the engine, not the UI
+`detach()` stops the engine but deliberately does **not** dispose it, so an
+engine you construct once and reuse across selections (wyrm's and
+middilgard's are stored in a module-level `const`) can be handed back to
+`attach()` later and still work. The parked engine is disposed as soon as a
+different engine is attached, or when the controller itself is disposed —
+so a create-an-engine-per-track caller doesn't leak one per switch away
+from audio either.
+
+### Why `pause`/`stop`/`seek`/`setVolume` are optional on the engine, not the UI
 
 A live-synthesized tracker module (wyrm) has no fixed wall-clock timeline
 to seek within — mid-song tempo effects aren't simulated ahead of time, so
 "duration" isn't knowable without playing the whole thing. Rather than
-faking a seek slider that can't do anything, `PlaybackEngine.seek` and
-`getState().seekable` are both optional/boolean: when `seekable` is false,
-`AudioBarController` hides the slider and shows `state.detail` (e.g.
-`"Order 3/12 · Row 24"`) where the time readout would go. The same pattern
-covers `stop` (wyrm's tracker engine can restart from position zero
-independently of pause — most engines don't need this distinct from
-`pause()`) and `setVolume` (only rendered for an engine that implements it).
+faking a seek slider that can't do anything, `PlaybackEngine.seek` is
+optional and `getState().seekable` reports whether seeking means anything
+right now: when it's false, `AudioBarController` hides the slider and shows
+`state.detail` (e.g. `"Order 3/12 · Row 24"`) where the time readout would
+go. The slider is shown only when the engine implements `seek()` *and*
+reports `seekable` — an engine that knows its duration but can't act on a
+seek gets no slider rather than a dead one.
+
+The same pattern covers `setVolume` (only rendered for an engine that
+implements it), `stop` (wyrm's tracker engine can restart from position
+zero independently of pause), and `pause` itself: `@seer-project/tracker`'s
+player has only `play()`/`stop()`, because stopping tears its worklet down
+and leaves no paused state to resume from. Requiring `pause` would force
+that adapter to fake one with a full stop, silently breaking the
+resume-where-you-left-off semantics the bar implies — so the bar degrades
+instead. The play/pause toggle prefers `pause()` and falls back to
+`stop()`; implement at least one.
 
 ## `NativeAudioEngine` — the pre-decoded-file case
 
@@ -89,6 +112,17 @@ const engine = new NativeAudioEngine({ element: document.getElementById('audio-p
 
 engine.load('/assets/mygame/ps3/audio/theme.mp3', { title: 'Main Theme', autoplay: true });
 ```
+
+When you reuse one static element this way, construct a fresh engine per
+selection: each engine claims the element on construction, and `dispose()`
+only tears the element down while the disposing engine is still the
+claimant. That's what lets `attach()` dispose the *previous* engine after
+the new one has already loaded and started the shared element without
+killing the track that just began.
+
+`load({ autoplay })` and `attach(engine, { autoplay })` both end up calling
+`play()`. Pick whichever layer owns that decision — setting both calls it
+twice.
 
 Not suitable for a format that must be *synthesized* rather than decoded
 (Amiga FLT4 tracker modules, SMUS scores) — see `@seer-project/tracker` and

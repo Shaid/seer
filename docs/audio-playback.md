@@ -50,19 +50,20 @@ show/hide-on-selection wiring. That's the actual unification target.
 ## The contract: `PlaybackEngine` (`@seer-project/core`)
 
 ```ts
-export interface PlaybackState {
+type PlaybackState = {
   isPlaying: boolean;
   currentTime: number;
-  duration: number | null;
-  seekable: boolean;
   title: string;
   detail?: string;
   volume?: number;
-}
+} & (
+  | { seekable: true; duration: number }
+  | { seekable: false; duration: null }
+);
 
 export interface PlaybackEngine {
   play(): void | Promise<void>;
-  pause(): void;
+  pause?(): void;
   stop?(): void;
   seek?(seconds: number): void;
   setVolume?(volume: number): void;
@@ -72,8 +73,8 @@ export interface PlaybackEngine {
 }
 ```
 
-Only `play`, `pause`, `getState`, `onStateChange`, and `dispose` are
-required. `stop`/`seek`/`setVolume` are optional — the shared UI renders a
+Only `play`, `getState`, `onStateChange`, and `dispose` are required.
+`pause`/`stop`/`seek`/`setVolume` are optional — the shared UI renders a
 control for each only when both the DOM element was supplied **and** the
 attached engine actually implements the matching method. This was derived
 by reading all three real implementations' actual needs (see
@@ -81,6 +82,24 @@ by reading all three real implementations' actual needs (see
 rather than guessing a shape up front, per the method every game-RE pass in
 this family already follows for reverse-engineered formats — same rigor,
 applied to a contract design instead of a byte layout.
+
+`seekable` discriminates `PlaybackState`, so `duration` cannot contradict
+it: a seekable state always carries a number, a non-seekable one always
+`null`. Every engine here already derived both from one "do we know the
+length?" test, but nothing enforced it — an engine reporting
+`seekable: true, duration: null` compiled fine and then divided by null in
+the shared UI. Consumers now narrow on `state.seekable` and get
+`duration: number` without a null check.
+
+`pause` became optional later than the rest, when `@seer-project/tracker`'s
+player was measured against this contract: `TrackerPlayer` has only
+`play()`/`stop()`, because stopping tears its worklet down and leaves no
+paused state to resume from. Requiring `pause` would have forced its
+adapter to fake one with a full stop — silently breaking the
+resume-where-you-left-off semantics the bar implies — so the contract
+admits the gap instead and the bar degrades: the toggle prefers `pause()`
+and falls back to `stop()`. Implement at least one, or the bar cannot halt
+playback at all.
 
 `load(...)` is deliberately **not** part of the interface. Every engine
 needs wildly different load parameters — a URL (flower), a song id + asset
@@ -129,6 +148,16 @@ come from reading the real code: `seekInput` in `AudioBarElements` had to
 become optional too, once it turned out wyrm's `#music-panel` never had a
 seek slider in its markup at all (there was never anything to hide/show).
 
+A later review found the slider's visibility was keyed **only** on
+`state.seekable`, not on the engine actually implementing `seek()`. Since
+`seek` is optional, an engine that knows its duration but can't act on a
+seek request rendered a fully visible slider whose drag handler silently
+did nothing and whose thumb snapped back on the next state update. It now
+gates on both, like `stopBtn` and `volumeInput` always did. The slider's
+scale is likewise read from its own `min`/`max` rather than assuming the
+`0..1000` the real projects happen to use — markup with HTML's default
+`0..100` range used to seek to a tenth of the intended position.
+
 ## `AudioBarController` (`@seer-project/audio-ui`)
 
 The DOM-wiring counterpart — constructed once against a fixed set of
@@ -147,6 +176,10 @@ const audioBar = new AudioBarController({
 audioBar.attach(engine, { autoplay: true }); // on selection
 audioBar.detach();                            // on deselection / switching away
 ```
+
+`attach()` disposes whatever *different* engine was attached before it.
+`detach()` stops playback and hides the bar but deliberately does **not**
+dispose — see below.
 
 ### Re-attaching the same engine is a refresh, not a teardown
 
@@ -170,6 +203,45 @@ selection without the caller needing its own "is this the same track"
 guard at the UI layer (the underlying `MusicPlayer`/`select()` calls still
 have their own guards for whether to actually reload/re-decode — see
 below).
+
+### `detach()` stops, it does not dispose
+
+The same reasoning applies to `detach()`, but it was missed at first and a
+later review caught it. `detach()` used to dispose the engine, which is
+fine for flower's and hunter's per-track engines but wrong for the very
+pattern this document recommends two paragraphs up: construct once, store
+in a module-level `const`, attach on every selection. The sequence
+`attach(E)` → `detach()` → `attach(E)` — an entirely ordinary
+audio → non-audio → audio browse — left the bar re-subscribed to a
+*disposed* engine. It rendered once and then froze: the play/pause glyph
+stuck, the time never advancing, and no error anywhere.
+
+`detach()` now stops the engine (`stop()` when it has one, else `pause()`)
+and unsubscribes, but parks the instance rather than disposing it, so
+re-attaching resurrects it. The parked engine is disposed as soon as a
+*different* engine is attached, or when the controller itself is disposed
+— which is what stops the create-an-engine-per-track callers leaking one
+engine per switch away from audio.
+
+### Disposing a superseded engine must not clobber a shared element
+
+`NativeAudioEngine` optionally wraps a caller-supplied `<audio>` element,
+which flower does: one static element reused across every track, with a
+fresh engine per selection. That combination hid a second lifecycle bug,
+found in the same review.
+
+The documented order is `new NativeAudioEngine({ element })` →
+`engine.load(url, { autoplay: true })` → `audioBar.attach(engine)`. On the
+second and every later selection, `attach()`'s first act is to dispose the
+*previous* engine — whose `dispose()` ran `pause()`, `removeAttribute('src')`
+and `load()` against the very element the new engine had already loaded and
+started. The freshly selected track was silently stopped and its source
+wiped, on every switch, for the shared-element case only.
+
+Engines now claim the element on construction, and `dispose()` skips the
+element teardown unless the disposing engine is still the claimant. Its own
+listener unbinding always runs, so a superseded engine still releases its
+subscriptions rather than leaking them.
 
 ### List-item music indicators, manifest field naming
 

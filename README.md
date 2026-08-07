@@ -68,7 +68,10 @@ npm run build-assets   # Run only the asset-build stage
 ```
 
 Each package under `packages/*` also has its own `npm test`/`npm run lint`
-scripts, runnable standalone from within that package's directory.
+scripts, runnable standalone from within that package's directory —
+`npm test` builds the package (and, via its `tsc -b` project references,
+whatever workspace packages it depends on) first, so it works from a fresh
+clone where no `dist/` exists yet.
 
 ## ⚖️ Licensing & Commercial Use
 

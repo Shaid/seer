@@ -129,27 +129,44 @@ cyclePalette(paletteColors, 10, 13, 1);
 ### `playback.ts` — Audio playback-engine contract
 
 `PlaybackEngine` is the interface the viewer's shared audio-bar UI
-(`@seer-project/audio-ui`'s `AudioBarController`) drives — `play()`/`pause()`, plus
-*optional* `stop()`/`seek()`/`setVolume()` an engine can leave unimplemented
-rather than faking. It intentionally does not standardize how a track is
-*loaded* (a native `<audio>` engine needs a URL; a live tracker/SMUS
-synthesis engine needs format-specific song data) — only the transport
-surface a generic UI can drive. See `@seer-project/audio-ui`'s README and
+(`@seer-project/audio-ui`'s `AudioBarController`) drives — `play()`, plus
+*optional* `pause()`/`stop()`/`seek()`/`setVolume()` an engine can leave
+unimplemented rather than faking. (`pause` is optional because a tracker
+engine tears its worklet down on stop and has no paused state to resume
+from; implement at least one of `pause`/`stop` so the bar can halt
+playback.) It intentionally does not standardize how a track is *loaded*
+(a native `<audio>` engine needs a URL; a live tracker/SMUS synthesis
+engine needs format-specific song data) — only the transport surface a
+generic UI can drive. See `@seer-project/audio-ui`'s README and
 `docs/audio-playback.md` in the seer repo for the full design and worked
 adapter examples (wyrm's FLT4 tracker, middilgard's SMUS engine).
 
+`PlaybackState` is a discriminated union on `seekable`, so `duration` can
+never contradict it — a seekable state always carries a number, and a
+non-seekable one is always `null`. Narrowing gives consumers the non-null
+type for free:
+
 ```ts
 import type { PlaybackEngine, PlaybackState } from '@seer-project/core';
-import { formatClock } from '@seer-project/core';
+import { attemptPlayback, formatClock } from '@seer-project/core';
 
 formatClock(125.9); // "2:05"
+
+if (state.seekable) {
+  const fraction = state.currentTime / state.duration; // number, not number | null
+}
+
+// Starting audio fails as either a rejected promise (autoplay policy) or a
+// synchronous throw; this catches both.
+attemptPlayback(() => engine.play(), (err) => console.warn('Playback failed:', err));
 ```
 
 | Export | Description |
 | --- | --- |
-| `PlaybackState` | `{ isPlaying, currentTime, duration, seekable, title, detail?, volume? }` |
-| `PlaybackEngine` | `{ play, pause, stop?, seek?, setVolume?, getState, onStateChange, dispose }` |
+| `PlaybackState` | `{ isPlaying, currentTime, title, detail?, volume? }` + either `{ seekable: true, duration: number }` or `{ seekable: false, duration: null }` |
+| `PlaybackEngine` | `{ play, pause?, stop?, seek?, setVolume?, getState, onStateChange, dispose }` |
 | `formatClock(seconds)` | `mm:ss` formatting; `"0:00"` for `null`/`undefined`/negative/non-finite input |
+| `attemptPlayback(play, onFailure)` | Runs a `play()` thunk, routing a rejection *or* a synchronous throw to `onFailure` |
 
 ## Testing
 

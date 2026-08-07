@@ -66,8 +66,15 @@ player.stop();
 `TrackerPlayer` is a self-contained player, not a
 `PlaybackEngine` from `@seer-project/core`. To drive it from the shared
 audio-bar UI, wrap it in a small adapter implementing `PlaybackEngine`
-(`play()`/`pause()`/`stop()`/`getState()`/`onStateChange()`/`dispose()`) —
-see `docs/audio-playback.md` in the seer repo for a worked example.
+(`play()`/`stop()`/`getState()`/`onStateChange()`/`dispose()`) — see
+`docs/audio-playback.md` in the seer repo for a worked example.
+
+The adapter needs no `pause()`. `PlaybackEngine.pause` is optional
+precisely because of this player: `stop()` tears the worklet down, so
+there is no paused state to resume from, and faking pause with a full stop
+would silently break the resume semantics the shared bar implies. The bar's
+play/pause toggle falls back to `stop()` on its own. `setVolume(v)` maps to
+this package's `volume` property in a one-liner.
 
 ## Testing
 
@@ -75,3 +82,11 @@ see `docs/audio-playback.md` in the seer repo for a worked example.
 npm test
 npm run lint
 ```
+
+`Module` and `Micromod` are both pure and synchronous — no Web Audio — so
+the parser and the replay/mixing engine are exercised directly under Node
+against synthetic MOD files built by `src/__tests__/mod-fixture.ts`
+(format tags, sequence decoding, instrument-header edge cases, truncated
+sample data; rendering, determinism, panning, seek/rewind). `TrackerPlayer`
+itself owns the `AudioContext`/worklet plumbing, so only its load/parse
+state and its play/stop guards are covered.
