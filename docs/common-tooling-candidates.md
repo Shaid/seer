@@ -1164,12 +1164,67 @@ has RE'd this yet in any of these repos. That answer determines whether
 real rework, and it can't be settled from this survey's read-only pass —
 it needs an actual RE session against a ROM.
 
-*Verdict: not actionable yet — nothing to extract or adopt today.* Recorded
-here so the eventual SNES RE work starts from this hypothesis instead of
-re-deriving it, and so this document — not a single game repo's `docs/` —
-stays the place that answer eventually gets written down, per §15c's point
-about cross-cutting framework knowledge belonging here rather than scattered
-per-consumer.
+*Original verdict (2026-08-03): not actionable yet — nothing to extract or
+adopt today.* Recorded here so the eventual SNES RE work starts from this
+hypothesis instead of re-deriving it, and so this document — not a single
+game repo's `docs/` — stays the place that answer eventually gets written
+down, per §15c's point about cross-cutting framework knowledge belonging
+here rather than scattered per-consumer.
+
+### Update 2026-08-08 — both open questions answered by a real RE session
+
+`ceres` ran the RE session this section called for, against the real
+FFVI US ROM (`docs/ffvi/snes/data-structure.md` §18 has the full evidence,
+byte-level ROM addresses, and paths-tried table — summarized here per this
+section's own framing/style, not restated in full).
+
+**Driver family: not literally Nintendo's N-SPC.** FFVI (and, per a quick
+cross-check, FFIV and FFV) run Square's own **in-house driver authored by
+Minoru Akao** — the fourth of four distinct SPC700 drivers he wrote at
+Square, independently confirmed via a byte-exact, whole-ROM signature
+search against `vgmtrans/vgmtrans`'s dedicated `AkaoSnes` format module
+(a mature third-party SPC-sequence reimplementation, used here the same
+way this survey's six original repos use `everything8215`/community
+disassemblies as oracles for ROM data tables — just applied to a project
+that specifically targets sequenced-audio formats). Concretely: a literal
+60-byte VGMTrans constant (`FF6_VCMD_LEN_TABLE`, specific to its
+`AKAOSNES_V4_FF6` classification) has exactly one byte-exact hit in the
+FFVI ROM, inside the bank the community's own ROM map already guessed was
+the sound driver — plus 5 further SPC700-instruction signature patterns,
+each also a unique hit in the same bank. The three games in this project's
+own SNES corpus turn out to span three successive versions of the same
+lineage: **FFIV = AKAOSNES V1, FFV = AKAOSNES V3, FFVI = AKAOSNES V4**
+(each via its own version-specific VGMTrans byte-table, single unambiguous
+hit per ROM) — a clean "one driver family maturing release over release"
+story, not three unrelated engines.
+
+**Sequence format: confirmed free-running per-track event stream, matching
+`@seer-project/smus`'s shape, not `@seer-project/tracker`'s pattern-grid
+shape.** Two independent lines of evidence agree: (1) direct community
+documentation (`ff6hacking.com`'s MML composition tutorial, written by
+people who used the real composing toolchain) states this in plain prose
+— *"sequences are free-running streams with independent timing per
+channel... there is no way to actively keep the channels synchronized"*;
+(2) `vgmtrans/vgmtrans`'s `AkaoSnesSeq`/`AkaoSnesTrack` source structurally
+implements exactly that — an 8-entry per-channel pointer table with **no**
+pattern/phrase indirection layer, each track then walked as an
+independent, variable-duration byte-code stream. `ceres` additionally
+hand-decoded real opcode bytes from two tracks of a real FFVI song against
+the confirmed V4 opcode table and got clean, in-range note/tie/rest/octave
+command sequences — not just a documentation citation, an actual verified
+decode. The instrument model also came back closer to `smus`'s shape than
+`tracker`'s, as this section's original hunch predicted: per-instrument
+tuning + hardware ADSR + a BRR-sample reference via the SPC DSP's sample
+directory.
+
+*Updated verdict: actionable now.* `ceres`'s recommendation, now
+evidence-backed rather than a coin flip between the two originally-listed
+candidate approaches: **extend `@seer-project/smus`**, not a SPC700 RAM-
+snapshot/WASM-emulator player — the format didn't resist RE the way that
+fallback path assumed it might. No player has been built yet in any repo;
+this is still "confirmed format, not yet consumed by a package," same
+overall status class as the rest of this survey's "do now"/"do later"
+items in §18, not a closed loop.
 
 ---
 
