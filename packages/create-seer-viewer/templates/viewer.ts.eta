@@ -181,10 +181,14 @@ function renderTypeFilters(): void {
 
 // ── List / search ────────────────────────────────────────────────────────
 
+/** The list as currently filtered/searched — kept in sync by renderList(), used by Up/Down keyboard navigation. */
+let currentFilteredList: ManifestEntry[] = [];
+
 function renderList() {
   const q = searchEl.value.trim().toLowerCase();
   let filtered = currentTypeFilter ? manifest.filter((a) => a.type === currentTypeFilter) : manifest;
   if (q) filtered = filtered.filter((a) => a.name.includes(q));
+  currentFilteredList = filtered;
 
   listMetaEl.textContent = `${filtered.length} of ${manifest.length} assets`;
 
@@ -680,6 +684,35 @@ frameSlider.addEventListener('input', () => {
   drawAsset();
 });
 
+/** Select the next/previous asset in the current filtered/searched list, wrapping, and scroll it into view. */
+async function navigateList(delta: 1 | -1): Promise<void> {
+  if (currentFilteredList.length === 0) return;
+  const currentIndex = selected ? currentFilteredList.indexOf(selected) : -1;
+  const nextIndex =
+    currentIndex === -1
+      ? 0
+      : (currentIndex + delta + currentFilteredList.length) % currentFilteredList.length;
+  await selectAsset(currentFilteredList[nextIndex]!);
+  listEl.querySelector('.item.selected')?.scrollIntoView({ block: 'nearest' });
+}
+
+/**
+ * Toggle play/pause for whatever's currently active: sprite/font frame
+ * autoplay, or a <video>/<audio> element in the canvas (a project that adds
+ * its own media asset types — see docs/viewer.md — gets Space-to-toggle for
+ * free as long as the element lives in #canvas-wrap).
+ */
+function togglePlayPause(): void {
+  if (currentFrames.length > 1) {
+    togglePlayback();
+    return;
+  }
+  const media = canvasWrap.querySelector('video, audio') as HTMLMediaElement | null;
+  if (!media) return;
+  if (media.paused) media.play();
+  else media.pause();
+}
+
 document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   if (e.code === 'ArrowLeft' && currentFrames.length > 0) {
@@ -693,6 +726,18 @@ document.addEventListener('keydown', (e) => {
     stopPlayback();
     currentFrame = (currentFrame + 1) % currentFrames.length;
     drawAsset();
+  }
+  if (e.code === 'ArrowUp') {
+    e.preventDefault();
+    void navigateList(-1);
+  }
+  if (e.code === 'ArrowDown') {
+    e.preventDefault();
+    void navigateList(1);
+  }
+  if (e.code === 'Space') {
+    e.preventDefault();
+    togglePlayPause();
   }
 });
 
