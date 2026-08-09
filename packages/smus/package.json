@@ -39,6 +39,7 @@
     "lint": "eslint src/"
   },
   "dependencies": {
+    "@seer-project/audio-dsp": "^0.1.0",
     "@seer-project/core": "^0.1.0",
     "@seer-project/iff": "^0.1.0"
   },

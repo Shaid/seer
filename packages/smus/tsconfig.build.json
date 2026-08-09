@@ -5,6 +5,9 @@
   ],
   "references": [
     {
+      "path": "../audio-dsp/tsconfig.build.json"
+    },
+    {
       "path": "../core/tsconfig.build.json"
     },
     {

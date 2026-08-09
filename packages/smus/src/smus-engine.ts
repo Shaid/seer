@@ -1,4 +1,6 @@
 import { parseIff, findChunks, findChunk } from '@seer-project/iff';
+import { renderToStereoBuffers, mixVoiceStereo, applyMasterGain } from '@seer-project/audio-dsp';
+import type { BlockRenderer } from '@seer-project/audio-dsp';
 import type {
   InstrEmbedded,
   InstrExternal,
@@ -323,7 +325,7 @@ export function parseSmusScore(buffer: ArrayBuffer): SmusScore {
 
 // ─── SmusEngine ──────────────────────────────────────────────────────────
 
-export class SmusEngine {
+export class SmusEngine implements BlockRenderer {
   sr: number;
   master: number;
   bpm: number;
@@ -669,6 +671,20 @@ export class SmusEngine {
     return { env: envOut, bank: bankOut };
   }
 
+  /**
+   * Intentionally NOT delegated to `@seer-project/audio-dsp`'s
+   * `resampleLooped()` (audio-dsp was introduced specifically to share this
+   * kind of primitive — see that package's intro commit). This method's
+   * sample-playback path is entangled with two things `resampleLooped`
+   * doesn't (and shouldn't) model: per-sample vibrato-modulated step values
+   * (a precomputed `positions` array, not a constant step), and a specific
+   * loop-boundary blend fixup (`i1 = ls` when the interpolation neighbour
+   * wraps) that has its own regression test
+   * (`consolidation-fixes.test.ts`'s "blends the last loop sample toward
+   * the loop start" case). Swapping this in was attempted and reverted: it
+   * changed `render-golden.test.ts`'s pinned output. Left as-is rather than
+   * force a shared abstraction onto a genuinely different shape.
+   */
   private _renderVoice(v: VoiceState, n: number): Float32Array {
     const inst = v.instrument!;
     const out = new Float32Array(n);
@@ -815,20 +831,15 @@ export class SmusEngine {
         if (v.active && v.instrument) {
           const mono = this._renderVoice(v, g);
           const side = CHANNEL_PAN[v.channel & 3];
-          if (side === 0) {
-            for (let i = 0; i < g; i++) outL[pos + i] += mono[i];
-          } else {
-            for (let i = 0; i < g; i++) outR[pos + i] += mono[i];
-          }
+          // Hard binary pan (each voice fully left or fully right), reproduced
+          // via mixVoiceStereo's independent gains rather than a real stereo
+          // field -- matches this engine's original CHANNEL_PAN behaviour.
+          mixVoiceStereo(outL, outR, mono, side === 0 ? 1 : 0, side === 0 ? 0 : 1, pos, g);
         }
       }
       pos += g;
     }
-    const master = this.master;
-    for (let i = 0; i < n; i++) {
-      outL[i] = Math.max(-1, Math.min(1, outL[i] * master));
-      outR[i] = Math.max(-1, Math.min(1, outR[i] * master));
-    }
+    applyMasterGain(outL, outR, this.master);
     return [outL, outR];
   }
 
@@ -840,41 +851,8 @@ export class SmusEngine {
 
   /** Render entire song to stereo Float32Arrays. */
   renderAll(maxSeconds = 300): [Float32Array, Float32Array] {
-    const chunks: Array<[Float32Array, Float32Array]> = [];
-    const block = 2048;
-    const maxSamples = Math.floor(maxSeconds * this.sr);
-    let total = 0;
     this._advanceTracks(0);
-    while (total < maxSamples) {
-      const [l, r] = this.renderBlock(block);
-      chunks.push([l, r]);
-      total += block;
-      if (this.finished && this.voices.every((v) => !v.active)) break;
-    }
-
-    const totalLen = chunks.reduce((s, [l]) => s + l.length, 0);
-    const left = new Float32Array(totalLen);
-    const right = new Float32Array(totalLen);
-    let off = 0;
-    for (const [l, r] of chunks) {
-      left.set(l, off);
-      right.set(r, off);
-      off += l.length;
-    }
-
-    const thresh = 1e-4;
-    let lastNz = -1;
-    for (let i = totalLen - 1; i >= 0; i--) {
-      if (Math.abs(left[i]) > thresh || Math.abs(right[i]) > thresh) {
-        lastNz = i;
-        break;
-      }
-    }
-    if (lastNz >= 0) {
-      const trimLen = Math.min(totalLen, lastNz + Math.floor(this.sr / 4));
-      return [left.subarray(0, trimLen), right.subarray(0, trimLen)];
-    }
-    return [left, right];
+    return renderToStereoBuffers(this, { sampleRate: this.sr, maxSeconds, blockSize: 2048 });
   }
 }
 
