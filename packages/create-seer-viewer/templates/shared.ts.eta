@@ -14,12 +14,14 @@ export interface PaletteData {
  */
 export interface ManifestEntry {
   name: string;
-  /** Asset kind (e.g. "sprite", "screen", "map"). Drives the filter tabs — see docs/viewer.md. */
+  /** Asset kind (e.g. "sprite", "screen", "map", "mesh", "scene"). Drives the filter tabs — see docs/viewer.md. */
   type: string;
-  sprites: number;
-  hasPalette: boolean;
-  /** Baked RGBA sprite sheet, drawn via the default Canvas2D path. */
-  png: string;
+  /** Optional — absent for a non-2D-sprite entry (e.g. a 3D `mesh`/`scene` asset, which has no baked sprite sheet). */
+  sprites?: number;
+  /** Optional — absent for a non-2D-sprite entry. */
+  hasPalette?: boolean;
+  /** Baked RGBA sprite sheet, drawn via the default Canvas2D path. Optional — absent for a non-2D-sprite entry. */
+  png?: string;
   /**
    * Optional indexed-color variant of `png` (palette index in the R
    * channel, written by `writeIndexedPNG` from @seer-project/pipeline). When
@@ -38,6 +40,21 @@ export interface ManifestEntry {
    */
   category?: string;
   group?: string;
+  /**
+   * Optional 3D-asset fields (see docs/viewer.md §5 and
+   * `@seer-project/engine-3d`) — set only on a `mesh`/`scene`-type entry;
+   * absent entirely for a 2D sprite/screen/map entry.
+   */
+  /** Path relative to ASSET_BASE. */
+  model?: string;
+  /** Absent ⇒ inferred from `model`'s extension. */
+  modelFormat?: 'gltf' | 'polygon-json';
+  /** Index into a multi-model polygon JSON array (e.g. one shared `objects-geometry.json` holding many objects). */
+  modelIndex?: number;
+  /** `type: "scene"` only — path to the scene's placement data. */
+  scene?: string;
+  /** Whether the model carries skeletal animation (an `AnimationMixer`-driven skinned mesh) vs. a static mesh. */
+  skeletal?: boolean;
 }
 
 /** One entry of `public/assets/games.json`, fetched to populate the game/platform selectors. */

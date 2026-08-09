@@ -423,7 +423,10 @@ function renderList() {
     const item = document.createElement('div');
     item.className = 'item';
     if (selected === a) item.classList.add('selected');
-    item.innerHTML = `<span class="item-label">${a.name}</span><span class="item-dim">${a.sprites}sp${a.hasPalette ? ' · pal' : ''}</span>`;
+    const dims: string[] = [];
+    if (a.sprites !== undefined) dims.push(`${a.sprites}sp`);
+    if (a.hasPalette) dims.push('pal');
+    item.innerHTML = `<span class="item-label">${a.name}</span><span class="item-dim">${dims.join(' · ')}</span>`;
     item.addEventListener('click', () => selectAsset(a));
     listEl.appendChild(item);
   }
