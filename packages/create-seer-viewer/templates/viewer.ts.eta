@@ -234,15 +234,15 @@ async function selectCategory(id: string | null): Promise<void> {
   drawAsset();
 }
 
-/** Selects a group within the current (group-sharded) category, or `'ALL'` to explicitly opt into fetching the whole category's flat shard instead. */
-async function selectGroup(categoryId: string, groupId: string | 'ALL'): Promise<void> {
-  currentGroup = groupId === 'ALL' ? null : groupId;
+/** Selects a group within the current (group-sharded) category. There is deliberately no "load the whole category at once" escape hatch here — see `renderCategoryNav`'s doc comment. */
+async function selectGroup(categoryId: string, groupId: string): Promise<void> {
+  currentGroup = groupId;
   currentTypeFilter = null;
   selected = null;
   stopPlayback();
   stopCycling();
 
-  manifest = groupId === 'ALL' ? await loadCategoryShard(categoryId) : await loadGroupShard(categoryId, groupId);
+  manifest = await loadGroupShard(categoryId, groupId);
 
   renderCategoryNav();
   renderTypeFilters();
@@ -254,8 +254,11 @@ async function selectGroup(categoryId: string, groupId: string | 'ALL'): Promise
  * Renders `#category-nav` in one of three states: hidden entirely (no
  * `categories.json`), a grid of top-level category buttons (no category
  * selected yet), or a breadcrumb back to the grid plus — for a
- * group-sharded category — a further grid of group buttons (an "All"
- * button included, clearly labeled as the large/whole-category fetch).
+ * group-sharded category — a further grid of group buttons. Deliberately
+ * no "load everything at once" button for a group-sharded category: that
+ * would just re-introduce the unvirtualized-DOM problem sharding exists to
+ * avoid — a group-sharded category can only be browsed one group's shard
+ * at a time.
  */
 function renderCategoryNav(): void {
   searchEl.disabled = categoryIndex.length > 0 && currentCategory === null;
@@ -303,14 +306,6 @@ function renderCategoryNav(): void {
     grid.className = 'category-grid';
     const categoryId = entry.id;
 
-    const allBtn = document.createElement('button');
-    allBtn.type = 'button';
-    allBtn.className = 'category-btn';
-    if (currentGroup === null && manifest.length > 0) allBtn.classList.add('active');
-    allBtn.innerHTML = `<span>All (large)</span><span class="category-count">${entry.count.toLocaleString()}</span>`;
-    allBtn.addEventListener('click', () => { void selectGroup(categoryId, 'ALL'); });
-    grid.appendChild(allBtn);
-
     for (const g of entry.groups) {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -325,7 +320,7 @@ function renderCategoryNav(): void {
     if (currentGroup === null && manifest.length === 0) {
       const hint = document.createElement('div');
       hint.className = 'category-hint';
-      hint.textContent = `Pick a group above to browse it, or "All" to load the full ${entry.count.toLocaleString()}-entry category at once.`;
+      hint.textContent = 'Pick a group above to browse it.';
       categoryNavEl.appendChild(hint);
     }
   }
