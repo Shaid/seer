@@ -2,6 +2,8 @@
 
 A survey of native-code static reconstruction (in the N64: Recompiled / Zelda 64: Recompiled sense) for the Motorola 68000 family and Amiga specifically, contrasted with emulation, patch-and-load solutions, and source decompilation.
 
+Companion doc: [`dos-recomp.md`](./dos-recomp.md) — the other platform this project's corpora actually target, and a useful contrast: DOS has a comparably scalar CPU but no chipset problem, and does have a working static recompiler.
+
 ## 1. The CPU itself is the easy part
 
 Static recompilation lives or dies on two things: how well-understood the target ISA is, and how much of a platform's behavior is "just the CPU" versus offloaded to opaque coprocessors. On the first axis, m68k is about as friendly as retro silicon gets: the 68000/68010/68020/68030/68040/68060 line is a single-core, in-order CISC design with orthogonal addressing modes and — critically — no on-chip coprocessor analog to the PS3 Cell's SPUs or the PS2's VU0/VU1. Those platforms require a recompiler to also model a separate vector processor with its own local store and instruction set; m68k application code is "just" scalar CISC code over a flat, pre-MMU address space.

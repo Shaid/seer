@@ -31,12 +31,34 @@ This is the genuinely open part of the picture. Searching specifically for Wii U
 - **[DolRecomp](https://github.com/ExpansionPak/DolRecomp)**, a GPL-3.0 static recompiler that decodes PowerPC/Gekko/Broadway/Espresso opcodes and emits C, explicitly lists **Wii U CPU support as experimental** and states plainly that "Wii U support is not actively being worked on" — its real, demonstrated results (e.g. getting *Luigi's Mansion* to its title screen) are GameCube/Wii achievements. This is the one concrete data point of Wii U appearing in a recompiler's scope at all, and it's an explicit non-priority within that project.
 - The **[doldecomp](https://github.com/doldecomp)** GitHub organization — home to *Melee*, *Super Mario Sunshine*, *Mario Kart: Double Dash*, *Wii Sports*, *Paper Mario: TTYD*, *Brawl*, *Mario Kart Wii*, *Super Mario Galaxy*, *Kirby Air Ride* — has no Wii U entries at all; its scope is explicitly GameCube/Wii.
 - Several "Wii U decompilation" repos exist on GitHub (Sonic Mania, RSDKv5, Sonic CD 2011), but these are **homebrew ports of already-decompiled PC engines to Wii U via WUT** — decompilations of PC binaries, retargeted to run on Wii U hardware — not decompilations *of* Wii U game binaries. Worth naming because the pattern is easy to misread as native Wii U RE work when it isn't.
-- No Wii U entry exists in GitHub's [`static-recompilation` topic](https://github.com/topics/static-recompilation), and no project analogous to `ps3recomp`, OpenGOAL, or the PSX-scene tools was found targeting Wii U specifically.
+- No Wii U entry exists in GitHub's [`static-recompilation` topic](https://github.com/topics/static-recompilation).
+- **Correction (2026-08): one Wii U-specific static recompiler does exist.**
+  An earlier revision of this section stated that "no project analogous to
+  `ps3recomp`, OpenGOAL, or the PSX-scene tools was found targeting Wii U
+  specifically." That is wrong.
+  **[nWiiURecomp](https://github.com/BlackLineInteractive/nWiiURecomp)**
+  translates Wii U `.rpx`/`.rpl` executables into native C++ backed by a
+  Cafe OS HLE runtime, in three parts (an executable analyzer, a
+  PowerPC→C++ recompiler, and that runtime) — structurally the same shape as
+  `ps3recomp`. Its README claims to authenticate the *Wind Waker HD* EU v0
+  executable at near-native speed. It is, however, **very early**: 3 stars
+  and 11 commits at time of checking, and derived from the same authors'
+  [NWiiRecomp](https://github.com/BlackLineInteractive/NWiiRecomp)
+  (GameCube/Wii). It is a proof of concept, not a scene — the verdict in §5
+  stands, but "nothing exists" no longer does. It was missed originally
+  because it is not tagged under the `static-recompilation` topic; that
+  topic is an incomplete index (it also has no MS-DOS entry despite
+  [M-HT/SR](https://github.com/M-HT/SR) shipping four native DOS-game ports —
+  see [`dos-recomp.md`](./dos-recomp.md)).
+- Adjacent, also absent from that topic:
+  **[XenonRecomp](https://github.com/hedge-dev/XenonRecomp)** (Xbox 360 →
+  native C++), which is the closest large-scale precedent for the
+  PowerPC-console recompilation problem Wii U shares.
 
 Commercial context plausibly explains part of the gap: Wii U sold **13.56 million units**, [Nintendo's lowest-selling home console](https://en.wikipedia.org/wiki/Wii_U) (ahead of only the Virtual Boy) with the smallest first- and third-party library of any Nintendo home platform. A smaller install base and library mean less community RE attention than GameCube/Wii, N64, or SNES ever attracted — and Cemu's success, below, likely suppresses demand further.
 
 ## 5. Honest maturity assessment
 
-Relative to this document series, Wii U sits closer to Saturn or Amiga than to GameCube/Wii, PS2, or PS3 — essentially unstarted for genuine static recompilation, despite sharing a CPU family with a platform ([`gamecube-wii-recomp.md`](./gamecube-wii-recomp.md)) that likely has one of the most mature decompilation scenes in this whole series. The architectural kinship (Espresso = triplicated Broadway) does **not** transfer that maturity: GameCube/Wii's advantage is compiler-specific (obtainable CodeWarrior, `decomp-toolkit`/`objdiff` built around its codegen), and Wii U's Cafe SDK compiler is neither confirmed to be CodeWarrior nor otherwise publicly recovered — the RPX/RPL format shift is circumstantial evidence it wasn't. DolRecomp's own maintainers treat Wii U as an explicit non-goal.
+Relative to this document series, Wii U sits closer to Saturn or Amiga than to GameCube/Wii, PS2, or PS3 — near-unstarted for genuine static recompilation (one 11-commit proof of concept, per §4's correction), despite sharing a CPU family with a platform ([`gamecube-wii-recomp.md`](./gamecube-wii-recomp.md)) that likely has one of the most mature decompilation scenes in this whole series. The architectural kinship (Espresso = triplicated Broadway) does **not** transfer that maturity: GameCube/Wii's advantage is compiler-specific (obtainable CodeWarrior, `decomp-toolkit`/`objdiff` built around its codegen), and Wii U's Cafe SDK compiler is neither confirmed to be CodeWarrior nor otherwise publicly recovered — the RPX/RPL format shift is circumstantial evidence it wasn't. DolRecomp's own maintainers treat Wii U as an explicit non-goal.
 
 Two forces compound the gap rather than close it. First, Wii U's smaller commercial footprint means less community RE labor has ever targeted it than GameCube, Wii, N64, or SNES. Second, and more distinctively: **Cemu's success may have actively displaced demand for recompilation-style work.** Where PS3/PS2/PSX recompilation efforts are partly motivated by their reference emulators (RPCS3, PCSX2, Duckstation) being good-but-imperfect or resource-heavy, Cemu already delivers what static recompilation typically promises — often *better* framerates and resolutions than a real Wii U — on ordinary PC hardware, via a mature JIT+HLE approach refined for a decade. The case for "port this Wii U game natively" is unusually weak when the dominant emulator already outperforms the original console. A future Wii U recompilation effort inherits Espresso/Latte's genuine architectural tractability, but not GameCube/Wii's tooling advantage, not its predecessors' community-RE investment, and arguably not even a strong unmet need.
