@@ -1,0 +1,51 @@
+{
+  "name": "@seer-project/engine-3d",
+  "version": "0.1.0",
+  "description": "Format-agnostic three.js viewport, glTF loading, and a {verts,edges,faces} polygon-model adapter shared by @seer-project's 3D mesh viewers",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shaid/seer.git"
+  },
+  "keywords": [
+    "three.js",
+    "gltf",
+    "3d",
+    "viewer",
+    "reverse-engineering"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "prepack": "npm run build",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "peerDependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.4",
+    "jsdom": "^25.0.0",
+    "three": "^0.185.1",
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.0"
+  }
+}
