@@ -1,0 +1,189 @@
+# Writing pages for this site
+
+This site is a **curated, human-readable field guide** to <%= it.displayName %>.
+The exhaustive byte-level evidence lives in the repo's research notes (usually
+`docs/<%= it.game %>/`). These pages don't restate that — they turn it into
+something a stranger can read, with every claim still carrying its evidence.
+
+`README.md` and `AGENTS.md` cover the *mechanics* (where files live, how the
+build wires assets, how to add a page). This guide covers the *content*: what a
+page should contain and how good it has to be.
+
+> Working with an AI agent? The account-wide `seer-website` skill carries this
+> same standard in more depth, plus per-page-type playbooks and component
+> recipes. This file is the standalone version.
+
+Examples below are drawn from a sibling seer site documenting an Amiga dungeon
+crawler whose data files are named `bcdfa`–`bcdfz` — they illustrate the shape
+of a good claim, not anything about <%= it.displayName %>.
+
+---
+
+## The ten rules
+
+**1. Every claim carries a number.** "204 monster sprites across the 13 dungeon
+levels", "685/685 references resolve exactly under this rule", "13/13, zero
+deviation", "147 sprites = 49 items × 3 view depths". Banned: *several, many,
+most, various, a handful of, some*. When you reach for one of those, you're
+missing a count you could go and get — the manifests under
+`public/assets/<%= it.game %>/` have it.
+
+**2. Every number carries its provenance.** A file offset (`+0x1B5B3`), an
+address in a decompressed image, a disassembly label, a named routine, a
+cross-port confirmation, or the manifest the page read at build time. A number
+with no provenance is a rumour.
+
+**3. Unresolved is stated, never rounded up.** A page that says "mostly solved"
+names what isn't. Give every incomplete format page a short **"The open bits"**
+section linking to the status page. Negative results are results — publish them.
+
+**4. Images are real pipeline output, not illustrations.** If a visual is
+rendered or composited, it comes from the same verified code the project ships,
+and the build **fails** when that code fails. Never fall back to a mockup. (A
+fallback to *committed extraction output* when the original game files are
+absent is different, and correct — that's how CI builds this site.)
+
+**5. Generated visuals are reproducible.** Publish the exact inputs — the pose,
+the map/cell/facing, the parameters someone can feed the project's own tools to
+regenerate the identical frame.
+
+**6. Corrections are published, not silently patched.** When a previous claim
+was wrong, say it was wrong, say what the value actually is, and say what misled
+everyone. A silent edit costs the next reader the same dead end.
+
+**7. Pitfalls go at the top of the page.** A blockquote right after the identity
+paragraph, before any structural detail — naming the mistake *and* the specific
+inputs that trigger it.
+
+**8. State and honour the source-of-truth hierarchy.** The home page says this
+site is a curated summary of the raw notes and that the raw notes win. Deep
+pages point at the specific note file. When a page contradicts the notes, fix
+the page.
+
+**9. Cross-link forward and back.** Overview → foundations → format pages →
+galleries → status. Asset pages link to their format page and back. Use absolute
+site paths with a trailing slash (`/<%= it.game %>/getting-started/`).
+
+**10. No placeholder text survives.** The scaffold's "replace this content with
+a real overview" paragraph, a `<Card>` pointing at a page that doesn't exist, a
+sidebar label that's just the capitalised filename — all defects, not pages.
+
+---
+
+## Page types
+
+Every page has frontmatter with **`title` and `description`** — no exceptions.
+`description` is a full sentence; it feeds search, `<meta>`, and social cards.
+
+| Type | What it does | Skeleton |
+|---|---|---|
+| **Game home** (`template: splash`) | Orients a stranger in 30 seconds and routes them | Hero tagline + 2–3 actions → two paragraphs on what the site is and what the analysis is grounded in → `<CardGrid>` of the real sections → **Source of truth** section |
+| **Overview** | What the game is, how its data is shaped, what the project achieved | Identity paragraph (year, developer, platform, engine idea) → how the files are organised → **What this project did** with quantified headline results → **How to read this site** link ladder |
+| **Foundations** | Platform/engine concepts needed *before* the format pages | Why this comes first → the concept in one paragraph → real register values / formulas in a code fence → tables of real values → **Ground-truth oracle** → **A common pitfall** |
+| **One page per format** | Everything needed to write a decoder. One page per format, always | Size + one-line identity (including what it is *not*) → pitfall blockquote → file-level structure → byte-offset code fence → field table → a worked decode of a real record → **The open bits** → the routine it was derived from |
+| **Asset index** | Shows what came out, in bulk | Where assets are served from, what a manifest is → links to the galleries → one `##` per atlas with a quantified caption naming its source file, then the image |
+| **Gallery** | Browse individual frames with real names | 1–2 paragraphs: what am I looking at, how many, **where the names came from**, what a card does → the component |
+| **Status** | One honest surface for open work, mirroring the repo's `TODO.md` | Open items as `\| ID \| Status \| Question \|` (phrased as questions) → **Closed (accepted as final)** → where to read the full evidence |
+| **Port comparison** | What differs between platform releases, and what each proved about the other | Rendering differences table → file-size table → resource mapping (flagging where it's *not* 1:1) → what's structurally identical, with a worked byte example |
+
+**Every game section should have a status page.** Its absence is the most common
+gap on these sites.
+
+### Sidebar
+
+Order and labels live in `src/content/docs/<%= it.game %>/_sidebar.json`;
+`scripts/build.mjs` generates `generated/sidebar.mjs` from it — **never edit the
+generated file**. Slugs are content file paths under `src/content/docs/`, minus
+the extension; the game's home page slug is `<%= it.game %>`, not
+`<%= it.game %>/index`.
+
+Labels should mean something: `bcdfa — The Big Container`, not `Bcdfa`. Group
+labels name an axis of the material (*The Game*, *Graphics Foundations*, *File
+Formats*, *Extracted Assets*), not a folder.
+
+---
+
+## Formatting
+
+- **Code fence** for byte-offset maps and bit layouts — fixed-width alignment is
+  the point. **Table** for field semantics and enumerated values. **Both** when a
+  format has bitfields.
+- **Colour swatches** in palette tables: an inline
+  `<span class="sw" style="background:rgb(…)"></span>` next to the raw hex value,
+  plus one scoped `<style>` block giving `.sw` a fixed em-size, `inline-block`,
+  and a `1px solid rgba(128,128,128,.45)` border — the border is what keeps
+  near-black and near-white visible in both themes.
+- **Bold** the subject of a quantified claim and the one word that changes
+  everything. Not whole sentences.
+- **Headings** are noun phrases describing content, never "Introduction" or
+  "Details".
+
+---
+
+## Galleries and components
+
+Use a plain `![atlas](/assets/<%= it.game %>/…)` when that's enough. Reach for
+`SpriteGallery` when the reader needs individual frames with real names, enough
+of them to need search, or art that only makes sense in motion.
+
+**Read manifests at build time; never hand-maintain a frame list.** Astro
+component frontmatter runs in Node, so a component can read the extraction
+pipeline's own JSON and derive everything from it. When the extraction changes,
+the gallery changes with it — no edit.
+
+`SpriteGallery` takes `manifest`, `assetPath`, `label`, and optionally
+`hoverPairs`, `clickChains`, and a `labels` map. It has **no** knowledge of any
+game's name-data shape — the calling page builds `labels` from whatever name
+data actually exists. See `README.md` for a worked example.
+
+Patterns worth using: hover-swap for two-state art; click-to-cycle for ladders
+(latch on the last frame for one-way sequences, loop for camera-style cycles);
+hover-to-pause on anything animating (and say so in the prose); a filter box with
+a live frame count; one uniform card slot size so captions align.
+
+Never invent a name. An unattributed frame is unnamed or omitted.
+
+**Explain non-obvious groupings in a source comment.** Collapsing two frames into
+one card is a *claim about the game data*; the next person needs to know whether
+it was confirmed or guessed.
+
+### Accessibility and theming
+
+- `image-rendering: pixelated` on every scaled sprite.
+- Starlight theme tokens only (`var(--sl-color-gray-3)`, `--sl-color-accent`, …).
+  Hardcoded hex breaks dark mode.
+- Background-cropped frames need `role="img"` and an `aria-label`.
+- Interactive cards need `tabindex="0"`, an Enter/Space handler, and a
+  `:focus-visible` outline.
+- Caption line: display name, then a `<small>` with index and real pixel
+  dimensions. The dimensions are data.
+
+### Three traps
+
+1. **A manifest without top-level `width`/`height`** makes every card render the
+   whole atlas instead of its frame — the computed `background-size` becomes the
+   string `"NaNpx NaNpx"`, which the browser silently ignores. No console error.
+   Fix it in the pipeline that writes the manifest, not in the component.
+2. **MDX:** never put a bare comment line immediately before an object- or
+   array-literal `export const` — it fails to parse, and the error reports
+   `line:col` with no filename. Move the comment inline on the opening-bracket
+   line, or fold it into prose.
+3. **A port collision looks exactly like a broken-asset bug.** If another
+   `astro dev`/`preview` holds the default port, yours binds the next one up and
+   your `curl`/browser traffic hits the other server. Check `ps aux | grep astro`
+   and your own startup log before debugging "my images 404".
+
+---
+
+## Before you publish
+
+- [ ] `npm run build` passes — and read the build script's log lines; a pass that
+      only happened because a generator fell back to committed artifacts isn't one.
+- [ ] The page loads in `astro dev --background` and **every asset URL resolves**
+      (a 404 image is invisible in a build log).
+- [ ] The sidebar entry appears, in the right group, with a meaningful label.
+- [ ] `title` and `description` are both set.
+- [ ] Every number on the page can be traced to a note, an offset, or a manifest.
+- [ ] Nothing on the page contradicts the raw research notes.
+- [ ] No hedges where a count exists; no placeholder text anywhere.
+- [ ] Open questions are on the status page, and the page links to them.

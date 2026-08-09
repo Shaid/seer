@@ -99,6 +99,7 @@ export function scaffoldWebsite(targetDir: string, ctx: WebsiteContext = {}): vo
   write(p('.gitignore'), renderTemplate('.gitignore.eta', data));
   write(p('README.md'), renderTemplate('README.md.eta', data));
   write(p('AGENTS.md'), renderTemplate('AGENTS.md.eta', data));
+  write(p('WRITING-GUIDE.md'), renderTemplate('WRITING-GUIDE.md.eta', data));
 
   // ── scripts/ ───────────────────────────────────────────────────────
 

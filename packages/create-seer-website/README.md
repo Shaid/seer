@@ -48,6 +48,7 @@ Site files under `<dir>`, plus `.github/workflows/deploy.yml` one level up (at
 sourced from):
 
 - **Root config** — `package.json`, `astro.config.mjs`, `tsconfig.json`, `.gitignore`, `README.md`, `AGENTS.md`
+- **`WRITING-GUIDE.md`** — the content standard for the site's pages: page types and their skeletons, how claims should be evidenced, gallery/component patterns and traps, and a pre-publish checklist
 - **`scripts/`** — `build.mjs` (asset/sprite export) and `generate_favicon.mjs`
 - **`src/`** — Starlight content config, `SpriteGallery.astro`, `Lightbox.astro`, lightbox script, and per-game docs pages under `src/content/docs/<game>/`
 - **`public/`** — placeholder favicon (until `--favicon-frame` is set)

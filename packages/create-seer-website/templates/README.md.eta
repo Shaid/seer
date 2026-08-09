@@ -68,6 +68,10 @@ commit under `public/assets/<%= it.game %>` from then on.
 3. Re-run the dev server or build — the sidebar is regenerated from that
    manifest on every run, never hand-edit `generated/sidebar.mjs`.
 
+That covers the wiring. For **what a page should actually contain** — the page
+types and their skeletons, how claims should be evidenced, gallery patterns, and
+the pre-publish checklist — see [`WRITING-GUIDE.md`](./WRITING-GUIDE.md).
+
 ## `SpriteGallery`
 
 `src/components/SpriteGallery.astro` renders a searchable grid from a

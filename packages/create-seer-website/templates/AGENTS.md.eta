@@ -36,6 +36,13 @@ favicon and the sidebar stay in sync automatically. Run it manually with
 
 ### Editing the site
 
+This section covers **wiring** — where things live and what regenerates what.
+For **content standards** — the page types and their skeletons, how claims must
+be evidenced, gallery patterns, and the pre-publish checklist — read
+`WRITING-GUIDE.md`. (Agent sessions: the account-wide `seer-website` skill
+carries the same standard in more depth, with per-page-type playbooks and an
+audit mode.)
+
 - **Curated pages** live in `src/content/docs/<%= it.game %>/`. If this
   project also keeps raw research notes elsewhere in the repo (e.g.
   `docs/<%= it.game %>/`), curated pages should summarise that research —

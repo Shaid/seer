@@ -23,6 +23,17 @@ describe('scaffoldWebsite', () => {
     expect(existsSync(resolve(dir, '.gitignore'))).toBe(true);
     expect(existsSync(resolve(dir, 'README.md'))).toBe(true);
     expect(existsSync(resolve(dir, 'AGENTS.md'))).toBe(true);
+    expect(existsSync(resolve(dir, 'WRITING-GUIDE.md'))).toBe(true);
+  });
+
+  it('renders the writing guide with the game ID and display name', () => {
+    run('guide/www', { game: 'demo', displayName: 'Demo Game' });
+    const guide = readFileSync(resolve(TMP, 'guide/www/WRITING-GUIDE.md'), 'utf-8');
+    expect(guide).toContain('Demo Game');
+    expect(guide).toContain('docs/demo/');
+    expect(guide).toContain('src/content/docs/demo/_sidebar.json');
+    // No unrendered Eta tags left behind.
+    expect(guide).not.toContain('<%');
   });
 
   it('creates scripts/', () => {
