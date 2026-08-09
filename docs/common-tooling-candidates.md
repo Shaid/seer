@@ -82,7 +82,7 @@ candidate:
 2. **§2 — Canonical asset-output types (`@seer-project/core`).** `AtlasMeta`,
    `PaletteData` and `ManifestEntry` are redeclared 11+ times across the six
    repos — twice *within* `crawl` and `strike` alone — and the
-   `create-seer` templates still ship two mutually contradictory `AtlasMeta`
+   `create-seer-app` templates still ship two mutually contradictory `AtlasMeta`
    definitions. This is the root cause of `weaknesses.md` §6 and it has now
    propagated into six repos.
 3. **§9/§10 — An Amiga/retro-platform package (`@seer-project/amiga`).** AmigaOS
@@ -235,7 +235,7 @@ Nobody has meaningfully improved on them in six copies.
 recommends this "once a second or third project needs them". Six do. Ship
 `AtlasFrame`, `AtlasMeta`, `PaletteColor`, `PaletteData`, `ManifestEntry` from
 `@seer-project/core`, delete the uniform-grid `AtlasMeta` from
-`packages/create-seer/templates/src/data/GameData.ts.eta`, and have the
+`packages/create-seer-app/templates/project/src/data/GameData.ts.eta`, and have the
 template import instead of redeclare.
 
 **Effort/risk.** Small effort, low risk (types only, no runtime behaviour).
@@ -330,7 +330,7 @@ workaround is well-commented and honest about being a workaround.
 
 **Effort/risk.** Small effort, low risk. Note the sequencing dependency:
 whichever way §4 goes determines whether `seer.config.ts` stays in the
-`create-seer` scaffold at all.
+`create-seer-app` scaffold at all.
 
 ---
 
@@ -556,7 +556,7 @@ expectConsumesExactly(decode, input, expectedLength)
 expectPixelBufferSize(buf, { width, height, planes })
 ```
 
-Plus a `create-seer` template fix: the scaffolded `game-config.test.ts` should
+Plus a `create-seer-app` template fix: the scaffolded `game-config.test.ts` should
 either assert something durable or not be scaffolded at all, since three repos
 prove it never gets edited.
 
@@ -724,7 +724,7 @@ richer inline layout docs; middilgard's has the better stop condition and an
 `conan_decompress`) and a full `musashi/` git clone — which is the more
 pressing hygiene problem.
 
-**Verdict: extract later — a `create-seer` template / `@seer-project/m68k-harness`
+**Verdict: extract later — a `create-seer-app` template / `@seer-project/m68k-harness`
 scaffold, not an npm package.** This is C plus a build script; it does not
 belong in the TypeScript package graph. The right shape is a scaffoldable
 `tools/m68k-harness/` template with the memory map, callbacks, BPTR chain and
@@ -846,7 +846,7 @@ risks a `package.json` write conflict with a concurrent agent.* That is a
 rational local decision producing a bad global outcome, and it is a workflow
 problem, not an architecture problem. It is worth a documented answer in
 `boilerplate-guide.md` — e.g. declare all `@seer-project/*` packages in the
-`create-seer` scaffold up front (they are `file:` links with no install cost),
+`create-seer-app` scaffold up front (they are `file:` links with no install cost),
 so no session ever needs to edit `package.json` to import one. Three repos
 already carry unused `@seer-project/*` deps (crawl: iff, smus; wyrm: tracker;
 middilgard: pipeline), so this is closer to normalising existing practice than
@@ -854,14 +854,14 @@ introducing a new one.
 
 ---
 
-## 14. `create-seer` scaffold drift
+## 14. `create-seer-app` scaffold drift
 
 Not a package candidate — a set of template fixes the survey surfaced. Listing
 them because each one is currently being inherited by every new project.
 
 1. **Two conflicting `AtlasMeta` definitions** —
-   `packages/create-seer/templates/src/data/GameData.ts.eta:5-15` (uniform
-   grid) vs `templates/tools/viewer/shared.ts.eta:1-17` (packed frames).
+   `packages/create-seer-app/templates/project/src/data/GameData.ts.eta:5-15` (uniform
+   grid) vs `packages/create-seer-app/templates/viewer/shared.ts.eta:1-17` (packed frames).
    Already `weaknesses.md` §6; **new evidence: both `nicodemus/src/data/GameData.ts`
    and `sorcery/src/data/GameData.ts` still carry the dead uniform-grid copy,
    untouched.** Fixed by §2.
@@ -905,7 +905,7 @@ Two findings that are framework-doc problems, not code.
 `nicodemus`, `sorcery` and `strike` each carry a **byte-identical 368-line
 copy** of `seer/docs/architecture-overview.md` (and a byte-identical 133-line
 copy of `boilerplate-guide.md`), scaffolded from
-`packages/create-seer/templates/docs/*.eta` — which are themselves plain
+`packages/create-seer-app/templates/project/docs/*.eta` — which are themselves plain
 copies with no template variables. `middilgard`'s copy is a **57-line-stale
 fork**: it predates both the §5 "Type Boundary" decision and §7's
 scoped-package generalisation, and nothing will ever propagate those back.
@@ -1089,7 +1089,7 @@ wrapper that are now *stale* — both gate on
 | 13c | strike adopts `@seer-project/iff` | — | XS |
 | 9 | AmigaOS HUNK parser (superset API + the missing tests) | **new `@seer-project/amiga`** | M |
 | 4 | `runPipeline` step selection + CLI entry consolidation | `@seer-project/pipeline` | S |
-| 14 | `create-seer` fixes: `AtlasMeta`, viewer build entry, `.prettierrc`, `seer.config.ts` decision | templates | S |
+| 14 | `create-seer-app` fixes: `AtlasMeta`, viewer build entry, `.prettierrc`, `seer.config.ts` decision | templates | S |
 | — | Fix `writeIndexedPNG`'s transparent-index bug in **both** places (`weaknesses.md` §7) | `@seer-project/pipeline` + middilgard | XS |
 
 Order matters: §2 unblocks §1, §3 and §8; §7 unblocks §13b.
@@ -1104,7 +1104,7 @@ Order matters: §2 unblocks §1, §3 and §8; §7 unblocks §13b.
 | 13d | middilgard executes seer-migration Step 9 (`io.ts`) | — | Mechanical, but middilgard is mid-iteration |
 | 5 | `defineNarrowedConfig` factory | `@seer-project/pipeline` | Touches a documented decision (`architecture-overview.md` §5) |
 | 15 | Link-don't-copy framework docs; document `build/cache/` as a fifth zone; relocate `walker.md` | `docs/` + templates | Cheap, but no forcing function |
-| 11 | Musashi 68k harness as a scaffoldable template | `create-seer` | Real value, only 2 consumers, C toolchain cost |
+| 11 | Musashi 68k harness as a scaffoldable template | `create-seer-app` | Real value, only 2 consumers, C toolchain cost |
 | 19 | `ceres` SNES N-SPC → likely extends `@seer-project/smus`'s instrument shape | `@seer-project/smus` | Blocked on `ceres` RE'ing N-SPC's sequence format first — not started anywhere |
 
 ### Not worth it
@@ -1225,6 +1225,63 @@ fallback path assumed it might. No player has been built yet in any repo;
 this is still "confirmed format, not yet consumed by a package," same
 overall status class as the rest of this survey's "do now"/"do later"
 items in §18, not a closed loop.
+
+### Update 2026-08-09 — package boundary decided and built; supersedes "extend smus"
+
+Building the player surfaced a sharper question than the 2026-08-08 update
+anticipated: "extend `@seer-project/smus`" turned out to be the wrong
+shape for what AKAOSNES actually needed. **Correction, from direct user
+instruction during that session:** `smus` is a specific container format
+(Sonix-derived instrument model: ADSR + filter-bank + LFO + sample) with
+real downstream consumers (`middilgard`, `crawl`) depending on its exact
+exported shape — AKAOSNES is a different, unrelated format that happens to
+share the same *underlying SNES DSP hardware*, not the same instrument
+model. Folding AKAOSNES decode/playback into `smus` would have coupled two
+unrelated container formats through a shared engine class for no real
+reuse benefit, and risked destabilizing `smus`'s existing consumers. The
+right unit to share is smaller than a whole engine.
+
+**What shipped**: a new zero-runtime-dependency `@seer-project/audio-dsp`
+package (planned via an Opus-model architecture pass, then implemented),
+containing exactly the one primitive independently duplicated across real
+consumers — fractional-position, optionally-looped resampling (`smus`'s
+`_renderVoice`, `tracker`'s `Micromod.resample`, and now AKAOSNES's S-DSP
+4-tap Gaussian kernel all need the same *shape*, different kernels) — plus
+the generic offline block-render-loop/concat/trim driver extracted from
+`smus`'s `renderAll()` (`BlockRenderer`/`renderToStereoBuffers`, format-
+agnostic) and a small stereo voice-mixdown helper. `smus` was refactored
+to consume `audio-dsp` for both (`SmusEngine implements BlockRenderer`),
+verified against a captured pre-refactor golden-PCM regression fixture and
+against real downstream consumers' (`middilgard`) own test suites — no
+public API change. `smus`'s own resampler (`_renderVoice`) was
+deliberately **not** rewritten to call the new shared one — its loop
+handling is entangled with per-sample vibrato step arrays and a
+loop-boundary blend fixup with its own regression test; that swap was
+scoped optional going in and reverted when it stopped being a clean win.
+
+**What deliberately stayed out of `audio-dsp`, and out of any seer
+package**: no shared `Instrument` type or ADSR abstraction (a 30-field
+Sonix record and AKAOSNES's 4-field hardware ADSR have nothing in common
+worth a supertype); no synthesis of any kind (Sonix's filter-bank/wave
+synthesis stays in `smus`; the SNES DSP does no synthesis either, only
+sample playback). AKAOSNES's own decoder/renderer
+(`ceres/tools/ffvi/akao-samples.ts`/`akao-seq.ts`/`akao-render.ts`) stays
+in `ceres`, not a new seer package — same "confirmed format, not yet
+promoted to a shared package" holding pattern as the rest of this
+document's items, with an explicit promotion trigger: move if/when a
+second AKAOSNES consumer shows up (FFV/FFIV, both confirmed §above to run
+earlier AKAOSNES versions of the same driver lineage) or a shared
+opcode-dispatch skeleton emerges across them.
+
+**Status**: sample tables, BRR codec, sequence decoder (byte-verified
+opcode/arg-length tables, corpus-walked against all 85 songs/581 real
+tracks), and a first offline WAV renderer are built and passing —
+`ceres/docs/ffvi/snes/data-structure.md` §18.6 has the full evidence. Not
+yet done anywhere: by-ear confirmation the renderer sounds right, the real
+note-to-pitch table (currently an equal-tempered approximation), and
+`PROGCHANGE`→instrument indirection (currently assumed direct) — all
+flagged as unconfirmed in the renderer's own doc comment, not silently
+assumed correct.
 
 ---
 
