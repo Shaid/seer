@@ -27,6 +27,17 @@ export interface ManifestEntry {
    * asset — see docs/viewer.md.
    */
   indexedPng?: string;
+  /**
+   * Optional manifest-sharding fields (see docs/viewer.md and
+   * `@seer-project/pipeline`'s `writeShardedManifest`) — set on every entry
+   * only when the project's pipeline opts into category navigation.
+   * `category` picks which `manifest/<category>.json` shard the entry
+   * lives in; `group` is a free finer-grained filter within that category,
+   * used for `manifest/<category>/<group>.json` sub-shards once a category
+   * grows past the sharding threshold.
+   */
+  category?: string;
+  group?: string;
 }
 
 /** One entry of `public/assets/games.json`, fetched to populate the game/platform selectors. */
@@ -34,6 +45,32 @@ export interface GamesManifestEntry {
   id: string;
   displayName: string;
   platforms: { id: string; displayName: string }[];
+}
+
+/** One `group` row within a category that got group-level sub-sharding — see `@seer-project/pipeline`'s `GroupIndexEntry`. */
+export interface GroupIndexEntry {
+  /** Machine id — also the sub-shard filename stem: `manifest/<category>/<id>.json`. */
+  id: string;
+  count: number;
+}
+
+/**
+ * One row of `public/assets/<game>/<platform>/categories.json` — the
+ * lightweight top-level index a viewer fetches instead of the full
+ * manifest on load. Presence of this file (non-empty) switches the viewer
+ * into category-navigation mode; its absence (a project/platform that
+ * hasn't adopted this convention) falls back to the original flat
+ * single-`manifest.json`-fetch-on-load behavior unchanged.
+ */
+export interface CategoryIndexEntry {
+  /** Machine id — also the shard filename stem: `manifest/<id>.json` (always present, regardless of `groups`). */
+  id: string;
+  /** Human label; the viewer falls back to `id` itself when absent. */
+  displayName?: string;
+  /** Total entries in this category (all types combined). */
+  count: number;
+  /** Present only when this category was also split by `group` (see `GROUP_SHARD_THRESHOLD` in `@seer-project/pipeline`'s manifest-sharding module) — `manifest/<category>/<group>.json` sub-shards, cheaper to fetch than the flat `manifest/<id>.json` for a huge category. */
+  groups?: GroupIndexEntry[];
 }
 
 export function setHidden(el: HTMLElement, hidden: boolean) {

@@ -5,6 +5,7 @@ import {
   type AtlasFrame,
   type ManifestEntry,
   type GamesManifestEntry,
+  type CategoryIndexEntry,
 } from './shared.ts';
 import { cyclePalette } from '@seer-project/core';
 
@@ -24,6 +25,7 @@ const searchEl = document.getElementById('search') as HTMLInputElement;
 const gameSelectEl = document.getElementById('game-select') as HTMLSelectElement;
 const platformSelectEl = document.getElementById('platform-select') as HTMLSelectElement;
 const typeFiltersEl = document.getElementById('type-filters')!;
+const categoryNavEl = document.getElementById('category-nav')!;
 const titleEl = document.getElementById('title')!;
 const metaEl = document.getElementById('meta')!;
 const frameInfoEl = document.getElementById('frame-info')!;
@@ -45,6 +47,19 @@ const cycleDirectionEl = document.getElementById('cycle-direction') as HTMLSelec
 const cycleToggleEl = document.getElementById('cycle-toggle') as HTMLButtonElement;
 
 let manifest: ManifestEntry[] = [];
+/**
+ * Lightweight top-level category index (`categories.json`) — see
+ * docs/viewer.md's manifest-sharding section. Empty for a game/platform
+ * that doesn't emit this file at all, which is the signal
+ * `switchAssetBase()`/the startup IIFE use to fall back to the original
+ * flat single-`manifest.json`-fetch-on-load behavior unchanged.
+ */
+let categoryIndex: CategoryIndexEntry[] = [];
+let currentCategory: string | null = null;
+/** Selected group within a group-sharded category (see `GroupIndexEntry`), or null when browsing the category's flat "All" shard / an ungrouped category. */
+let currentGroup: string | null = null;
+/** Fetched shard cache, keyed `cat:<category>` or `cat:<category>/<group>` — avoids re-fetching a shard already loaded this session when the user navigates back and forth. */
+const shardCache = new Map<string, ManifestEntry[]>();
 let selected: ManifestEntry | null = null;
 let currentAtlas: AtlasMeta | null = null;
 let currentPalette: PaletteData | null = null;
@@ -82,6 +97,44 @@ async function loadGamesManifest(): Promise<GamesManifestEntry[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Fetches `categories.json` — a small index of top-level categories, each
+ * with a count and (for a huge category) a further `groups[]` breakdown.
+ * Returns `[]` on 404/fetch failure, which is the deliberate signal for
+ * "this game/platform doesn't use category navigation" — every caller
+ * falls back to the original flat-manifest behavior in that case, so this
+ * stays purely additive for a project whose pipeline never emits the file.
+ */
+async function loadCategoryIndex(): Promise<CategoryIndexEntry[]> {
+  try {
+    const res = await fetch(`${ASSET_BASE}/categories.json`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+/** Fetches (and session-caches) the flat `manifest/<id>.json` shard for one category — used directly for a category with no `groups`, and as the "Load all" opt-in fetch for one that does. */
+async function loadCategoryShard(id: string): Promise<ManifestEntry[]> {
+  const key = `cat:${id}`;
+  const cached = shardCache.get(key);
+  if (cached) return cached;
+  const data = (await loadJSON<ManifestEntry[]>(`manifest/${id}.json`)) ?? [];
+  shardCache.set(key, data);
+  return data;
+}
+
+/** Fetches (and session-caches) one group sub-shard (`manifest/<category>/<group>.json`) within a group-sharded category. */
+async function loadGroupShard(categoryId: string, groupId: string): Promise<ManifestEntry[]> {
+  const key = `cat:${categoryId}/${groupId}`;
+  const cached = shardCache.get(key);
+  if (cached) return cached;
+  const data = (await loadJSON<ManifestEntry[]>(`manifest/${categoryId}/${groupId}.json`)) ?? [];
+  shardCache.set(key, data);
+  return data;
 }
 
 function populateSelect(select: HTMLSelectElement, options: { id: string; displayName: string }[], selectedId: string) {
@@ -129,12 +182,153 @@ async function switchAssetBase(): Promise<void> {
   ASSET_BASE = `/assets/${currentGame}/${currentPlatform}`;
   selected = null;
   currentTypeFilter = null;
+  currentCategory = null;
+  currentGroup = null;
+  shardCache.clear();
   stopPlayback();
   stopCycling();
-  manifest = await loadManifest();
+
+  categoryIndex = await loadCategoryIndex();
+  if (categoryIndex.length > 0) {
+    // Category-navigation mode: the (potentially huge) flat manifest.json
+    // is never fetched at all until the user actually picks a category.
+    manifest = [];
+  } else {
+    // No categories.json for this game/platform — original flat
+    // single-manifest-fetch-on-load behavior, unchanged.
+    manifest = await loadManifest();
+  }
+  renderCategoryNav();
   renderTypeFilters();
   renderList();
   drawAsset();
+}
+
+/**
+ * Selects a top-level category (or `null` to go back to the category
+ * grid). A category with no `groups` breakdown fetches its flat shard
+ * immediately (small categories aren't group-sharded at all — see
+ * `GROUP_SHARD_THRESHOLD` in `@seer-project/pipeline`'s manifest-sharding
+ * module); one *with* `groups` fetches nothing yet, waiting for
+ * `selectGroup()` (or an explicit "Load all" choice) so a huge category's
+ * flat shard is never fetched just from clicking into it.
+ */
+async function selectCategory(id: string | null): Promise<void> {
+  currentCategory = id;
+  currentGroup = null;
+  currentTypeFilter = null;
+  selected = null;
+  stopPlayback();
+  stopCycling();
+
+  if (id === null) {
+    manifest = [];
+  } else {
+    const entry = categoryIndex.find((c) => c.id === id);
+    manifest = entry?.groups && entry.groups.length > 0 ? [] : await loadCategoryShard(id);
+  }
+
+  renderCategoryNav();
+  renderTypeFilters();
+  renderList();
+  drawAsset();
+}
+
+/** Selects a group within the current (group-sharded) category, or `'ALL'` to explicitly opt into fetching the whole category's flat shard instead. */
+async function selectGroup(categoryId: string, groupId: string | 'ALL'): Promise<void> {
+  currentGroup = groupId === 'ALL' ? null : groupId;
+  currentTypeFilter = null;
+  selected = null;
+  stopPlayback();
+  stopCycling();
+
+  manifest = groupId === 'ALL' ? await loadCategoryShard(categoryId) : await loadGroupShard(categoryId, groupId);
+
+  renderCategoryNav();
+  renderTypeFilters();
+  renderList();
+  drawAsset();
+}
+
+/**
+ * Renders `#category-nav` in one of three states: hidden entirely (no
+ * `categories.json`), a grid of top-level category buttons (no category
+ * selected yet), or a breadcrumb back to the grid plus — for a
+ * group-sharded category — a further grid of group buttons (an "All"
+ * button included, clearly labeled as the large/whole-category fetch).
+ */
+function renderCategoryNav(): void {
+  searchEl.disabled = categoryIndex.length > 0 && currentCategory === null;
+
+  if (categoryIndex.length === 0) {
+    setHidden(categoryNavEl, true);
+    return;
+  }
+  setHidden(categoryNavEl, false);
+  categoryNavEl.innerHTML = '';
+
+  if (currentCategory === null) {
+    const grid = document.createElement('div');
+    grid.className = 'category-grid';
+    for (const c of categoryIndex) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'category-btn';
+      btn.innerHTML = `<span>${c.displayName ?? c.id}</span><span class="category-count">${c.count.toLocaleString()} assets</span>`;
+      btn.addEventListener('click', () => { void selectCategory(c.id); });
+      grid.appendChild(btn);
+    }
+    categoryNavEl.appendChild(grid);
+    return;
+  }
+
+  const entry = categoryIndex.find((c) => c.id === currentCategory);
+
+  const crumbs = document.createElement('div');
+  crumbs.className = 'category-crumbs';
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'category-back-btn';
+  back.textContent = '‹ Categories';
+  back.addEventListener('click', () => { void selectCategory(null); });
+  crumbs.appendChild(back);
+  const label = document.createElement('span');
+  label.className = 'category-current-label';
+  label.textContent = entry?.displayName ?? currentCategory;
+  crumbs.appendChild(label);
+  categoryNavEl.appendChild(crumbs);
+
+  if (entry?.groups && entry.groups.length > 0) {
+    const grid = document.createElement('div');
+    grid.className = 'category-grid';
+    const categoryId = entry.id;
+
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = 'category-btn';
+    if (currentGroup === null && manifest.length > 0) allBtn.classList.add('active');
+    allBtn.innerHTML = `<span>All (large)</span><span class="category-count">${entry.count.toLocaleString()}</span>`;
+    allBtn.addEventListener('click', () => { void selectGroup(categoryId, 'ALL'); });
+    grid.appendChild(allBtn);
+
+    for (const g of entry.groups) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'category-btn';
+      if (currentGroup === g.id) btn.classList.add('active');
+      btn.innerHTML = `<span>${g.id}</span><span class="category-count">${g.count.toLocaleString()}</span>`;
+      btn.addEventListener('click', () => { void selectGroup(categoryId, g.id); });
+      grid.appendChild(btn);
+    }
+    categoryNavEl.appendChild(grid);
+
+    if (currentGroup === null && manifest.length === 0) {
+      const hint = document.createElement('div');
+      hint.className = 'category-hint';
+      hint.textContent = `Pick a group above to browse it, or "All" to load the full ${entry.count.toLocaleString()}-entry category at once.`;
+      categoryNavEl.appendChild(hint);
+    }
+  }
 }
 
 gameSelectEl.addEventListener('change', async () => {
@@ -743,10 +937,16 @@ document.addEventListener('keydown', (e) => {
 
 (async () => {
   await initSelectors();
-  manifest = await loadManifest();
-  if (manifest.length === 0) {
-    listEl.innerHTML = '<div class="no-results"><p>No assets found.</p><p style="margin-top:8px;font-size:11px;">Run <code>npm run build-assets</code> first.</p></div>';
+  categoryIndex = await loadCategoryIndex();
+  if (categoryIndex.length > 0) {
+    manifest = [];
+  } else {
+    manifest = await loadManifest();
+    if (manifest.length === 0) {
+      listEl.innerHTML = '<div class="no-results"><p>No assets found.</p><p style="margin-top:8px;font-size:11px;">Run <code>npm run build-assets</code> first.</p></div>';
+    }
   }
+  renderCategoryNav();
   renderTypeFilters();
   renderList();
   drawAsset();

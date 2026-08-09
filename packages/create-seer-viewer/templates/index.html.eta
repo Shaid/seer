@@ -17,6 +17,7 @@
         </div>
         <input id="search" type="text" placeholder="Search assets…" />
       </div>
+      <div id="category-nav" class="hidden"></div>
       <div id="type-filters"></div>
       <div id="list-meta"></div>
       <div id="list"></div>

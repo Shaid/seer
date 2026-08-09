@@ -49,6 +49,44 @@ button:focus-visible, select:focus-visible, input:focus-visible, .item:focus-vis
   width: 100%; padding: 5px 7px; background: var(--bg-input); color: var(--text-primary);
   border: 1px solid var(--border-control); border-radius: var(--radius);
 }
+/*
+ * Category navigation (see docs/viewer.md). Two states, both rendered into
+ * the same container: a grid of category buttons (top level, or after
+ * "back"), and a breadcrumb + group-button row (once a category with
+ * group-level sub-sharding is selected but no group chosen yet). Hidden
+ * entirely (`.hidden`) for a project/platform with no `categories.json` at
+ * all — the original flat manifest behavior.
+ *
+ * flex:none + a capped max-height with its own scroll is load-bearing: a
+ * group-sharded category with many groups wraps into many button rows, and
+ * without a cap this pushes #type-filters/#list-meta/#list (below it in the
+ * same flex column) out of the sidebar's visible area instead of #list
+ * keeping its flex:1 share.
+ */
+#category-nav { border-bottom: 1px solid var(--border); flex: none; max-height: 180px; overflow-y: auto; }
+#category-nav.hidden { display: none; }
+.category-grid { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+.category-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  background: var(--bg-input); color: var(--text-secondary);
+  border: 1px solid var(--border-control); border-radius: var(--radius);
+  padding: 6px 10px; font-size: 12px; cursor: pointer; min-width: 96px;
+}
+.category-btn:hover { border-color: var(--border-control-hover); background: var(--bg-hover); }
+.category-btn.active { background: var(--bg-selected); color: var(--text-selected); border-color: var(--accent); }
+.category-btn .category-count { font-size: 11px; color: var(--text-muted); }
+.category-crumbs {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 10px;
+}
+.category-back-btn {
+  background: var(--bg-input); color: var(--text-secondary);
+  border: 1px solid var(--border-control); border-radius: var(--radius);
+  padding: 2px 8px; font-size: 11px; cursor: pointer;
+}
+.category-back-btn:hover { border-color: var(--border-control-hover); }
+.category-current-label { font-size: 12px; color: var(--text-primary); font-weight: 600; }
+.category-hint { font-size: 11px; color: var(--text-faint); padding: 0 10px 8px; }
+
 #type-filters {
   display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 10px;
   border-bottom: 1px solid var(--border);
