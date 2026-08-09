@@ -14,13 +14,20 @@ afterEach(() => {
 });
 
 describe('scaffoldViewer', () => {
-  it('creates the four viewer files', () => {
+  it('creates the five viewer files', () => {
     run('basic');
     const dir = resolve(TMP, 'basic');
     expect(existsSync(resolve(dir, 'index.html'))).toBe(true);
     expect(existsSync(resolve(dir, 'viewer.ts'))).toBe(true);
     expect(existsSync(resolve(dir, 'viewer.css'))).toBe(true);
     expect(existsSync(resolve(dir, 'shared.ts'))).toBe(true);
+    expect(existsSync(resolve(dir, 'data-view.ts'))).toBe(true);
+  });
+
+  it('seeds data-view.ts with an empty per-game table list keyed by the scaffolded game id', () => {
+    run('data-view-default');
+    const ts = readFileSync(resolve(TMP, 'data-view-default/data-view.ts'), 'utf-8');
+    expect(ts).toContain("'mygame': [],");
   });
 
   it('uses defaults when no context is provided', () => {

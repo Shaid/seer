@@ -8,6 +8,7 @@ import {
   type CategoryIndexEntry,
 } from './shared.ts';
 import { cyclePalette } from '@seer-project/core';
+import { setDataTabActive, isDataTabActive, renderDataList, setDataAssetBase } from './data-view.ts';
 
 // ── Game / platform selection ───────────────────────────────────────────
 // ASSET_BASE is data-driven: populated from /assets/games.json (written by
@@ -26,6 +27,12 @@ const gameSelectEl = document.getElementById('game-select') as HTMLSelectElement
 const platformSelectEl = document.getElementById('platform-select') as HTMLSelectElement;
 const typeFiltersEl = document.getElementById('type-filters')!;
 const categoryNavEl = document.getElementById('category-nav')!;
+const assetSidebarEl = document.getElementById('asset-sidebar')!;
+const dataSidebarEl = document.getElementById('data-sidebar')!;
+const dataSearchEl = document.getElementById('data-search') as HTMLInputElement;
+const assetViewEl = document.getElementById('asset-view')!;
+const tabAssetsBtn = document.getElementById('tab-assets') as HTMLButtonElement;
+const tabDataBtn = document.getElementById('tab-data') as HTMLButtonElement;
 const titleEl = document.getElementById('title')!;
 const metaEl = document.getElementById('meta')!;
 const frameInfoEl = document.getElementById('frame-info')!;
@@ -187,6 +194,7 @@ async function switchAssetBase(): Promise<void> {
   shardCache.clear();
   stopPlayback();
   stopCycling();
+  setDataAssetBase(ASSET_BASE, currentGame);
 
   categoryIndex = await loadCategoryIndex();
   if (categoryIndex.length > 0) {
@@ -203,6 +211,27 @@ async function switchAssetBase(): Promise<void> {
   renderList();
   drawAsset();
 }
+
+/** Switches between the "Assets" (image/video/audio manifest browser) and "Data" (decoded JSON table browser) tabs — two entirely separate sidebar lists and main-panel views, see docs/viewer.md. */
+function switchTab(tab: 'assets' | 'data'): void {
+  const toAssets = tab === 'assets';
+  tabAssetsBtn.classList.toggle('active', toAssets);
+  tabAssetsBtn.setAttribute('aria-selected', String(toAssets));
+  tabDataBtn.classList.toggle('active', !toAssets);
+  tabDataBtn.setAttribute('aria-selected', String(!toAssets));
+
+  setHidden(assetSidebarEl, !toAssets);
+  setHidden(searchEl, !toAssets);
+  setHidden(dataSidebarEl, toAssets);
+  setHidden(dataSearchEl, toAssets);
+  setHidden(assetViewEl, !toAssets);
+
+  setDataTabActive(!toAssets);
+  if (!toAssets) renderDataList();
+}
+
+tabAssetsBtn.addEventListener('click', () => switchTab('assets'));
+tabDataBtn.addEventListener('click', () => switchTab('data'));
 
 /**
  * Selects a top-level category (or `null` to go back to the category
@@ -904,6 +933,7 @@ function togglePlayPause(): void {
 
 document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if (isDataTabActive()) return; // Data tab has its own table, not the asset list -- these shortcuts don't apply.
   if (e.code === 'ArrowLeft' && currentFrames.length > 0) {
     e.preventDefault();
     stopPlayback();
@@ -932,6 +962,7 @@ document.addEventListener('keydown', (e) => {
 
 (async () => {
   await initSelectors();
+  setDataAssetBase(ASSET_BASE, currentGame);
   categoryIndex = await loadCategoryIndex();
   if (categoryIndex.length > 0) {
     manifest = [];

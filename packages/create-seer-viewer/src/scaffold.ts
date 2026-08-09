@@ -53,4 +53,5 @@ export function scaffoldViewer(targetDir: string, ctx: ViewerContext = {}): void
   write(p('viewer.ts'), renderTemplate('viewer.ts.eta', data));
   write(p('viewer.css'), renderTemplate('viewer.css.eta', data));
   write(p('shared.ts'), renderTemplate('shared.ts.eta', data));
+  write(p('data-view.ts'), renderTemplate('data-view.ts.eta', data));
 }
