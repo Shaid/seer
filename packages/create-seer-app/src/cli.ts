@@ -36,6 +36,8 @@ const BOOLEAN_FLAGS = {
   '--no-viewer': 'viewer',
   '--docs-site': 'docsSite',
   '--no-docs-site': 'docsSite',
+  '--deploy-workflow': 'deployWorkflow',
+  '--no-deploy-workflow': 'deployWorkflow',
 } as const;
 
 export interface CliFlags {
@@ -50,6 +52,7 @@ export interface CliFlags {
   siteDir?: string;
   viewer?: boolean;
   docsSite?: boolean;
+  deployWorkflow?: boolean;
 }
 
 export interface ParsedArgs {
@@ -199,6 +202,7 @@ export async function main(argv: string[]): Promise<void> {
         faviconAtlasDir: flags.faviconAtlasDir,
         faviconManifest: flags.faviconManifest,
         siteDir: flags.siteDir,
+        deployWorkflow: flags.deployWorkflow,
       });
       return;
     }
@@ -210,7 +214,14 @@ export async function main(argv: string[]): Promise<void> {
     const viewer = flags.viewer ?? (await askYesNo('Include asset viewer?', false, isTTY));
     const docsSite = flags.docsSite ?? (await askYesNo('Include docs site?', false, isTTY));
 
-    scaffold(resolved, { game, platform, displayName, viewer, docsSite });
+    scaffold(resolved, {
+      game,
+      platform,
+      displayName,
+      viewer,
+      docsSite,
+      deployWorkflow: flags.deployWorkflow,
+    });
   } catch (e) {
     console.error('Error:', e);
     process.exit(1);

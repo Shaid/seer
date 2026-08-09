@@ -62,10 +62,15 @@ Drops the standalone offline asset viewer into an existing project. Takes
 npm create seer-app website www --game zonx --site https://zonx.example
 ```
 
-An Astro + [Starlight](https://starlight.astro.build) field-guide site, plus
-`.github/workflows/deploy.yml` written **one level above** the target directory
-(the CI-file-at-repo-root layout the template is sourced from). It ships with
-`WRITING-GUIDE.md`, the content standard for these sites.
+An Astro + [Starlight](https://starlight.astro.build) field-guide site. It
+ships with `WRITING-GUIDE.md`, the content standard for these sites.
+
+By default it also writes `.github/workflows/deploy.yml` **one level above**
+the target directory — the CI-file-at-repo-root layout the template is sourced
+from, and the one thing the scaffold writes where you did not point it. It is
+never written over an existing `deploy.yml`, and `--no-deploy-workflow` skips
+it entirely. The site is a plain static build (`npm run build` → `dist/`), so
+any static host works; the generated README covers both paths.
 
 | Flag | Default | Description |
 | --- | --- | --- |
@@ -77,6 +82,7 @@ An Astro + [Starlight](https://starlight.astro.build) field-guide site, plus
 | `--favicon-frame <name>` | blank | Sprite-atlas frame to use as the favicon |
 | `--favicon-atlas-dir <dir>` | `amiga/sprites` | Atlas directory under `public/assets/<game>/` |
 | `--favicon-manifest <file>` | `items.json` | Manifest filename under the atlas directory |
+| `--no-deploy-workflow` | off | Skip the GitHub Pages workflow |
 
 A placeholder favicon ships until `--favicon-frame` points the build at a real
 atlas frame.

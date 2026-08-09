@@ -23,6 +23,8 @@ export interface ScaffoldOptions {
   viewer?: boolean;
   /** Include the Astro + Starlight docs site under `www`. */
   docsSite?: boolean;
+  /** Passed through to the docs-site scaffold; see `WebsiteContext`. */
+  deployWorkflow?: boolean;
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -110,7 +112,8 @@ export function scaffold(targetDir: string, options: ScaffoldOptions = {}): void
   // ── Optional sub-scaffolds ─────────────────────────────────────────
 
   if (viewer) scaffoldViewer(p('tools/viewer'), { game, platform, displayName });
-  if (docsSite) scaffoldWebsite(p('www'), { game, displayName });
+  if (docsSite)
+    scaffoldWebsite(p('www'), { game, displayName, deployWorkflow: options.deployWorkflow });
 
   // ── Config & docs ──────────────────────────────────────────────────
 

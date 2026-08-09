@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { scaffoldWebsite, type WebsiteContext } from '../website.js';
 
 const TMP = resolve(process.cwd(), 'packages/create-seer-app/src/__tests__/__out__/website');
@@ -124,5 +124,24 @@ describe('scaffoldWebsite', () => {
   it('creates the asset mirror directory so the first build succeeds', () => {
     run('assets-dir', { game: 'zonx' });
     expect(existsSync(resolve(TMP, 'assets-dir/public/assets/zonx'))).toBe(true);
+  });
+
+  it('skips the deploy workflow when asked, and says the site is host-agnostic', () => {
+    run('no-workflow', { deployWorkflow: false });
+    expect(existsSync(resolve(TMP, 'no-workflow/astro.config.mjs'))).toBe(true);
+    expect(existsSync(resolve(TMP, '.github/workflows/deploy.yml'))).toBe(false);
+  });
+
+  // The workflow is the one thing this scaffold writes outside the directory
+  // the caller pointed at, and `deploy.yml` is a common name — clobbering an
+  // existing one would be real data loss.
+  it('never overwrites an existing deploy workflow', () => {
+    const existing = resolve(TMP, '.github/workflows/deploy.yml');
+    mkdirSync(dirname(existing), { recursive: true });
+    writeFileSync(existing, 'name: Someone else\n');
+
+    run('preserve-workflow');
+
+    expect(readFileSync(existing, 'utf-8')).toBe('name: Someone else\n');
   });
 });

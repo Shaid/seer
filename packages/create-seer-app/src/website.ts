@@ -9,7 +9,7 @@
  * gain a docs site without being re-scaffolded — that is how the real
  * consuming projects picked one up.
  */
-import { mkdirSync, copyFileSync } from 'node:fs';
+import { existsSync, mkdirSync, copyFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { capitalize, rendererFor, templatesFor, write } from './render.js';
 
@@ -38,6 +38,12 @@ export interface WebsiteContext {
    * directory's own basename.
    */
   siteDir?: string;
+  /**
+   * Emit `.github/workflows/deploy.yml` (GitHub Pages) one level above the
+   * target. Default `true`. Set false when deploying somewhere else — the site
+   * is a plain static build, so any host that can serve a directory works.
+   */
+  deployWorkflow?: boolean;
 }
 
 const render = rendererFor('website');
@@ -58,6 +64,7 @@ export function scaffoldWebsite(targetDir: string, ctx: WebsiteContext = {}): vo
   const faviconAtlasDir = ctx.faviconAtlasDir ?? 'amiga/sprites';
   const faviconManifest = ctx.faviconManifest ?? 'items.json';
   const siteDir = ctx.siteDir ?? basename(resolve(targetDir));
+  const deployWorkflow = ctx.deployWorkflow ?? true;
   // Astro's `site` config must be a valid absolute URL or omitted entirely —
   // an empty string fails validation, so an unset `site` renders as the literal
   // `undefined` rather than `''`.
@@ -140,13 +147,26 @@ export function scaffoldWebsite(targetDir: string, ctx: WebsiteContext = {}): vo
   copyFileSync(resolve(templatesFor('website'), 'public/favicon.png'), p('public/favicon.png'));
 
   // ── CI (repo root, outside targetDir) ───────────────────────────────
-
+  //
+  // Deliberately outside the site directory, matching the CI-file-at-repo-root
+  // layout this template is sourced from — which also means it is the one
+  // thing this scaffold writes where the caller did not point it. So: never
+  // overwrite an existing workflow (deploy.yml is a common enough name that
+  // clobbering one would be real data loss), and skip it entirely when the
+  // target is not GitHub Pages.
   const repoRoot = resolve(targetDir, '..');
-  mkdirSync(resolve(repoRoot, '.github/workflows'), { recursive: true });
-  write(
-    resolve(repoRoot, '.github/workflows/deploy.yml'),
-    render('.github/workflows/deploy.yml.eta', data),
-  );
+  const workflowPath = resolve(repoRoot, '.github/workflows/deploy.yml');
+
+  if (!deployWorkflow) {
+    console.log('Skipped the GitHub Pages workflow (--no-deploy-workflow).');
+    console.log(`  The site builds to ${siteDir}/dist — deploy that anywhere static.`);
+  } else if (existsSync(workflowPath)) {
+    console.log(`Left the existing ${workflowPath} alone.`);
+    console.log('  Add a build+deploy step for this site to it by hand, or delete it and re-run.');
+  } else {
+    mkdirSync(resolve(repoRoot, '.github/workflows'), { recursive: true });
+    write(workflowPath, render('.github/workflows/deploy.yml.eta', data));
+  }
 
   console.log(`Scaffolded ${displayName} docs site at ${targetDir}`);
   console.log('  Next steps:');

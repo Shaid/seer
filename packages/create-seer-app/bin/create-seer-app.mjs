@@ -31,6 +31,8 @@ Website options:
   --favicon-frame <name>      Sprite atlas frame to use as the favicon
   --favicon-atlas-dir <dir>   Atlas directory under public/assets/<game>/
   --favicon-manifest <file>   Manifest filename under the atlas directory
+  --no-deploy-workflow        Skip the GitHub Pages workflow (the site is a
+                              plain static build — deploy dist/ anywhere)
 
 Flags may appear before or after the target directory.
 

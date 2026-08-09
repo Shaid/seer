@@ -158,7 +158,41 @@ Until you configure it, the build skips this step and uses the placeholder
 
 ## Deploying
 
-`.github/workflows/deploy.yml` builds and deploys this site with
-[withastro/action](https://github.com/withastro/action) whenever `main` is
-pushed. It's already wired to this site's directory — no changes needed
-beyond enabling GitHub Pages for the repo.
+This site is a plain static build: `npm run build` writes `dist/`, and any
+host that can serve a directory will serve it. Nothing about the site itself
+assumes a particular host.
+
+### GitHub Pages (what the scaffold sets up)
+
+If `.github/workflows/deploy.yml` was generated, it builds and deploys with
+[withastro/action](https://github.com/withastro/action) on every push to
+`main`, already wired to this directory. One manual step is still needed,
+because a workflow cannot enable Pages for you:
+
+1. Repository **Settings → Pages**.
+2. Set **Source** to **GitHub Actions** (not "Deploy from a branch").
+3. Push to `main`, or run the workflow manually from the Actions tab.
+
+For a custom domain, add a `CNAME` file containing the bare hostname to
+`public/`, and set the same domain under Settings → Pages. Also set `site:`
+in `astro.config.mjs` to the deployed URL — Astro uses it for canonical URLs
+and the sitemap, so leaving it wrong produces a site that works but
+misreports its own address.
+
+### Anywhere else
+
+Skip the workflow with `--no-deploy-workflow` when scaffolding, or delete
+`.github/workflows/deploy.yml` if it was already written. Then point your host
+at this directory with:
+
+- **Build command:** `npm run build`
+- **Output directory:** `dist`
+- **Node version:** 20.19 or newer
+
+That is enough for Netlify, Cloudflare Pages, Vercel, or a plain
+`rsync dist/ server:/var/www/...`. If you deploy to a subpath rather than a
+domain root, set `base:` in `astro.config.mjs` as well as `site:`.
+
+**The workflow is never overwritten.** If a `deploy.yml` already existed at
+the repository root, the scaffold left it alone and said so — add a build and
+deploy step for this directory to it by hand.
