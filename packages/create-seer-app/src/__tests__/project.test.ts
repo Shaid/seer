@@ -1,9 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { scaffold, type ScaffoldOptions } from '../scaffold.ts';
+import { scaffold, type ScaffoldOptions } from '../project.js';
 
-const TMP = resolve(process.cwd(), 'packages/create-seer/src/__tests__/__out__');
+const TMP = resolve(process.cwd(), 'packages/create-seer-app/src/__tests__/__out__/project');
 
 function run(targetDir: string, options: ScaffoldOptions = {}): void {
   scaffold(resolve(TMP, targetDir), options);

@@ -1,9 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { scaffoldViewer, type ViewerContext } from '../scaffold.ts';
+import { scaffoldViewer, type ViewerContext } from '../viewer.js';
 
-const TMP = resolve(process.cwd(), 'packages/create-seer-viewer/src/__tests__/__out__');
+const TMP = resolve(process.cwd(), 'packages/create-seer-app/src/__tests__/__out__/viewer');
 
 function run(targetDir: string, ctx: ViewerContext = {}): void {
   scaffoldViewer(resolve(TMP, targetDir), ctx);

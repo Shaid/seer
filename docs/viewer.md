@@ -2,7 +2,7 @@
 
 How the scaffold's offline asset viewer (`tools/viewer/` — generated from
 `packages/create-seer-viewer/templates/*.eta`, either directly via `npx
-create-seer-viewer` or as part of `npx create-seer --viewer`) works: the
+create-seer-app viewer` or as part of `npm create seer-app --viewer`) works: the
 data-driven game/platform selectors, asset-type filter tabs, animation
 autoplay, the generic indexed-texture + palette WebGL2 shader with its live
 palette editor and colour-cycling control, category-sharded manifest
@@ -393,7 +393,7 @@ for a mesh.
 **Scaffold-template support is intentionally not implemented yet.** Only the
 manifest *shape* (the five fields above) lives in
 `packages/create-seer-viewer/templates/shared.ts.eta` — there is no `.eta`
-template code anywhere in `create-seer-viewer` or `create-seer` that
+template code anywhere in `create-seer-app` that
 branches on `type: "mesh"`/`"scene"`, imports `@seer-project/engine-3d`, or
 renders a 3D canvas. Each consuming project is expected to hand-wire this
 package into its own `tools/viewer/viewer.ts` — `flower` and `hunter` are

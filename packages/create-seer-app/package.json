@@ -1,0 +1,67 @@
+{
+  "name": "create-seer-app",
+  "version": "0.1.0",
+  "description": "Scaffold a seer project, or just its asset viewer or docs site",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shaid/seer.git",
+    "directory": "packages/create-seer-app"
+  },
+  "keywords": [
+    "scaffold",
+    "boilerplate",
+    "reverse-engineering",
+    "game",
+    "vite",
+    "astro"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/__tests__",
+    "bin",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "create-seer-app": "./bin/create-seer-app.mjs"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run lint && npm test",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "lint": "eslint src/ bin/"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.5.2",
+    "eta": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.0"
+  },
+  "homepage": "https://seer.shaid.net",
+  "bugs": {
+    "url": "https://github.com/Shaid/seer/issues"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

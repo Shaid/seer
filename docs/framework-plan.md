@@ -24,7 +24,7 @@ one repo:
   containing only genuinely generic code: binary utilities, the IFF parser,
   `Camera`/`InputManager`/`DisplayMode`, the pipeline orchestrator,
   `resolveDataDir`. Consumers `npm install` this and never edit its source.
-- **`create-seer`** — a scaffolding CLI (`npm create seer@latest`, following
+- **`create-seer-app`** — a scaffolding CLI (`npm create seer-app@latest`, following
   the `create-vite`/`create-vitest` convention) that generates a new project
   pre-wired to import from `seer`, with placeholder config files, a starter
   `Game` subclass, and stub pipeline scripts for the user to fill in and
@@ -32,7 +32,7 @@ one repo:
 
 Everything that's currently a "template to fill in" in
 `docs/boilerplate-guide.md` (game-id.ts's placeholder values, `tools/game1/`,
-`Game.ts`'s TODOs) moves into the `create-seer` output, not the `seer`
+`Game.ts`'s TODOs) moves into the `create-seer-app` output, not the `seer`
 package itself.
 
 ## 2. Config-as-data instead of config-as-source-you-edit
@@ -270,7 +270,7 @@ Resolved decisions section.
 
 2. **Config-as-data + plugin registration** (§2, §3) — design and
    implement `defineGameConfig()` and `runPipeline()` in `@seer-project/pipeline`.
-   The config schema is the API contract that `create-seer` templates,
+   The config schema is the API contract that `create-seer-app` templates,
    the CLI, and middilgard's own config all need to target, so stabilise
    it before anything downstream depends on it.
 
@@ -290,7 +290,7 @@ Resolved decisions section.
    to a peer dep in `@seer-project/engine-2d`, adopt conventional commits or
    Changesets, and cut the first real release.
 
-7. **Build `create-seer`** — once the package API and config schema are
+7. **Build `create-seer-app`** — once the package API and config schema are
    settled, build the scaffolding CLI. The templates it generates need to
    target a stable `@seer-project/*` API surface, so this comes last.
 

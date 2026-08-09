@@ -49,7 +49,7 @@ entity-rendering system ready to build on. There isn't.
 **Recommendation:** either implement stubs for the three missing pieces,
 or mark §8 explicitly as a target architecture / wish list rather than a
 description of current state, so downstream `docs/architecture-overview.md`
-copies (every `create-seer`-scaffolded project gets one) don't repeat
+copies (every `create-seer-app`-scaffolded project gets one) don't repeat
 the same false claim.
 
 ## 2. `Camera` is unusable for anything that isn't a 2D pan/zoom map
@@ -140,10 +140,10 @@ consider hoisting the packed-atlas and palette shapes into `@seer-project/core`
 as canonical types once a second or third project needs them — they're
 already effectively a de facto standard, just not a declared one.
 
-## 6. `create-seer` templates ship two conflicting `AtlasMeta` definitions
+## 6. `create-seer-app` templates ship two conflicting `AtlasMeta` definitions
 
-`packages/create-seer/templates/src/data/GameData.ts.eta:5-15` defines a
-uniform-grid `AtlasMeta` (cellWidth/cellHeight/columns/rows). `packages/create-seer/templates/tools/viewer/shared.ts.eta:1-17`
+`packages/create-seer-app/templates/project/src/data/GameData.ts.eta:5-15` defines a
+uniform-grid `AtlasMeta` (cellWidth/cellHeight/columns/rows). `packages/create-seer-app/templates/viewer/shared.ts.eta:1-17`
 defines a *different*, packed-frames `AtlasMeta` in the same scaffold.
 Every project generated from these templates inherits both, silently
 disagreeing with each other.
@@ -208,7 +208,7 @@ reads as a description of a finished framework, and it's actually a
 roadmap with a partially-built implementation underneath. That's a
 reasonable thing for a roadmap to be — the problem is nothing marks it
 as one, so every downstream project's copy of the doc (scaffolded
-verbatim by `create-seer`) makes the same promise to its own future
+verbatim by `create-seer-app`) makes the same promise to its own future
 readers.
 
 **Recommendation:** add a status marker per major component in §8 (e.g.

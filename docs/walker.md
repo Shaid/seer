@@ -582,7 +582,7 @@ Note a live bug to work around: `writeIndexedPNG`
 writes `A = (v === 0 ? 0 : 255)` — it hardcodes index 0 as transparent.
 See §8.2.
 
-**`create-seer` templates** define the framework-standard project shape
+**`create-seer-app` templates** define the framework-standard project shape
 (`packages/create-seer/templates/`): `src/{game-id,main}.ts`,
 `src/data/{GameData,AssetLoader}.ts`, `tools/shared/game-config.ts`,
 `tools/<game>/{export-game-data,build-assets}.ts`, optional

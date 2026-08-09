@@ -1,9 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { scaffoldWebsite, type WebsiteContext } from '../scaffold.ts';
+import { scaffoldWebsite, type WebsiteContext } from '../website.js';
 
-const TMP = resolve(process.cwd(), 'packages/create-seer-website/src/__tests__/__out__');
+const TMP = resolve(process.cwd(), 'packages/create-seer-app/src/__tests__/__out__/website');
 
 function run(targetDir: string, ctx: WebsiteContext = {}): void {
   scaffoldWebsite(resolve(TMP, targetDir), ctx);
@@ -88,7 +88,12 @@ describe('scaffoldWebsite', () => {
   });
 
   it('renders game/displayName/description/site into templates', () => {
-    run('rendered/www', { game: 'demo', displayName: 'Demo Game', description: 'A demo.', site: 'https://demo.example' });
+    run('rendered/www', {
+      game: 'demo',
+      displayName: 'Demo Game',
+      description: 'A demo.',
+      site: 'https://demo.example',
+    });
     const config = readFileSync(resolve(TMP, 'rendered/www/astro.config.mjs'), 'utf-8');
     expect(config).toContain("site: 'https://demo.example'");
     expect(config).toContain('Demo Game — Data Formats');
@@ -106,7 +111,18 @@ describe('scaffoldWebsite', () => {
 
   it('honors a custom siteDir for the deploy workflow path', () => {
     run('custom-sitedir/site', { siteDir: 'docs-site' });
-    const deploy = readFileSync(resolve(TMP, 'custom-sitedir/.github/workflows/deploy.yml'), 'utf-8');
+    const deploy = readFileSync(
+      resolve(TMP, 'custom-sitedir/.github/workflows/deploy.yml'),
+      'utf-8',
+    );
     expect(deploy).toContain('path: docs-site');
+  });
+
+  // A freshly scaffolded site must build before any extraction has been run.
+  // scripts/build.mjs throws when it finds neither repo-root assets nor a
+  // committed mirror, so the mirror directory has to exist from the start.
+  it('creates the asset mirror directory so the first build succeeds', () => {
+    run('assets-dir', { game: 'zonx' });
+    expect(existsSync(resolve(TMP, 'assets-dir/public/assets/zonx'))).toBe(true);
   });
 });

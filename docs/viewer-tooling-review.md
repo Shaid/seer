@@ -10,7 +10,7 @@ review is assessing what viewer logic *should* move into `@seer-project/*` — t
 sticks to describing and assessing what exists today, not prescribing the fix.
 
 > **Status update (2026-08-03).** The scaffold *template* this review
-> describes (`packages/create-seer/templates/tools/viewer/*.eta`) has since
+> describes (`packages/create-seer-app/templates/viewer/*.eta`) has since
 > been substantially generalized: data-driven game/platform selectors,
 > asset-type filter tabs, animation autoplay, and a generic indexed-texture +
 > palette WebGL2 shader with a live editor and color-cycling were all added
@@ -22,7 +22,7 @@ sticks to describing and assessing what exists today, not prescribing the fix.
 > template capabilities is an open question, not yet decided or started.
 
 All six repos were scaffolded from the same origin point:
-`packages/create-seer/templates/tools/viewer/{viewer.ts,viewer.css,index.html,shared.ts}.eta`
+`packages/create-seer-app/templates/viewer/{viewer.ts,viewer.css,index.html,shared.ts}.eta`
 (217 + 140 + 52 + 35 lines). That template is the throughline for the whole
 "what's common" section below — every repo's viewer is a descendant of it, at
 wildly different distances.
@@ -42,7 +42,7 @@ None of the six has a `npm run viewer` script that's universally present: `wyrm`
 
 ## What's common
 
-**1. A shared origin template.** `packages/create-seer/templates/tools/viewer/viewer.ts.eta` (217 lines) is the ancestor of every one of the six viewers. It defines: the DOM id set `#list`, `#list-meta`, `#search`, `#title`, `#meta`, `#frame-info`, `#canvas-wrap`, `#zoom`, `#bg`, `#frame-strip`, `#frame-slider`, `#frame-label`, `#palette-bar`; the function shape `loadManifest()` → `renderList()` → `selectAsset()` → `drawAsset()`/`drawFullAtlas()` → `renderPalette()`; a `setHidden(el, hidden)` helper; and manual Left/Right-arrow frame stepping with wraparound (`viewer.ts.eta:197-209`). Every one of the six repos still has this exact DOM-id set and this exact function shape at its core — confirmed directly in `crawl`, `middilgard`, and via each sub-review for the rest. The template's `shared.ts.eta` (35 lines) defines `AtlasFrame`/`AtlasMeta`/`PaletteData`/`AssetEntry` and a `rgbaFromPalette()` helper that the template's own `viewer.ts.eta` never calls — see "aggregate" quality note below on how that dead export propagated.
+**1. A shared origin template.** `packages/create-seer-app/templates/viewer/viewer.ts.eta` (217 lines) is the ancestor of every one of the six viewers. It defines: the DOM id set `#list`, `#list-meta`, `#search`, `#title`, `#meta`, `#frame-info`, `#canvas-wrap`, `#zoom`, `#bg`, `#frame-strip`, `#frame-slider`, `#frame-label`, `#palette-bar`; the function shape `loadManifest()` → `renderList()` → `selectAsset()` → `drawAsset()`/`drawFullAtlas()` → `renderPalette()`; a `setHidden(el, hidden)` helper; and manual Left/Right-arrow frame stepping with wraparound (`viewer.ts.eta:197-209`). Every one of the six repos still has this exact DOM-id set and this exact function shape at its core — confirmed directly in `crawl`, `middilgard`, and via each sub-review for the rest. The template's `shared.ts.eta` (35 lines) defines `AtlasFrame`/`AtlasMeta`/`PaletteData`/`AssetEntry` and a `rgbaFromPalette()` helper that the template's own `viewer.ts.eta` never calls — see "aggregate" quality note below on how that dead export propagated.
 
 **2. The same three-file manifest contract.** All six write, per game+platform: a flat `manifest.json` array of `{ name, sprites, hasPalette, png, ...extra }`; a per-asset `{name}.json` atlas (`{ frames: [{name,x,y,w,h}], width, height }`); and an optional per-asset `{name}.pal.json` (`{ colors: [{r,g,b}] }`). This is a completely uniform de facto standard across the family, independent of how divergent the underlying game formats are (planar Amiga bitmaps, Genesis VDP tilemaps, SNES 4bpp tiles, DOS EGA/VGA — all get reduced to this same triple before the viewer ever sees them). `strike`'s `megadrive-tilemap-assets.ts` even has an explicit comment owning this: it force-fits a tilemap render into `{frames:[...one full-image frame...], width, height}` specifically "so the generic viewer's full-atlas path... doesn't throw on a tilemap entry."
 
