@@ -1,19 +1,19 @@
 name: Deploy docs site
 
-# Builds the Astro/Starlight site in www/ and deploys it to GitHub Pages,
-# served at the custom domain in www/public/CNAME (seer.shaid.net).
+# Builds the Astro/Starlight site in wwwdocs/ and deploys it to GitHub Pages,
+# served at the custom domain in wwwdocs/public/CNAME (seer.shaid.net).
 #
-# www/scripts/sync-docs.mjs (run automatically by `npm run build` via the
+# wwwdocs/scripts/sync-docs.mjs (run automatically by `npm run build` via the
 # prebuild hook) pulls the real source docs -- root docs/*.md and each
-# package's README.md -- into www/src/content/docs/ at build time, so this
-# workflow only needs to build www/; it never needs to know which files
+# package's README.md -- into wwwdocs/src/content/docs/ at build time, so this
+# workflow only needs to build wwwdocs/; it never needs to know which files
 # changed.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'www/**'
+      - 'wwwdocs/**'
       - 'docs/**'
       - 'packages/*/README.md'
       - '.github/workflows/deploy-docs.yml'
@@ -40,14 +40,14 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: www/package-lock.json
+          cache-dependency-path: wwwdocs/package-lock.json
 
       - name: Install dependencies
-        working-directory: www
+        working-directory: wwwdocs
         run: npm ci
 
       - name: Build site
-        working-directory: www
+        working-directory: wwwdocs
         run: npm run build
 
       - name: Setup Pages
@@ -56,7 +56,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: www/dist
+          path: wwwdocs/dist
 
   deploy:
     needs: build

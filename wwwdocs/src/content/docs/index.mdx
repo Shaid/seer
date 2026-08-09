@@ -1,0 +1,54 @@
+---
+title: Seer
+description: >
+  A reusable framework for browser-based, data-file-first game
+  reverse-engineering projects.
+template: splash
+hero:
+  tagline: >
+    Reverse-engineer classic games, data-file-first. Seer extracts,
+    transforms, and renders original game data in the browser.
+  actions:
+    - text: Architecture Overview
+      link: /start-here/architecture-overview/
+      icon: right-arrow
+    - text: Framework Plan
+      link: /roadmap/framework-plan/
+      icon: external
+      variant: minimal
+---
+
+import { packages } from '../../../generated/packages.mjs';
+
+## What is Seer?
+
+Seer is a TypeScript toolkit — split into scoped `@seer-project/*` packages —
+for building browser reimplementations of classic games by working directly
+with their original data files.
+
+## The packages
+
+{/* Generated from each package's own README by www/scripts/sync-docs.mjs —
+    a new package appears here automatically. Never hand-list them again:
+    the old hand-written list had drifted to 6 of 13. */}
+
+<ul>
+	{packages.map((pkg) => (
+		<li>
+			<a href={pkg.href}><strong>{pkg.title}</strong></a>
+			{pkg.description ? <> — {pkg.description}</> : null}
+		</li>
+	))}
+</ul>
+
+## Beyond the packages
+
+- **[Recompilation surveys](/recompilation/amiga/)** — the state of native
+  static recompilation, one doc per platform (Amiga, DOS, SNES, Mega Drive,
+  GBA, DS, 3DS, PSX, PS2, PS3, PS4, Saturn, GameCube/Wii, Wii U, Switch,
+  arcade), plus the engine-based porting alternative. Read these before
+  treating a native port as a stretch goal.
+- **[Guides](/guides/viewer/)** — the asset viewer, and the shared audio
+  playback architecture.
+- **[Examples](/examples/middilgard-migration/)** — a real project migrated
+  onto the framework.

@@ -21,9 +21,9 @@
     "extract-data": "npm run build:packages && tsx tools/extract-game-data.ts",
     "build-assets": "npm run build:packages && tsx tools/extract-game-data.ts --assets-only",
     "create": "npm run build:packages && node packages/create-seer/bin/seer-create.mjs",
-    "dev:www": "npm run dev --prefix www",
-    "build:www": "npm run build --prefix www",
-    "preview:www": "npm run preview --prefix www"
+    "dev:docs": "npm run dev --prefix wwwdocs",
+    "build:docs": "npm run build --prefix wwwdocs",
+    "preview:docs": "npm run preview --prefix wwwdocs"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

@@ -19,14 +19,17 @@ public/extracted/
 public/assets/
 data/extracted/
 
-# www's synced doc pages (regenerated from root docs/ and packages/*/README.md
-# by www/scripts/sync-docs.mjs, run automatically before dev/build/preview --
+# wwwdocs' synced doc pages (regenerated from root docs/ and packages/*/README.md
+# by wwwdocs/scripts/sync-docs.mjs, run automatically before dev/build/preview --
 # never hand-edit these directly, and never commit them: a committed copy
 # would immediately go stale the same way the old hand-copied ones did)
-www/src/content/docs/start-here/
-www/src/content/docs/packages/
-www/src/content/docs/guides/
-www/src/content/docs/roadmap/
+wwwdocs/src/content/docs/start-here/
+wwwdocs/src/content/docs/packages/
+wwwdocs/src/content/docs/guides/
+wwwdocs/src/content/docs/recompilation/
+wwwdocs/src/content/docs/roadmap/
+# ...and the homepage's package list, derived from the same READMEs.
+wwwdocs/generated/
 
 # IDE
 .vscode/
