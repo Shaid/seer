@@ -39,6 +39,8 @@ const DOC_SOURCES = [
   { src: 'docs/boilerplate-guide.md', out: 'start-here/boilerplate-guide.md' },
   { src: 'docs/viewer.md', out: 'guides/viewer.md' },
   { src: 'docs/audio-playback.md', out: 'guides/audio-playback.md' },
+  { src: 'docs/project-status.md', out: 'start-here/project-status.md' },
+  { src: 'docs/licensing.md', out: 'start-here/licensing.md' },
   { src: 'docs/framework-plan.md', out: 'roadmap/framework-plan.md' },
   // The recompilation survey series: one doc per platform plus two
   // cross-platform technique docs, all cross-linked to each other. Reference

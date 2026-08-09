@@ -4,6 +4,14 @@ Custom 4-channel Paula sample-based tracker module parser and player — the
 Dune Amiga audio engine. Reads ProTracker-compatible MOD modules and
 synthesizes them in real time; no `.wav`/`.mp3` decoding involved.
 
+> **Pre-1.0 — expect breaking changes.** Seer is at `0.x`, and under
+> [semver](https://semver.org/#spec-item-4) that means no compatibility
+> promise: a minor bump may rename exports or change signatures. Pin an exact
+> version if you need reproducible builds, and read the
+> [changelog](https://github.com/Shaid/seer/blob/main/CHANGELOG.md) before
+> upgrading. Details:
+> <https://seer.shaid.net/start-here/project-status/>.
+
 The core replay (`Module` + `Micromod`) is a TypeScript ESM port of the
 classic single-file JavaScript ProTracker Replay engine, wrapped for the
 browser with an `AudioWorklet`-based player.
@@ -67,7 +75,7 @@ player.stop();
 `PlaybackEngine` from `@seer-project/core`. To drive it from the shared
 audio-bar UI, wrap it in a small adapter implementing `PlaybackEngine`
 (`play()`/`stop()`/`getState()`/`onStateChange()`/`dispose()`) — see
-`docs/audio-playback.md` in the seer repo for a worked example.
+[`docs/audio-playback.md`](https://seer.shaid.net/guides/audio-playback/) in the seer repo for a worked example.
 
 The adapter needs no `pause()`. `PlaybackEngine.pause` is optional
 precisely because of this player: `stop()` tears the worklet down, so
@@ -90,3 +98,30 @@ against synthetic MOD files built by `src/__tests__/mod-fixture.ts`
 sample data; rendering, determinism, panning, seek/rewind). `TrackerPlayer`
 itself owns the `AudioContext`/worklet plumbing, so only its load/parse
 state and its play/stop guards are covered.
+
+## Licensing & Commercial Use
+
+Seer exists to reverse-engineer other people's work, and that is only possible
+because the preservation and romhacking communities published what they found
+instead of keeping it. The licence is chosen so that keeps happening: build on
+Seer and your work stays open too, so the next person gets the same head start.
+
+- **[AGPL-3.0-or-later](https://github.com/Shaid/seer/blob/main/LICENSE)** —
+  free for personal, educational and open-source use. Note that the AGPL extends
+  copyleft to **network use**: run a public web app or hosted service on this
+  and you must publish your application's source under the AGPL.
+- **Commercial licence** — waives that requirement so a proprietary or
+  closed-source product can keep its codebase private. Flat-fee and subscription
+  terms are available, and custom terms are negotiable.
+
+If the copyleft doesn't fit what you're building, we would much rather have the
+conversation than have you walk away — email
+[dr.shaid@gmail.com](mailto:dr.shaid@gmail.com) with the subject
+`[Commercial License Request - Project Name]`.
+
+Full details: <https://seer.shaid.net/start-here/licensing/>.
+
+This package also contains a TypeScript port of Martin Cameron's Micromod
+ProTracker replay engine, used under the BSD 3-Clause licence — see
+`THIRD-PARTY-LICENSES.md`, whose copyright notice must be retained in any
+redistribution, including under a commercial licence.

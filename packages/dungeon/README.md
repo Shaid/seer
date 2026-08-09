@@ -3,12 +3,22 @@
 A generic first-person grid-dungeon walker — the schema, raster and
 presenter layers shared by every game-specific dungeon renderer in Seer.
 Black Crypt is the driving consumer; Wizardry 6 validates the
-generalisation later. See `/home/ctemplet/Development/crawl/docs/blackcrypt/walker-plan.md`
+generalisation later. See
+[`docs/walker.md`](https://github.com/Shaid/seer/blob/main/docs/walker.md)
 for the full design rationale and milestone sequence.
 
 > **Pre-1.0: interfaces change without notice** until the Black Crypt AND
 > Wizardry 6 consumers have both driven the design. Do not build against
-> this package expecting API stability yet.
+> this package expecting API stability yet. Project-wide detail:
+> <https://seer.shaid.net/start-here/project-status/>.
+
+## A note on the source comments
+
+Comments throughout `src/` cite paths like `docs/blackcrypt/amiga/data-structure.md`.
+Those live in the **driving consumer's** repository, not this package — this is a
+generic walker, but every behaviour in it was derived from a specific game's
+disassembly, and the citations record which finding each rule came from. They
+are provenance, not links you can follow from an installed copy.
 
 ## Status
 
@@ -55,3 +65,25 @@ const surface = new IndexedSurface(slots.surface.width, slots.surface.height);
 compositeSlotTable(surface, { [slots.banks[0].id]: bank }, slots);
 // hand `surface` + `bank.palette` to a CanvasPresenter or PixiPresenter.
 ```
+
+## Licensing & Commercial Use
+
+Seer exists to reverse-engineer other people's work, and that is only possible
+because the preservation and romhacking communities published what they found
+instead of keeping it. The licence is chosen so that keeps happening: build on
+Seer and your work stays open too, so the next person gets the same head start.
+
+- **[AGPL-3.0-or-later](https://github.com/Shaid/seer/blob/main/LICENSE)** —
+  free for personal, educational and open-source use. Note that the AGPL extends
+  copyleft to **network use**: run a public web app or hosted service on this
+  and you must publish your application's source under the AGPL.
+- **Commercial licence** — waives that requirement so a proprietary or
+  closed-source product can keep its codebase private. Flat-fee and subscription
+  terms are available, and custom terms are negotiable.
+
+If the copyleft doesn't fit what you're building, we would much rather have the
+conversation than have you walk away — email
+[dr.shaid@gmail.com](mailto:dr.shaid@gmail.com) with the subject
+`[Commercial License Request - Project Name]`.
+
+Full details: <https://seer.shaid.net/start-here/licensing/>.

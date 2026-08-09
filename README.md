@@ -6,6 +6,14 @@ data files first, building an offline pipeline to convert that data into
 web-native assets, and then a browser engine that consumes the preprocessed
 output.
 
+> **Pre-1.0 — expect breaking changes.** Every package is at `0.x`, and under
+> [semver](https://semver.org/#spec-item-4) that carries no compatibility
+> promise: a minor bump may rename exports or change signatures. The API is
+> still being shaped by the real projects using it. Pin exact versions if you
+> need reproducible builds, read the [changelog](CHANGELOG.md) before
+> upgrading, and see [`docs/project-status.md`](docs/project-status.md) for
+> which packages are settled and which are still moving.
+
 Structured as an npm workspace: genuinely reusable, game-agnostic code lives
 in scoped `packages/*` (`@seer-project/core`, `@seer-project/engine-2d`, `@seer-project/pipeline`,
 `@seer-project/iff`, `@seer-project/smus`). Everything at the project root (`src/`, `tools/`)
@@ -26,16 +34,20 @@ See:
 
 ## Creating a new project
 
-The fastest way to start a new Seer project is with the `create-seer` CLI:
+The fastest way to start a new Seer project is with the `create-seer-app` CLI:
 
 ```bash
-npx create-seer my-project
-npx create-seer my-project --game zonx --platform amiga --display-name "Zonx"
+npm create seer-app my-project
+npm create seer-app my-project --game zonx --platform amiga --display-name "Zonx"
+
+# ...or add just a viewer or docs site to a project you already have
+npm create seer-app viewer tools/viewer
+npm create seer-app website www
 ```
 
 This scaffolds a complete project with multi-game/multi-platform support
 pre-configured, one working example filled in, and all pipeline tooling
-wired up. See [`packages/create-seer/README.md`](packages/create-seer/README.md)
+wired up. See [`packages/create-seer-app/README.md`](packages/create-seer-app/README.md)
 for details.
 
 ## Getting started (from this repo)
@@ -75,6 +87,14 @@ clone where no `dist/` exists yet.
 
 ## ⚖️ Licensing & Commercial Use
 
+Seer exists to reverse-engineer other people's work, and that is only possible
+because the preservation and romhacking communities published what they found
+instead of keeping it. The licence is chosen so that keeps happening: build on
+Seer and your work stays open too, so the next person gets the same head start.
+It is a principle, not a trap — if the copyleft genuinely doesn't fit what
+you're doing, the commercial option below exists precisely so we can have that
+conversation.
+
 This framework is dual-licensed to accommodate both open-source and commercial use cases:
 
 1. **Open Source (AGPL-3.0-or-later):** Free to use, modify, and distribute for personal, educational, or open-source projects. However, if you build a web application or cloud service using this framework, **you must open-source your entire application's source code** under the AGPL v3.
@@ -86,3 +106,8 @@ If your team or company needs a commercial exemption, we offer simple flat-fee a
 
 To request a commercial license or custom terms, please reach out via email:
 👉 **[dr.shaid@gmail.com](mailto:dr.shaid@gmail.com)** with the subject line `[Commercial License Request - Project Name]`
+
+Full details, including which option applies to a given use case and the
+third-party attribution that carries into a commercial licence:
+[`docs/licensing.md`](docs/licensing.md) — published at
+<https://seer.shaid.net/start-here/licensing/>.

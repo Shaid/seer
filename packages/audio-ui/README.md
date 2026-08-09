@@ -2,6 +2,14 @@
 
 Shared bottom-docked audio-bar UI chrome for the viewer tool.
 
+> **Pre-1.0 — expect breaking changes.** Seer is at `0.x`, and under
+> [semver](https://semver.org/#spec-item-4) that means no compatibility
+> promise: a minor bump may rename exports or change signatures. Pin an exact
+> version if you need reproducible builds, and read the
+> [changelog](https://github.com/Shaid/seer/blob/main/CHANGELOG.md) before
+> upgrading. Details:
+> <https://seer.shaid.net/start-here/project-status/>.
+
 This package unifies the **UI layer only** — the play/pause button, seek
 slider, time readout, optional stop button, optional volume slider, and the
 docking/hide-show behavior that flower, wyrm, and middilgard each
@@ -9,7 +17,7 @@ independently hand-rolled around three genuinely different playback
 engines (a native `<audio>` element decoding a pre-existing file; a live
 FLT4 tracker synth; a live SMUS/Sonix synth). It does **not** attempt to
 unify those engines — decoding a file and synthesizing one from tracker/
-score data are different problems. See `docs/audio-playback.md` in the seer
+score data are different problems. See [`docs/audio-playback.md`](https://seer.shaid.net/guides/audio-playback/) in the seer
 repo for the full design writeup and per-project migration evidence.
 
 ## Installation
@@ -145,3 +153,25 @@ events), and `NativeAudioEngine` against a minimal `EventTarget`-based fake
 deliberately not media playback (`play()`/`pause()` throw "not
 implemented"). No project's real game data is needed or used — this package
 has no game-specific logic at all.
+
+## Licensing & Commercial Use
+
+Seer exists to reverse-engineer other people's work, and that is only possible
+because the preservation and romhacking communities published what they found
+instead of keeping it. The licence is chosen so that keeps happening: build on
+Seer and your work stays open too, so the next person gets the same head start.
+
+- **[AGPL-3.0-or-later](https://github.com/Shaid/seer/blob/main/LICENSE)** —
+  free for personal, educational and open-source use. Note that the AGPL extends
+  copyleft to **network use**: run a public web app or hosted service on this
+  and you must publish your application's source under the AGPL.
+- **Commercial licence** — waives that requirement so a proprietary or
+  closed-source product can keep its codebase private. Flat-fee and subscription
+  terms are available, and custom terms are negotiable.
+
+If the copyleft doesn't fit what you're building, we would much rather have the
+conversation than have you walk away — email
+[dr.shaid@gmail.com](mailto:dr.shaid@gmail.com) with the subject
+`[Commercial License Request - Project Name]`.
+
+Full details: <https://seer.shaid.net/start-here/licensing/>.

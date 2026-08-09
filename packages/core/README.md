@@ -2,6 +2,14 @@
 
 Generic binary utilities for browser-based reverse-engineering projects.
 
+> **Pre-1.0 — expect breaking changes.** Seer is at `0.x`, and under
+> [semver](https://semver.org/#spec-item-4) that means no compatibility
+> promise: a minor bump may rename exports or change signatures. Pin an exact
+> version if you need reproducible builds, and read the
+> [changelog](https://github.com/Shaid/seer/blob/main/CHANGELOG.md) before
+> upgrading. Details:
+> <https://seer.shaid.net/start-here/project-status/>.
+
 Zero runtime dependencies. Browser-safe (no Node built-ins). This is the
 foundation package that all other `@seer-project/*` packages depend on.
 
@@ -138,7 +146,7 @@ playback.) It intentionally does not standardize how a track is *loaded*
 (a native `<audio>` engine needs a URL; a live tracker/SMUS synthesis
 engine needs format-specific song data) — only the transport surface a
 generic UI can drive. See `@seer-project/audio-ui`'s README and
-`docs/audio-playback.md` in the seer repo for the full design and worked
+[`docs/audio-playback.md`](https://seer.shaid.net/guides/audio-playback/) in the seer repo for the full design and worked
 adapter examples (wyrm's FLT4 tracker, middilgard's SMUS engine).
 
 `PlaybackState` is a discriminated union on `seekable`, so `duration` can
@@ -174,3 +182,25 @@ attemptPlayback(() => engine.play(), (err) => console.warn('Playback failed:', e
 npm test
 npm run lint
 ```
+
+## Licensing & Commercial Use
+
+Seer exists to reverse-engineer other people's work, and that is only possible
+because the preservation and romhacking communities published what they found
+instead of keeping it. The licence is chosen so that keeps happening: build on
+Seer and your work stays open too, so the next person gets the same head start.
+
+- **[AGPL-3.0-or-later](https://github.com/Shaid/seer/blob/main/LICENSE)** —
+  free for personal, educational and open-source use. Note that the AGPL extends
+  copyleft to **network use**: run a public web app or hosted service on this
+  and you must publish your application's source under the AGPL.
+- **Commercial licence** — waives that requirement so a proprietary or
+  closed-source product can keep its codebase private. Flat-fee and subscription
+  terms are available, and custom terms are negotiable.
+
+If the copyleft doesn't fit what you're building, we would much rather have the
+conversation than have you walk away — email
+[dr.shaid@gmail.com](mailto:dr.shaid@gmail.com) with the subject
+`[Commercial License Request - Project Name]`.
+
+Full details: <https://seer.shaid.net/start-here/licensing/>.
