@@ -23,6 +23,16 @@ export interface WebsiteContext {
   /** Deployed site URL (default: '' — left blank rather than inventing a domain). */
   site?: string;
   /**
+   * Astro `base` path, for a site deployed under a subpath rather than a
+   * domain root (e.g. GitHub Pages project pages: `/my-repo`). Default: ''
+   * (omitted — most seer sites get their own subdomain and deploy at the
+   * root). Only set this for an actual subpath deploy; every scaffolded
+   * template already writes links/images the base-agnostic way (relative
+   * paths in content, `import.meta.env.BASE_URL` in components), so setting
+   * `base` later without ever having scaffolded with it is also safe.
+   */
+  base?: string;
+  /**
    * Sprite-atlas frame name to use as the generated favicon (default: '' —
    * favicon generation is skipped and a placeholder public/favicon.png ships
    * instead, until this is set to a real frame; see the generated README).
@@ -60,6 +70,7 @@ export function scaffoldWebsite(targetDir: string, ctx: WebsiteContext = {}): vo
   const displayName = ctx.displayName ?? capitalize(game);
   const description = ctx.description ?? `A reverse-engineering field guide to ${displayName}.`;
   const site = ctx.site ?? '';
+  const base = ctx.base ?? '';
   const faviconFrame = ctx.faviconFrame ?? '';
   const faviconAtlasDir = ctx.faviconAtlasDir ?? 'amiga/sprites';
   const faviconManifest = ctx.faviconManifest ?? 'items.json';
@@ -76,6 +87,7 @@ export function scaffoldWebsite(targetDir: string, ctx: WebsiteContext = {}): vo
     description,
     site,
     siteLiteral,
+    base,
     faviconFrame,
     faviconAtlasDir,
     faviconManifest,

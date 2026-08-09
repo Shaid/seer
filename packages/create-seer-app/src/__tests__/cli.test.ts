@@ -50,6 +50,12 @@ describe('parseArgs', () => {
     expect(parsed.flags.game).toBe('zonx');
   });
 
+  it('parses --base for a subpath deploy', () => {
+    expect(parseArgs(['node', 'x', 'website', 'www', '--base', '/zonx']).flags.base).toBe(
+      '/zonx',
+    );
+  });
+
   it('handles boolean flags and their --no- forms', () => {
     expect(parseArgs(['node', 'x', 'd', '--viewer', '--docs-site']).flags).toMatchObject({
       viewer: true,

@@ -78,6 +78,7 @@ any static host works; the generated README covers both paths.
 | `--display-name <name>` | Derived from game ID | Human-readable game name |
 | `--description <text>` | Derived | Starlight config + homepage tagline |
 | `--site <url>` | blank | Deployed site URL |
+| `--base <path>` | blank | Astro `base`, only for a subpath deploy (e.g. GitHub Pages project pages: `/my-repo`) — leave unset for a domain-root deploy (own subdomain) |
 | `--site-dir <path>` | Target's basename | Path used in the generated deploy workflow |
 | `--favicon-frame <name>` | blank | Sprite-atlas frame to use as the favicon |
 | `--favicon-atlas-dir <dir>` | `amiga/sprites` | Atlas directory under `public/assets/<game>/` |

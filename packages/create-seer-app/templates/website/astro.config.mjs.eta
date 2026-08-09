@@ -7,7 +7,12 @@ import { sidebar } from './generated/sidebar.mjs';
 // https://astro.build/config
 export default defineConfig({
 	site: <%~ it.siteLiteral %>,
-	integrations: [
+<% if (it.base) { %>	// Deployed under a subpath, not a domain root -- see AGENTS.md's base-path
+	// section before hand-writing any link or image; import.meta.env.BASE_URL
+	// and relative content links (what this scaffold already writes) are safe
+	// either way, but a hardcoded absolute path is not.
+	base: '<%= it.base %>',
+<% } %>	integrations: [
 		starlight({
 			title: '<%= it.displayName %> — Data Formats',
 			favicon: '/favicon.png',

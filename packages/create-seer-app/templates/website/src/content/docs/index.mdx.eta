@@ -5,7 +5,7 @@ hero:
   tagline: <%= it.description %>
   actions:
     - text: Enter the documentation
-      link: /<%= it.game %>/
+      link: <%= it.game %>/
       icon: right-arrow
 ---
 
@@ -16,7 +16,7 @@ The documentation site for the <%= it.displayName %> reverse-engineering project
 <CardGrid>
 	<Card title="Read the formats" icon="document">
 		Understand the file inventory, graphics formats, and data layout.
-		[Open the guide](/<%= it.game %>/)
+		[Open the guide](<%= it.game %>/)
 	</Card>
 	<Card title="See the extracted game" icon="image">
 		Browse individual sprites, screens, and other extracted assets once a

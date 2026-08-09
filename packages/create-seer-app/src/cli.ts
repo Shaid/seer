@@ -24,6 +24,7 @@ const FLAG_KEYS = {
   '--display-name': 'displayName',
   '--description': 'description',
   '--site': 'site',
+  '--base': 'base',
   '--favicon-frame': 'faviconFrame',
   '--favicon-atlas-dir': 'faviconAtlasDir',
   '--favicon-manifest': 'faviconManifest',
@@ -46,6 +47,7 @@ export interface CliFlags {
   displayName?: string;
   description?: string;
   site?: string;
+  base?: string;
   faviconFrame?: string;
   faviconAtlasDir?: string;
   faviconManifest?: string;
@@ -198,6 +200,7 @@ export async function main(argv: string[]): Promise<void> {
         displayName,
         description,
         site,
+        base: flags.base,
         faviconFrame: flags.faviconFrame,
         faviconAtlasDir: flags.faviconAtlasDir,
         faviconManifest: flags.faviconManifest,

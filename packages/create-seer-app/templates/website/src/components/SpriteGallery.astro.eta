@@ -55,7 +55,7 @@ const assetRoot = existsSync(repoAssetRoot)
 	: resolve(process.cwd(), 'public', 'assets', assetPath);
 const manifestPath = resolve(assetRoot, `${manifest}.json`);
 const spriteManifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as SpriteManifest;
-const imagePath = `/assets/${assetPath}/${manifest}.png`;
+const imagePath = `${import.meta.env.BASE_URL}assets/${assetPath}/${manifest}.png`;
 
 const hiddenFrameNames = new Set([
 	...Object.values(hoverPairs),

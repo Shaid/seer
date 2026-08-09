@@ -58,9 +58,11 @@ audit mode.)
   and display-name behavior. The component has no built-in knowledge of any
   game's data shapes — the calling page builds the `labels` map itself from
   whatever name data actually exists. See README.md for a worked example.
-- **Images**: reference copied assets by URL path, e.g.
-  `/assets/<%= it.game %>/amiga/screens/title.png`. Re-run the build script
-  after the repo's `public/assets` changes.
+- **Images**: use a raw `<img src="...">` tag (never markdown `![]()` syntax —
+  see the base-path note below) with a **relative** path to the copied asset,
+  e.g. `<img src="../../assets/<%= it.game %>/amiga/screens/title.png">` from
+  a page two directories deep. Re-run the build script after the repo's
+  `public/assets` changes.
 
 ### Asset-resync workflow
 
@@ -73,6 +75,38 @@ When the upstream extraction changes (new sprites, corrected data, etc.):
 3. Commit whatever changed under this site's `public/assets/<%= it.game %>`
    (and `public/favicon.png`, if it changed) — that's the mirror CI deploys
    from.
+
+## If this site deploys under a subpath (`base` is set in `astro.config.mjs`)
+
+Most seer sites get their own subdomain and deploy at a domain root, where
+none of this matters. If `astro.config.mjs` has a non-empty `base` (e.g.
+GitHub Pages project pages, `base: '/my-repo'`), be aware: Astro/Starlight do
+**not** auto-prefix hand-authored links or images with it. Starlight's own
+generated chrome (sidebar, pagination, breadcrumbs, favicon) is base-aware
+automatically; anything typed by hand is not.
+
+This scaffold already writes every link and image the safe way — **keep
+following the same pattern**:
+
+- In `.astro` components or `.mdx` frontmatter/JS, build paths with
+  `` `${import.meta.env.BASE_URL}assets/...` `` (`BASE_URL` already ends in
+  `/`, so don't also prepend one).
+- In markdown/MDX prose, use a **relative path**, not an absolute
+  `/<%= it.game %>/...` or `/assets/...` — e.g. `../graphics/` for a sibling
+  page, `../../assets/<%= it.game %>/amiga/foo.png` for an image two
+  directories deep. Never hardcode the deployed base path itself.
+- **Never use markdown `![alt](path)` image syntax for a `public/assets/`
+  image.** Astro's markdown pipeline intercepts that syntax specifically: an
+  absolute path silently skips base-prefixing, and a relative path fails the
+  build outright (`[ImageNotFound]`, since it tries to import it as a local
+  `src/`-relative asset). A raw `<img src="...">` HTML tag has neither
+  problem — it passes through untouched in both `.md` and `.mdx`.
+
+Full writeup with the empirical evidence behind this:
+`~/.claude/skills/seer-website/references/base-path.md` (if using the
+account-wide `seer-website` skill). Before calling any subpath-deploy change
+done, build with the real `base` set and grep `dist/**/*.html` for
+un-prefixed `href="/`/`src="/`.
 
 ## Documentation
 

@@ -3,7 +3,7 @@ title: Getting Started
 ---
 
 This is a starter page. A fresh scaffold ships with just this page and the
-[Home](/<%= it.game %>/) page, listed in
+[Home](../) page, listed in
 `src/content/docs/<%= it.game %>/_sidebar.json`.
 
 ## Adding a page

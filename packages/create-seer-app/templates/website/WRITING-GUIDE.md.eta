@@ -61,8 +61,11 @@ pages point at the specific note file. When a page contradicts the notes, fix
 the page.
 
 **9. Cross-link forward and back.** Overview → foundations → format pages →
-galleries → status. Asset pages link to their format page and back. Use absolute
-site paths with a trailing slash (`/<%= it.game %>/getting-started/`).
+galleries → status. Asset pages link to their format page and back. Use
+**relative** paths with a trailing slash (`../getting-started/`, not
+`/<%= it.game %>/getting-started/`) — an absolute path skips the site's
+`base` prefix if one is set (see AGENTS.md's base-path section), and a
+relative path works identically either way.
 
 **10. No placeholder text survives.** The scaffold's "replace this content with
 a real overview" paragraph, a `<Card>` pointing at a page that doesn't exist, a
@@ -122,9 +125,11 @@ Formats*, *Extracted Assets*), not a folder.
 
 ## Galleries and components
 
-Use a plain `![atlas](/assets/<%= it.game %>/…)` when that's enough. Reach for
-`SpriteGallery` when the reader needs individual frames with real names, enough
-of them to need search, or art that only makes sense in motion.
+Use a plain `<img src="../../assets/<%= it.game %>/…">` (relative path — see
+AGENTS.md's base-path section, and never markdown `![]()` syntax for a
+`public/assets/` image) when that's enough. Reach for `SpriteGallery` when the
+reader needs individual frames with real names, enough of them to need
+search, or art that only makes sense in motion.
 
 **Read manifests at build time; never hand-maintain a frame list.** Astro
 component frontmatter runs in Node, so a component can read the extraction
@@ -172,6 +177,11 @@ it was confirmed or guessed.
    `astro dev`/`preview` holds the default port, yours binds the next one up and
    your `curl`/browser traffic hits the other server. Check `ps aux | grep astro`
    and your own startup log before debugging "my images 404".
+4. **If the site deploys under a subpath (`base` set), hand-authored links and
+   images need a relative path, not an absolute one** — Starlight's own
+   sidebar/pagination auto-prefix with `base`, but nothing you type by hand
+   does. See AGENTS.md's base-path section before writing the first gallery
+   page, not after a broken build or a 404 in production.
 
 ---
 

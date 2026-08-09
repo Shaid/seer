@@ -107,6 +107,13 @@ describe('scaffoldWebsite', () => {
     const config = readFileSync(resolve(TMP, 'defaults/www/astro.config.mjs'), 'utf-8');
     expect(config).toContain('site: undefined');
     expect(config).toContain('Mygame — Data Formats');
+    expect(config).not.toContain('base:');
+  });
+
+  it('renders a base path when given one, for a subpath deploy', () => {
+    run('based/www', { base: '/zonx' });
+    const config = readFileSync(resolve(TMP, 'based/www/astro.config.mjs'), 'utf-8');
+    expect(config).toContain("base: '/zonx'");
   });
 
   it('honors a custom siteDir for the deploy workflow path', () => {
