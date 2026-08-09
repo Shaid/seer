@@ -7,10 +7,14 @@
  * environment (no jsdom/canvas is configured — see vite.config.ts). So
  * rather than mock PixiJS wholesale, these tests exercise `resolveCamera`
  * directly: it's the exact, pure logic `Game.init()` calls to decide what
- * `game.camera` becomes, extracted so it's testable without a DOM.
+ * `game.camera` becomes, and it lives in its own PixiJS-free module so this
+ * file can import it without loading PixiJS at all.
  */
 import { describe, it, expect } from 'vitest';
-import { resolveCamera, type GameOptions } from '../Game.js';
+// Imported from resolve-camera.js, not Game.js: Game.ts pulls PixiJS in at
+// module scope, and PixiJS reads `navigator`, which Node only defines from
+// v21. Importing through Game.js made this DOM-free test fail on Node 20.
+import { resolveCamera, type CameraOptions } from '../resolve-camera.js';
 import { TopDownCamera } from '../TopDownCamera.js';
 import { SideViewCamera } from '../SideViewCamera.js';
 import { DisplayMode } from '../DisplayMode.js';
@@ -34,7 +38,7 @@ describe('resolveCamera', () => {
   it('uses a camera instance passed directly via the camera option', () => {
     const displayMode = new DisplayMode();
     const explicitCamera = new SideViewCamera(2048, 1536, 800, 600, displayMode);
-    const options: Pick<GameOptions<SideViewCamera>, 'camera' | 'worldWidth' | 'worldHeight'> = {
+    const options: Pick<CameraOptions<SideViewCamera>, 'camera' | 'worldWidth' | 'worldHeight'> = {
       worldWidth: 2048,
       worldHeight: 1536,
       camera: explicitCamera,
@@ -54,7 +58,7 @@ describe('resolveCamera', () => {
       setViewSize: () => {},
     };
 
-    const options: Pick<GameOptions<BaseCamera>, 'camera' | 'worldWidth' | 'worldHeight'> = {
+    const options: Pick<CameraOptions<BaseCamera>, 'camera' | 'worldWidth' | 'worldHeight'> = {
       worldWidth: 2048,
       worldHeight: 1536,
       camera: (viewWidth, viewHeight, dm) => {

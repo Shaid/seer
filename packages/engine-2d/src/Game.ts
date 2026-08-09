@@ -19,6 +19,13 @@ import type { BaseCamera } from './BaseCamera.js';
 import { DisplayMode } from './DisplayMode.js';
 import { InputManager } from './InputManager.js';
 import { TopDownCamera } from './TopDownCamera.js';
+import { resolveCamera } from './resolve-camera.js';
+
+// Re-exported so `resolveCamera` stays importable from this module's public
+// surface, while living in a file that does not pull PixiJS in — see
+// resolve-camera.ts for why that separation matters.
+export { resolveCamera } from './resolve-camera.js';
+export type { CameraOptions } from './resolve-camera.js';
 
 export interface GameOptions<TCamera extends BaseCamera = TopDownCamera> {
   /** DOM element to mount the PixiJS canvas into. */
@@ -36,36 +43,6 @@ export interface GameOptions<TCamera extends BaseCamera = TopDownCamera> {
   onInit?: (game: Game<TCamera>) => void | Promise<void>;
   /** Called every frame after input is polled, with the elapsed time in milliseconds. */
   onUpdate?: (game: Game<TCamera>, dtMs: number) => void;
-}
-
-/**
- * Resolve the camera to use for a `Game`, given its options and the initial
- * viewport size/display mode. Exported standalone (pure, no PixiJS/DOM
- * dependency) so the camera-selection logic is unit-testable without
- * spinning up a real `Application`.
- */
-export function resolveCamera<TCamera extends BaseCamera>(
-  options: Pick<GameOptions<TCamera>, 'camera' | 'worldWidth' | 'worldHeight'>,
-  viewWidth: number,
-  viewHeight: number,
-  displayMode: DisplayMode,
-): TCamera {
-  const { camera } = options;
-  if (typeof camera === 'function') {
-    return camera(viewWidth, viewHeight, displayMode);
-  }
-  if (camera) {
-    return camera;
-  }
-  // Default: a TopDownCamera sized from worldWidth/worldHeight, matching
-  // today's behavior for consumers that don't pass a `camera` option.
-  return new TopDownCamera(
-    options.worldWidth,
-    options.worldHeight,
-    viewWidth,
-    viewHeight,
-    displayMode,
-  ) as unknown as TCamera;
 }
 
 export class Game<TCamera extends BaseCamera = TopDownCamera> {
