@@ -8,10 +8,11 @@ Intentionally minimal — it demonstrates the *shape* of a runtime engine
 without assuming your game is a side-scroller, strategy map, or anything
 else.
 
-Named `-2d` to sit alongside a future `@seer-project/engine-3d` (a Three.js-based
-counterpart for games with true 3D/vector models, prototyped in the sibling
-`hunter` project) as a separate package rather than a subpath of one —
-each pulls in a different heavy rendering dependency (`pixi.js` here,
+Named `-2d` to sit alongside [`@seer-project/engine-3d`](../engine-3d/README.md)
+(a Three.js-based counterpart for games with true 3D/vector models — glTF
+and a `{verts,edges,faces}` polygon adapter, extracted from the `flower` and
+`hunter` sibling projects) as a separate package rather than a subpath of
+one — each pulls in a different heavy rendering dependency (`pixi.js` here,
 `three` there), and most consuming projects only ever need one of the two.
 
 ## Installation

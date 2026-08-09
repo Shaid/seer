@@ -1,10 +1,13 @@
 # Viewer Tooling Guide
 
 How the scaffold's offline asset viewer (`tools/viewer/` — generated from
-`packages/create-seer/templates/tools/viewer/*.eta` by `npx create-seer
---viewer`) works: the data-driven game/platform selectors, asset-type filter
-tabs, animation autoplay, and the generic indexed-texture + palette WebGL2
-shader with its live palette editor and colour-cycling control.
+`packages/create-seer-viewer/templates/*.eta`, either directly via `npx
+create-seer-viewer` or as part of `npx create-seer --viewer`) works: the
+data-driven game/platform selectors, asset-type filter tabs, animation
+autoplay, the generic indexed-texture + palette WebGL2 shader with its live
+palette editor and colour-cycling control, category-sharded manifest
+navigation for large corpora (§5), and 3D asset rendering via
+`@seer-project/engine-3d` (§6).
 
 This is a **framework doc** describing the scaffold template itself, not a
 per-project copy — see "Why this doc isn't vendored" at the bottom for why it
@@ -28,15 +31,19 @@ and `@seer-project/audio-ui`'s `AudioBarController`/`NativeAudioEngine`).
 
 ## Architecture
 
-Four template files, rendered once per scaffolded project:
+Five template files in `packages/create-seer-viewer/templates/`, rendered
+once per scaffolded project into `tools/viewer/`:
 
-- `tools/viewer/index.html.eta` → `index.html` — DOM structure.
-- `tools/viewer/viewer.ts.eta` → `viewer.ts` — all browser-side logic, no
+- `index.html.eta` → `index.html` — DOM structure.
+- `viewer.ts.eta` → `viewer.ts` — all browser-side logic, no
   framework, no build step beyond Vite's default TS transform.
-- `tools/viewer/viewer.css.eta` → `viewer.css` — styling.
-- `tools/viewer/shared.ts.eta` → `shared.ts` — the manifest/atlas/palette
+- `viewer.css.eta` → `viewer.css` — styling.
+- `shared.ts.eta` → `shared.ts` — the manifest/atlas/palette
   types shared between the build pipeline (which writes JSON matching these
   shapes) and the viewer (which reads it back).
+- `data-view.ts.eta` → `data-view.ts` — the "Data" tab's read-only
+  decoded-JSON table browser, a separate sidebar/list/view from the asset
+  browser (`switchTab()`, `viewer.ts.eta:216-231`).
 
 Two Node-side template files feed it:
 
@@ -237,6 +244,164 @@ array elements, since the viewer uses it on `{r,g,b}` triples rather than raw
 indices. It was factored out specifically because it's reusable beyond this
 one viewer — any future browser-side consumer of "rotate this palette range"
 needs the exact same array-rotation logic, not a viewer-specific copy of it.
+
+---
+
+## 5. Manifest sharding & category navigation
+
+**Problem this replaces:** a project with a genuinely large corpus (tens or
+hundreds of thousands of entries) had exactly one option — fetch, parse, and
+render the entire `manifest.json` on every page load — with no way to browse
+one slice of the catalog without first downloading and holding all of it in
+memory. Several in-code comments already point readers at "docs/viewer.md's
+manifest-sharding section" (`viewer.ts.eta:59`, `viewer.css.eta:66`) for a
+feature this file, until now, never actually documented.
+
+**How it works now:**
+
+- Build side: `@seer-project/pipeline`'s `writeShardedManifest()`
+  (`packages/pipeline/src/manifest-sharding.ts:80-126`) takes an
+  already-built flat entry array and splits it into
+  `public/assets/<game>/<platform>/manifest/<category>.json` shards — one
+  per distinct `ManifestEntry.category` value, entries with no `category`
+  falling into an `"uncategorized"` shard rather than being dropped — plus a
+  `categories.json` top-level index (`CategoryIndexEntry[]`,
+  `manifest-sharding.ts:38-56`), sorted largest-first. A category whose
+  shard exceeds `GROUP_SHARD_THRESHOLD` (3000 entries,
+  `manifest-sharding.ts:70`) is additionally split by `ManifestEntry.group`
+  into `manifest/<category>/<group>.json` sub-shards
+  (`manifest-sharding.ts:101-118`), recorded as that category's `groups[]`
+  breakdown (`GroupIndexEntry`, `:31-36`). This is purely additive — it
+  never reads or replaces `manifest.json` itself
+  (`manifest-sharding.ts:14-19`), so a project that never calls it keeps the
+  original single-fetch contract unchanged. Categorization itself (deciding
+  what `category`/`group` each entry gets) is always a per-project concern
+  and stays in that project's own `tools/`.
+- Viewer side: `loadCategoryIndex()` (`viewer.ts.eta:117-125`) fetches
+  `categories.json` on startup and on every game/platform switch. An empty
+  result — 404, or a project that never sharded — is the deliberate signal
+  for "flat manifest mode": `switchAssetBase()` (`:188-213`) falls back to
+  the original single `loadManifest()` fetch unchanged. When
+  `categoryIndex` is non-empty, the flat manifest is never fetched at all;
+  `renderCategoryNav()` (`:292-356`) renders a grid of category buttons
+  (each showing a live count) instead of the asset list. `selectCategory()`
+  (`:245-264`) fetches a category's flat shard immediately when it has no
+  `groups` (`loadCategoryShard()`, `:127-135`, cached per-session in
+  `shardCache`, `:69`) — but for a group-sharded category, fetches nothing
+  until `selectGroup()` (`:267-280`) pulls one
+  `manifest/<category>/<group>.json` sub-shard at a time
+  (`loadGroupShard()`, `:137-145`). There is deliberately no "load the whole
+  category at once" escape hatch for a group-sharded category
+  (`renderCategoryNav`'s own doc comment, `:282-291`) — that would
+  reintroduce the unvirtualized-DOM cost sharding exists to avoid.
+
+A fresh scaffold's placeholder `build-assets.ts.eta` never calls
+`writeShardedManifest`, so `categories.json` doesn't exist and the viewer
+runs in flat-manifest mode until a project's own pipeline opts in.
+
+---
+
+## 6. 3D assets
+
+**Problem this replaces:** two sibling seer-framework projects (`flower`,
+`hunter`) each grew their own three.js viewport independently — duplicated
+scene/camera/render-loop boilerplate, two incompatible in-memory model
+shapes (a hand-rolled `{verts,edges,faces}` polygon shape vs. real glTF
+documents), a manual 2D/3D UI toggle button in one of them instead of
+asset-driven dispatch, and — until now — zero manifest representation for a
+3D asset at all: 3D content had to bypass `manifest.json` entirely (e.g.
+hardcoded per-game path tables) because `ManifestEntry` had no fields for it
+and its `sprites`/`hasPalette`/`png` fields were required, meaningless ones
+for a mesh.
+
+**How it works now:**
+
+- **Asset-driven dispatch, no toggle.** A manifest entry's `type` field (the
+  same field that already drives the 2D filter tabs, §2 above) decides
+  whether an asset renders as 2D or 3D — there is no separate "3D mode"
+  button for the user to find or forget to leave. This scaffold's own
+  templates don't implement that dispatch themselves (see the callout at
+  the end of this section); it's each consuming project's `tools/viewer/
+  viewer.ts` that branches on `type` and calls into
+  `@seer-project/engine-3d` for a `mesh`/`scene` entry.
+- **Five new optional `ManifestEntry` fields** (`shared.ts.eta`, next to the
+  existing `category`/`group` sharding fields): `model?: string` (path
+  relative to `ASSET_BASE`), `modelFormat?: 'gltf' | 'polygon-json'`
+  (absent ⇒ inferred from `model`'s extension), `modelIndex?: number` (index
+  into a multi-model polygon JSON array — e.g. one shared
+  `objects-geometry.json` holding hundreds of objects, so many manifest
+  entries can share one fetch instead of one file per object), `scene?:
+  string` (a `type: "scene"` entry's placement data), and `skeletal?:
+  boolean` (whether the model carries `AnimationMixer`-driven skeletal
+  animation vs. a static mesh). Making `sprites`/`hasPalette`/`png`
+  optional at the same time was the one non-additive part of this change —
+  they're meaningless for a mesh/scene entry, and every existing unguarded
+  read of them in the scaffold template (`viewer.ts.eta`'s sidebar-item
+  renderer) was audited and fixed to tolerate their absence rather than
+  interpolating `undefined` into the DOM.
+- **glTF-native + a polygon adapter, not one hand-rolled shape.**
+  `@seer-project/engine-3d` settles the question `docs/engine-3d-proposal.md`
+  originally left open by not picking a single JSON shape. `gltf.ts`'s
+  `loadGltfModel()`/`toModel3D()` (`packages/engine-3d/src/gltf.ts:60`,
+  `:24`) load a real glTF 2.0 document via `THREE.GLTFLoader` and use it
+  as-is — real PBR materials, real textures, real baked `AnimationClip`s.
+  `polygon.ts`'s `normalizePolygonModel()`/`normalizePolygonSet()`
+  (`packages/engine-3d/src/polygon.ts:43`, `:64`) instead normalize a raw
+  `{verts,edges,faces}` JSON document — aliasing `vertices`/`verts`,
+  tolerating a bare `number[]` face as well as `{verts,fill}` — and
+  `buildPolygonModel()` (`:250`) builds one merged `BufferGeometry` each for
+  faces/lines/points. Both paths converge on the same unifying shape,
+  `Model3D.object: THREE.Object3D` (`packages/engine-3d/src/types.ts:71`) —
+  the one thing a host ever adds to `session`/`viewport.root`, regardless of
+  which path produced it; only `render-modes.ts` and, for color,
+  `polygon.ts`'s `recolorPolygonModel()` (`:309`) ever branch on
+  `model.source` (`types.ts:38`).
+- **Render/color-mode applicability** — reproduced from
+  `packages/engine-3d/README.md`'s own applicability tables (not
+  re-derived by hand here, so it can't silently drift from the package's
+  actual behavior in `render-modes.ts`'s `supportedRenderModes()`/
+  `defaultRenderMode()`/`applyRenderMode()`,
+  `packages/engine-3d/src/render-modes.ts:34`, `:44`, `:175`):
+
+  | render mode | polygon | glTF |
+  | --- | --- | --- |
+  | `textured` | unsupported (no texture data) | restores the mesh's original materials |
+  | `faces` | merged, per-vertex-colored geometry | flat `MeshLambertMaterial`, tinted from the original material's `.color` |
+  | `wireframe` | declared or derived edge set | flat wireframe `MeshBasicMaterial`, same tint |
+  | `points` | built eagerly | lazily built, cached merged `THREE.Points` |
+
+  | color mode | polygon | glTF |
+  | --- | --- | --- |
+  | `palette` | needs an injected `ColorResolver` (flat grey otherwise) | not offered |
+  | `face` / `object` / `height` | supported | not offered |
+
+  Color-mode application is polygon-only by design: a glTF mesh's materials
+  already carry real, meaningful color/texture information, so overwriting
+  them with an id- or height-derived tint would be a downgrade, not a
+  feature — a host that wants a uniform glTF tint can still do so directly
+  against `model.object`'s materials, nothing is hidden behind a private
+  API.
+- **`createMeshSession()`** (`packages/engine-3d/src/session.ts:64`) is the
+  orchestrator a host actually calls — one viewport, the active model, its
+  animation controller — with `session.setModel()`/`.addModel()`/
+  `.setRenderMode()`/`.setColorMode()`/`.fit()`/`.stats()`/`.dispose()`
+  (`session.ts:43-61`) as its surface. `session.disposed` after `dispose()`
+  is the same in-flight-load guard shape (`if (session.disposed) return;`
+  after an `await`) both `flower` and `hunter` already used before this
+  package existed.
+
+**Scaffold-template support is intentionally not implemented yet.** Only the
+manifest *shape* (the five fields above) lives in
+`packages/create-seer-viewer/templates/shared.ts.eta` — there is no `.eta`
+template code anywhere in `create-seer-viewer` or `create-seer` that
+branches on `type: "mesh"`/`"scene"`, imports `@seer-project/engine-3d`, or
+renders a 3D canvas. Each consuming project is expected to hand-wire this
+package into its own `tools/viewer/viewer.ts` — `flower` and `hunter` are
+the two projects with existing hand-rolled three.js viewers slated to
+migrate onto this package first, each as its own commit, independent of the
+scaffold. Template support is deferred until more than one real migration
+has settled what the integration shape should look like — abstracting a
+scaffold template from a single example risks locking in the wrong shape.
 
 ---
 

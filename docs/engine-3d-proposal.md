@@ -1,10 +1,51 @@
 # `@seer-project/engine-3d` — scoping proposal
 
-**Status: proposal, not started.** This is a scoping document, not an implementation
-plan with committed dates. It exists so that if/when the work happens, it starts
-from a real assessment of what's generic vs. game-specific, not a guess.
+**Status: superseded — implemented.** `@seer-project/engine-3d` now exists
+(`packages/engine-3d/`, added in commit `142140b`). See
+[`docs/viewer.md`](viewer.md) §5 for how it's wired into a consuming
+project's viewer, and [`packages/engine-3d/README.md`](../packages/engine-3d/README.md)
+for the package's own module-by-module reference. This document is kept as
+the historical record of the original scoping pass — the sections below are
+unchanged from before implementation started.
 
-## Why this might become a package
+## How the two open questions actually resolved
+
+This proposal (see "What's genuinely game-specific" below) left two
+questions open. Both were settled during implementation, and both resolved
+differently than this document guessed:
+
+- **Model shape.** This proposal's §"Proposed package shape" assumed a
+  single hand-rolled `{verts,edges,faces}` shape would be the standard input
+  (guessing glTF-sourced input would get "reduced back down" to it, the way
+  Hunter's original prototype treated Epic's `.glb` files). That's not what
+  shipped: the real package is **glTF-native as the primary path**
+  (`gltf.ts`, real `THREE.GLTFLoader` documents used as-is — real materials,
+  textures, baked animation clips), with the polygon shape handled by an
+  **adapter** (`polygon.ts`) that builds a `THREE.Object3D` the other
+  direction. Both converge on one unifying shape, `Model3D.object:
+  THREE.Object3D`, rather than one JSON shape being canonical.
+- **Mode dispatch / the game-model selector.** This proposal predicted the
+  data-driven selector this doc already suggested (reusing the 2D scaffold
+  viewer's pattern) but didn't specify how a viewer would decide *whether* to
+  render 2D or 3D for a given asset. That got decided during implementation:
+  it's **asset-driven** — a manifest entry's `type` field decides 3D vs. 2D
+  dispatch, not a user-facing mode toggle (which is what Hunter's original
+  prototype used, and which the migration onto this package removed).
+
+Everything else below — the palette/fill-word decode staying per-game and
+injected rather than shared, the parsers themselves staying local, the
+generic scene/camera/color-mode core — held up as originally scoped.
+
+---
+
+## Original proposal (unchanged from before implementation)
+
+**Original status line: "proposal, not started."** This is a scoping
+document, not an implementation plan with committed dates. It exists so that
+if/when the work happens, it starts from a real assessment of what's generic
+vs. game-specific, not a guess.
+
+### Why this might become a package
 
 `@seer-project/engine-2d` (the renamed `@seer-project/engine`) is a PixiJS-based 2D runtime —
 camera, input, tilemap/sprite rendering. It fits every seer-family game so far
@@ -20,7 +61,7 @@ models from three different games (Hunter, Carrier Command, Epic) through one
 shared rendering path. That's real evidence a generic 3D engine package is
 viable, not just a hunch.
 
-## What the prototype already gets right (the generic core)
+### What the prototype already gets right (the generic core)
 
 Reading `index-3d.html` in full, the following has **no game-specific
 assumptions** and is a strong basis for `@seer-project/engine-3d`'s core:
@@ -45,7 +86,7 @@ assumptions** and is a strong basis for `@seer-project/engine-3d`'s core:
   height-gradient modes are pure functions of geometry, not game data. Only
   the fourth mode ("palette") needs a per-game color source.
 
-## What's genuinely game-specific (must NOT be generalized into the core)
+### What's genuinely game-specific (must NOT be generalized into the core)
 
 - **The "palette" color mode's fill-word decode**
   (`fillToColor()`/`PALETTE` array): bits 11-8 of a 16-bit fill word are a
@@ -80,7 +121,7 @@ assumptions** and is a strong basis for `@seer-project/engine-3d`'s core:
   simple JSON one, since it's lighter and doesn't require round-tripping
   through glTF) or support both natively.
 
-## Proposed package shape (if/when this is built)
+### Proposed package shape (if/when this is built)
 
 ```
 @seer-project/engine-3d/
@@ -100,7 +141,7 @@ explicit escape hatch (the injected palette decoder) for the one piece that's
 legitimately per-game, the same way `@seer-project/engine-2d` leaves `Game.ts` as an
 edit-me template rather than a locked-down class.
 
-## What this would take, roughly
+### What this would take, roughly
 
 1. Extract `index-3d.html`'s inline script into typed, tested modules per the
    shape above — currently zero types, zero tests, no build step at all.
@@ -119,7 +160,7 @@ edit-me template rather than a locked-down class.
    Real GPU rendering isn't practically unit-testable — that stays a manual
    "does it look right" check, same as `@seer-project/engine-2d`'s current state.
 
-## What this does NOT require
+### What this does NOT require
 
 - No changes to `@seer-project/engine-2d` — the two packages don't interact. A
   project could depend on both if it has both 2D and 3D content (plausible
@@ -129,7 +170,8 @@ edit-me template rather than a locked-down class.
   `index-3d.html` keeps working unmodified whether or not this package is
   ever built; this is additive, not a migration forced on anyone.
 
-## Recommendation
+### Recommendation (original, now moot — see "How the two open questions
+actually resolved" above)
 
 Worth doing once there's a second real consumer beyond Hunter's own
 prototype — Carrier Command and Epic already sort of count, but they're
@@ -137,3 +179,4 @@ riding on the same one file rather than an independent integration. If
 Frontier or another `data/explore/` candidate gets a real 3D extraction
 pipeline built, that's the natural trigger to extract this properly rather
 than growing `index-3d.html` further in place.
+
