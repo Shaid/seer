@@ -16,12 +16,19 @@ type DisposableRenderable = (THREE.Mesh | THREE.SkinnedMesh | THREE.Points | THR
  * representations (this package builds both, see `render-modes.ts`).
  */
 function isDisposableRenderable(obj: THREE.Object3D): obj is DisposableRenderable {
-  const o = obj as unknown as { isMesh?: boolean; isPoints?: boolean; isLineSegments?: boolean; isLine?: boolean };
+  const o = obj as unknown as {
+    isMesh?: boolean;
+    isPoints?: boolean;
+    isLineSegments?: boolean;
+    isLine?: boolean;
+  };
   return !!(o.isMesh || o.isPoints || o.isLineSegments || o.isLine);
 }
 
 function isTexture(value: unknown): value is THREE.Texture & Disposable {
-  return !!value && typeof value === 'object' && (value as { isTexture?: boolean }).isTexture === true;
+  return (
+    !!value && typeof value === 'object' && (value as { isTexture?: boolean }).isTexture === true
+  );
 }
 
 /**

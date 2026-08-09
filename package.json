@@ -17,10 +17,11 @@
     "test:watch": "npm run build:packages && vitest",
     "lint": "eslint packages/*/src/ packages/*/bin/ src/ tools/",
     "format": "prettier --write 'packages/*/src/**/*.ts' 'src/**/*.ts' 'tools/**/*.ts'",
+    "format:check": "prettier --check 'packages/*/src/**/*.ts' 'src/**/*.ts' 'tools/**/*.ts'",
     "hex-dump": "npm run build:packages && tsx packages/pipeline/src/hex-dump.ts",
     "extract-data": "npm run build:packages && tsx tools/extract-game-data.ts",
     "build-assets": "npm run build:packages && tsx tools/extract-game-data.ts --assets-only",
-    "create": "npm run build:packages && node packages/create-seer/bin/seer-create.mjs",
+    "create": "npm run build:packages && node packages/create-seer-app/bin/create-seer-app.mjs",
     "dev:docs": "npm run dev --prefix wwwdocs",
     "build:docs": "npm run build --prefix wwwdocs",
     "preview:docs": "npm run preview --prefix wwwdocs"

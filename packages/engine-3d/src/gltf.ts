@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import type { Model3D, ModelRepresentations } from './types.ts';
+import type { Model3D, ModelRepresentations } from './types.js';
 
 function isMesh(obj: THREE.Object3D): obj is THREE.Mesh | THREE.SkinnedMesh {
   return (obj as { isMesh?: boolean }).isMesh === true;

@@ -22,10 +22,10 @@
  * - It also checks `inBounds` on the destination — stepping off the edge of
  *   a level is exactly as much a "no" as stepping into a mapped wall.
  */
-import type { CellQuery } from './CellQuery.ts';
-import type { Pose, Dir4 } from './Pose.ts';
-import { step } from './Direction.ts';
-import type { SemanticsFile } from '../schema/semantics.ts';
+import type { CellQuery } from './CellQuery.js';
+import type { Pose, Dir4 } from './Pose.js';
+import { step } from './Direction.js';
+import type { SemanticsFile } from '../schema/semantics.js';
 
 /**
  * `semantics` is accepted per the walker plan's documented signature — a
@@ -35,7 +35,12 @@ import type { SemanticsFile } from '../schema/semantics.ts';
  * `buildViewList`'s identical `_semantics` parameter and its own doc
  * comment explaining why.
  */
-export function canStep(level: CellQuery, _semantics: SemanticsFile, pose: Pose, dir: Dir4): boolean {
+export function canStep(
+  level: CellQuery,
+  _semantics: SemanticsFile,
+  pose: Pose,
+  dir: Dir4,
+): boolean {
   const dest = step(pose.x, pose.y, dir);
   if (!level.inBounds(dest.x, dest.y)) return false;
 

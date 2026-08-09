@@ -26,7 +26,10 @@ export const BACKGROUND_COLOR: RGBAColor = { r: 0, g: 0, b: 0, a: 255 };
  * matching palette entry renders as opaque black — defensive; a correctly
  * built `PieceBank` palette never produces one.
  */
-export function indicesToRGBA(indices: Uint8Array, palette: RGBAColor[]): Uint8ClampedArray<ArrayBuffer> {
+export function indicesToRGBA(
+  indices: Uint8Array,
+  palette: RGBAColor[],
+): Uint8ClampedArray<ArrayBuffer> {
   const out = new Uint8ClampedArray(indices.length * 4);
   for (let i = 0; i < indices.length; i++) {
     const c = palette[indices[i] as number] ?? BACKGROUND_COLOR;
@@ -64,7 +67,11 @@ export function rampPalettePath(tileset: string, ramp: number): string {
 }
 
 /** Same convention for the three indexed-atlas assets a tileset exports (index atlas, its opacity mask, and the shared atlas-frame sidecar). */
-export function indexedTilesetPaths(tileset: string): { indexPng: string; maskPng: string; atlasJson: string } {
+export function indexedTilesetPaths(tileset: string): {
+  indexPng: string;
+  maskPng: string;
+  atlasJson: string;
+} {
   return {
     indexPng: `textures/dungeon-${tileset}-indexed.png`,
     maskPng: `textures/dungeon-${tileset}-indexed-mask.png`,

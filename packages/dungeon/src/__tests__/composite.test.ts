@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { IndexedSurface } from '../raster/IndexedSurface.ts';
-import { PieceBank } from '../raster/PieceBank.ts';
-import { compositeSlotTable } from '../raster/composite.ts';
-import type { SlotTableFile } from '../schema/slots.ts';
+import { IndexedSurface } from '../raster/IndexedSurface.js';
+import { PieceBank } from '../raster/PieceBank.js';
+import { compositeSlotTable } from '../raster/composite.js';
+import type { SlotTableFile } from '../schema/slots.js';
 
 // A tiny synthetic bank with one overlapping-rectangle-friendly frame per
 // "depth", each a solid color, so composite ordering is directly observable
@@ -12,10 +12,22 @@ function makeBank(): PieceBank {
   const h = 1;
   // Two solid-color 1x1 pixel "frames" sharing one 4x1 atlas row.
   const rgba = new Uint8Array([
-    255, 0, 0, 255, // frameA: red
-    0, 255, 0, 255, // frameB: green
-    0, 0, 255, 255, // frameC: blue
-    255, 255, 0, 255, // frameD: yellow
+    255,
+    0,
+    0,
+    255, // frameA: red
+    0,
+    255,
+    0,
+    255, // frameB: green
+    0,
+    0,
+    255,
+    255, // frameC: blue
+    255,
+    255,
+    0,
+    255, // frameD: yellow
   ]);
   const atlas = {
     width: w,
@@ -48,8 +60,12 @@ describe('compositeSlotTable', () => {
       frontWallMaxDepth: 1,
       banks: [{ id: 'bank', atlas: 'a', image: 'b' }],
       slots: {
-        'front:0:1': { draws: [{ bank: 'bank', frame: 'A', destX: 0, destY: 0, blend: 'replace' }] }, // red, far
-        'front:0:0': { draws: [{ bank: 'bank', frame: 'B', destX: 0, destY: 0, blend: 'replace' }] }, // green, near
+        'front:0:1': {
+          draws: [{ bank: 'bank', frame: 'A', destX: 0, destY: 0, blend: 'replace' }],
+        }, // red, far
+        'front:0:0': {
+          draws: [{ bank: 'bank', frame: 'B', destX: 0, destY: 0, blend: 'replace' }],
+        }, // green, near
       },
       ordering: 'painter-back-to-front',
     };
@@ -73,7 +89,9 @@ describe('compositeSlotTable', () => {
       banks: [{ id: 'bank', atlas: 'a', image: 'b' }],
       slots: {
         'side:L:0': { draws: [{ bank: 'bank', frame: 'C', destX: 0, destY: 0, blend: 'replace' }] }, // blue
-        'front:0:0': { draws: [{ bank: 'bank', frame: 'D', destX: 0, destY: 0, blend: 'replace' }] }, // yellow
+        'front:0:0': {
+          draws: [{ bank: 'bank', frame: 'D', destX: 0, destY: 0, blend: 'replace' }],
+        }, // yellow
       },
       ordering: 'painter-back-to-front',
     };
@@ -94,7 +112,9 @@ describe('compositeSlotTable', () => {
       lateralOffsets: [0],
       frontWallMaxDepth: 1,
       banks: [{ id: 'bank', atlas: 'a', image: 'b' }],
-      staticSlots: [{ draws: [{ bank: 'bank', frame: 'A', destX: 0, destY: 0, blend: 'replace' }] }],
+      staticSlots: [
+        { draws: [{ bank: 'bank', frame: 'A', destX: 0, destY: 0, blend: 'replace' }] },
+      ],
       slots: {},
     };
     compositeSlotTable(surface, { bank }, table);
@@ -112,7 +132,11 @@ describe('compositeSlotTable', () => {
       lateralOffsets: [0],
       frontWallMaxDepth: 1,
       banks: [{ id: 'bank', atlas: 'a', image: 'b' }],
-      slots: { 'front:0:0': { draws: [{ bank: 'nope', frame: 'A', destX: 0, destY: 0, blend: 'replace' }] } },
+      slots: {
+        'front:0:0': {
+          draws: [{ bank: 'nope', frame: 'A', destX: 0, destY: 0, blend: 'replace' }],
+        },
+      },
     };
     expect(() => compositeSlotTable(surface, { bank }, table)).toThrow(/unknown bank/);
   });

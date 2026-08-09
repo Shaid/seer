@@ -72,12 +72,8 @@ export function defineGameConfig<T extends GameConfig[]>(config: T): T {
  * back-references set on each entry. Internal utility — consumers pass
  * GameConfig[] directly to runPipeline() and don't need to call this.
  */
-export function flattenConfigs(
-  configs: GameConfig[],
-): (PlatformConfig & { game: string })[] {
-  return configs.flatMap((g) =>
-    g.platforms.map((p) => ({ ...p, game: g.id })),
-  );
+export function flattenConfigs(configs: GameConfig[]): (PlatformConfig & { game: string })[] {
+  return configs.flatMap((g) => g.platforms.map((p) => ({ ...p, game: g.id })));
 }
 
 /** Look up one platform inside a nested GameConfig[]. */
@@ -94,10 +90,7 @@ export function getPlatformConfig(
 }
 
 /** Get all supported platform IDs for a game from a nested GameConfig[]. */
-export function getAllSupportedPlatforms(
-  configs: GameConfig[],
-  game: string,
-): string[] {
+export function getAllSupportedPlatforms(configs: GameConfig[], game: string): string[] {
   for (const g of configs) {
     if (g.id !== game) continue;
     return g.platforms.filter((p) => p.supported).map((p) => p.platform);
@@ -119,13 +112,8 @@ export function getGameConfig(
 }
 
 /** Get all supported platforms for a game from a flat array. */
-export function getSupportedPlatforms(
-  platforms: PlatformConfig[],
-  game: string,
-): string[] {
-  return platforms
-    .filter((c) => c.game === game && c.supported)
-    .map((c) => c.platform);
+export function getSupportedPlatforms(platforms: PlatformConfig[], game: string): string[] {
+  return platforms.filter((c) => c.game === game && c.supported).map((c) => c.platform);
 }
 
 /** Map a logical resource type to a platform-specific code, if overridden. */
@@ -153,8 +141,7 @@ function looksLikeDataDir(dir: string, config: PlatformConfig): boolean {
   }
   if (config.executable) {
     const exeLower = config.executable.toLowerCase();
-    if (entries.some((e) => e.isFile() && e.name.toLowerCase() === exeLower))
-      return true;
+    if (entries.some((e) => e.isFile() && e.name.toLowerCase() === exeLower)) return true;
   }
   const lowerNames = new Set(entries.map((e) => e.name.toLowerCase()));
   return config.expectedFiles.some((f) => lowerNames.has(f.toLowerCase()));
@@ -207,11 +194,7 @@ export function resolveDataDir(
         continue;
       }
       for (const entry of entries) {
-        if (
-          !entry.isDirectory() ||
-          IGNORED_DIR_NAMES.has(entry.name) ||
-          entry.name.startsWith('.')
-        )
+        if (!entry.isDirectory() || IGNORED_DIR_NAMES.has(entry.name) || entry.name.startsWith('.'))
           continue;
         queue.push({ dir: join(dir, entry.name), depth: depth + 1 });
       }

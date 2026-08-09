@@ -19,7 +19,7 @@ import {
   getSupportedPlatforms,
   resolveDataDir,
   findFileCI,
-} from './config.ts';
+} from './config.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,10 +50,7 @@ interface PipelineOptions {
  * exceptions thrown after an `await` inside an async step are actually
  * caught here rather than becoming an unhandled rejection.
  */
-async function runStep(
-  name: string,
-  fn: () => void | Promise<void>,
-): Promise<boolean> {
+async function runStep(name: string, fn: () => void | Promise<void>): Promise<boolean> {
   try {
     console.log(`\n── ${name} ──`);
     await fn();
@@ -65,10 +62,7 @@ async function runStep(
 }
 
 /** Print a helpful error when the data directory can't be found. */
-function printDataDirNotFound(
-  config: PlatformConfig & { game: string },
-  dataRoot: string,
-): void {
+function printDataDirNotFound(config: PlatformConfig & { game: string }, dataRoot: string): void {
   console.error(
     `Could not find game data under: ${config.dataDirs.map((d) => resolve(dataRoot, d)).join(', ')}`,
   );
@@ -108,15 +102,11 @@ export async function runPipeline(
     return [];
   }
 
-  const games =
-    game === 'all' ? [...new Set(entries.map((e) => e.game))] : [game];
+  const games = game === 'all' ? [...new Set(entries.map((e) => e.game))] : [game];
   const results: PipelineResult[] = [];
 
   for (const gameId of games) {
-    const platforms =
-      platform === 'all'
-        ? getSupportedPlatforms(entries, gameId)
-        : [platform];
+    const platforms = platform === 'all' ? getSupportedPlatforms(entries, gameId) : [platform];
 
     for (const platformId of platforms) {
       const config = getGameConfig(entries, gameId, platformId);
@@ -124,10 +114,7 @@ export async function runPipeline(
 
       const dataDir = resolveDataDir(config, options.dataDir);
       if (!dataDir) {
-        printDataDirNotFound(
-          { ...config, game: gameId },
-          options.dataDir ?? resolve('data'),
-        );
+        printDataDirNotFound({ ...config, game: gameId }, options.dataDir ?? resolve('data'));
         results.push({ game: gameId, platform: platformId, steps: [] });
         continue;
       }
@@ -150,15 +137,11 @@ export async function runPipeline(
         if (hasExe) {
           steps.push([
             'export-game-data',
-            await runStep('Export game data', () =>
-              config.exportGameData!(flatConfig, dataDir),
-            ),
+            await runStep('Export game data', () => config.exportGameData!(flatConfig, dataDir)),
           ]);
         } else {
           console.log('\n── export-game-data ──');
-          console.warn(
-            `  ⚠ ${config.executable ?? 'executable'} not found — skipping`,
-          );
+          console.warn(`  ⚠ ${config.executable ?? 'executable'} not found — skipping`);
           steps.push(['export-game-data (skipped)', true]);
         }
       } else {
@@ -170,9 +153,7 @@ export async function runPipeline(
       if (config.buildAssets) {
         steps.push([
           'build-assets',
-          await runStep('Build assets', () =>
-            config.buildAssets!(flatConfig, dataDir),
-          ),
+          await runStep('Build assets', () => config.buildAssets!(flatConfig, dataDir)),
         ]);
       } else {
         console.log('\n── build-assets ──');
@@ -187,9 +168,7 @@ export async function runPipeline(
 
       const failed = steps.filter(([, ok]) => !ok);
       if (failed.length > 0) {
-        console.log(
-          `\n${failed.length} step(s) had issues. Check warnings above.`,
-        );
+        console.log(`\n${failed.length} step(s) had issues. Check warnings above.`);
       } else {
         console.log('\nAll steps complete.');
       }

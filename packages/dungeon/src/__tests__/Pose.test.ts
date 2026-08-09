@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { turnLeft, turnRight, type Pose } from '../model/Pose.ts';
-import { rotate, leftOf, rightOf, step, project, FACING_DELTAS } from '../model/Direction.ts';
+import { turnLeft, turnRight, type Pose } from '../model/Pose.js';
+import { rotate, leftOf, rightOf, step, project, FACING_DELTAS } from '../model/Direction.js';
 
 // Black Crypt's confirmed facing convention (data-structure.md, "Party
 // Movement / Facing State Machine"): 0=N, 1=E, 2=S, 3=W; Y increases
 // northward, X increases eastward.
 describe('FACING_DELTAS', () => {
-  it('matches ApplyFacingDelta\'s confirmed jump table', () => {
+  it("matches ApplyFacingDelta's confirmed jump table", () => {
     expect(FACING_DELTAS[0]).toEqual({ dx: 0, dy: 1 }); // N
     expect(FACING_DELTAS[1]).toEqual({ dx: 1, dy: 0 }); // E
     expect(FACING_DELTAS[2]).toEqual({ dx: 0, dy: -1 }); // S
@@ -43,14 +43,14 @@ describe('step / project', () => {
     expect(step(5, 5, 3)).toEqual({ x: 4, y: 5 }); // W: x-1
   });
 
-  it('projects forward+lateral facing north: lateral+ is east (party\'s right)', () => {
+  it("projects forward+lateral facing north: lateral+ is east (party's right)", () => {
     // Facing N, forward is +Y, right is E (+X).
     expect(project(0, 0, 0, 2, 0)).toEqual({ x: 0, y: 2 });
     expect(project(0, 0, 0, 2, 1)).toEqual({ x: 1, y: 2 }); // right
     expect(project(0, 0, 0, 2, -1)).toEqual({ x: -1, y: 2 }); // left
   });
 
-  it('projects forward+lateral facing east: lateral+ is south (party\'s right)', () => {
+  it("projects forward+lateral facing east: lateral+ is south (party's right)", () => {
     // Facing E, forward is +X, right is S (-Y) -- matches the driver's
     // per-facing lateral-step table (data-structure.md, "Phase 1":
     // facing 1 (E) -> forward X += D2, lateral Y -= D3).

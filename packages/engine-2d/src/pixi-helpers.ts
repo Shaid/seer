@@ -9,7 +9,7 @@
 
 import { Graphics, TextStyle, Texture, Rectangle } from 'pixi.js';
 import type { TextStyleFontWeight } from 'pixi.js';
-import type { TopDownCamera } from './TopDownCamera.ts';
+import type { TopDownCamera } from './TopDownCamera.js';
 
 const VIEWPORT_CULL_MARGIN = 32;
 

@@ -49,7 +49,7 @@ export interface AnimRef {
 }
 
 /**
- * A per-map door-lock frame template (`docs/blackcrypt/TODO.md`'s
+ * A per-map door-lock frame template (the driving consumer tracks this as
  * `blackcrypt-doorlock-rendering`) — door-lock's art lives in the per-map
  * `wall-decorations` bank (`m{mapId}_decor{gfxIndex}_{near|mid|far}`), so a
  * fixed atlas frame name can't name it; the frame is only known once
@@ -106,7 +106,8 @@ export interface Slot {
 }
 
 /**
- * `blackcrypt-floor-item-placement` (`docs/blackcrypt/TODO.md`) — where a
+ * Where a generic dungeon-floor item draws from (the driving consumer tracks
+ * this as `blackcrypt-floor-item-placement`) — where a
  * generic dungeon-floor item (an `EntityRecord` whose type isn't one of the
  * specifically-rendered structure classes above) draws from. Unlike
  * alcove/plaque/stairs/door-switch/door-lock, position depends on a *third*

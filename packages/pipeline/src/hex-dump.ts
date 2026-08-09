@@ -6,7 +6,7 @@
  * this preserves backward compat with `npx tsx packages/pipeline/src/hex-dump.ts`.
  */
 import { basename } from 'node:path';
-import { readBinary } from './io.ts';
+import { readBinary } from './io.js';
 
 /** Print a hex+ASCII dump of `filePath` to stdout. */
 export function hexDump(filePath: string, startOffset = 0, maxLength = 256): void {

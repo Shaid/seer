@@ -23,10 +23,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
-import { PieceBank } from '../raster/PieceBank.ts';
-import { IndexedSurface } from '../raster/IndexedSurface.ts';
-import { compositeSlotTable } from '../raster/composite.ts';
-import { validateSlotTableFile } from '../schema/validate.ts';
+import { PieceBank } from '../raster/PieceBank.js';
+import { IndexedSurface } from '../raster/IndexedSurface.js';
+import { compositeSlotTable } from '../raster/composite.js';
+import { validateSlotTableFile } from '../schema/validate.js';
 import type { AtlasMeta } from '@seer-project/core';
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -50,7 +50,9 @@ function loadSurface() {
 describe('corridor golden render (M1)', () => {
   it('composites the hand-authored Black Crypt slots.json to the byte-exact golden framebuffer', () => {
     const { surface } = loadSurface();
-    const golden = new Uint8Array(Buffer.from(readFileSync(`${FIXTURES}corridor-golden.b64`, 'utf8'), 'base64'));
+    const golden = new Uint8Array(
+      Buffer.from(readFileSync(`${FIXTURES}corridor-golden.b64`, 'utf8'), 'base64'),
+    );
     expect(surface.data.length).toBe(golden.length);
     expect(Array.from(surface.data)).toEqual(Array.from(golden));
   });

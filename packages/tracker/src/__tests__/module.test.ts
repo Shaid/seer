@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Module } from '../micromod.ts';
-import { buildMod } from './mod-fixture.ts';
+import { Module } from '../micromod.js';
+import { buildMod } from './mod-fixture.js';
 
 /**
  * `Module` is the MOD *parser* half of the bundled Micromod port — pure,
@@ -61,7 +61,9 @@ describe('Module', () => {
 
   describe('sequence', () => {
     it('masks the high bit off the sequence length and restart position', () => {
-      const mod = new Module(buildMod({ sequence: [0, 1], sequenceLength: 0x82, restartPos: 0x81 }));
+      const mod = new Module(
+        buildMod({ sequence: [0, 1], sequenceLength: 0x82, restartPos: 0x81 }),
+      );
       expect(mod.sequenceLength).toBe(2); // 0x82 & 0x7F
       expect(mod.restartPos).toBe(1); // 0x81 & 0x7F
     });
@@ -83,7 +85,12 @@ describe('Module', () => {
     it('maps a period to its key index via the period table', () => {
       // 856 is the table entry for key 13; 1712 is key 1 an octave below.
       const mod = new Module(
-        buildMod({ notes: [{ index: 0, period: 856 }, { index: 1, period: 1712 }] }),
+        buildMod({
+          notes: [
+            { index: 0, period: 856 },
+            { index: 1, period: 1712 },
+          ],
+        }),
       );
       expect(mod.patterns[0]).toBe(13);
       expect(mod.patterns[4]).toBe(1);
@@ -138,7 +145,9 @@ describe('Module', () => {
 
     it('converts loop points from words to bytes', () => {
       const mod = new Module(
-        buildMod({ instruments: { 1: { lengthWords: 50, loopStartWords: 10, loopLengthWords: 10 } } }),
+        buildMod({
+          instruments: { 1: { lengthWords: 50, loopStartWords: 10, loopLengthWords: 10 } },
+        }),
       );
       expect(mod.instruments[1]!.loopStart).toBe(20);
       expect(mod.instruments[1]!.loopLength).toBe(20);
@@ -146,7 +155,9 @@ describe('Module', () => {
 
     it('disables a loop shorter than 4 bytes by parking it at the sample end', () => {
       const mod = new Module(
-        buildMod({ instruments: { 1: { lengthWords: 50, loopStartWords: 10, loopLengthWords: 1 } } }),
+        buildMod({
+          instruments: { 1: { lengthWords: 50, loopStartWords: 10, loopLengthWords: 1 } },
+        }),
       );
       const inst = mod.instruments[1]!;
       expect(inst.loopLength).toBe(0);
@@ -155,7 +166,9 @@ describe('Module', () => {
 
     it('clamps a loop that overruns the sample', () => {
       const mod = new Module(
-        buildMod({ instruments: { 1: { lengthWords: 50, loopStartWords: 45, loopLengthWords: 40 } } }),
+        buildMod({
+          instruments: { 1: { lengthWords: 50, loopStartWords: 45, loopLengthWords: 40 } },
+        }),
       );
       const inst = mod.instruments[1]!;
       expect(inst.loopStart + inst.loopLength).toBeLessThanOrEqual(100);
@@ -175,12 +188,16 @@ describe('Module', () => {
     it('survives a file whose sample data is truncated mid-instrument', () => {
       // A real hazard for a module ripped straight out of a game's data file:
       // the header declares more sample bytes than the file actually carries.
-      const spec = { instruments: { 1: { lengthWords: 32, volume: 64, sample: Array(64).fill(50) } } };
+      const spec = {
+        instruments: { 1: { lengthWords: 32, volume: 64, sample: Array(64).fill(50) } },
+      };
       const full = new Module(buildMod(spec));
       const truncated = new Module(buildMod({ ...spec, dropTrailingBytes: 40 }));
 
       expect(full.instruments[1]!.sampleData.length).toBe(65); // len + 1
-      expect(Array.from(full.instruments[1]!.sampleData.slice(0, 64)).every((b) => b === 50)).toBe(true);
+      expect(Array.from(full.instruments[1]!.sampleData.slice(0, 64)).every((b) => b === 50)).toBe(
+        true,
+      );
 
       // The buffer is still allocated at the *declared* length, but only the 24
       // bytes the file actually carried were copied — the rest stay zero.

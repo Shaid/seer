@@ -5,8 +5,8 @@
  * as a backward-compatible alias for this class (see `index.ts`).
  */
 
-import type { BaseCamera } from './BaseCamera.ts';
-import type { DisplayMode } from './DisplayMode.ts';
+import type { BaseCamera } from './BaseCamera.js';
+import type { DisplayMode } from './DisplayMode.js';
 
 export interface CameraState {
   /** World X coordinate of the camera center */

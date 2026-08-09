@@ -18,10 +18,10 @@
  * about.
  */
 import { describe, expect, it } from 'vitest';
-import { tileForCell, AUTOMAP_TILE_NAMES } from '../automap/AutomapRenderer.ts';
-import type { EntityRecord } from '../schema/level.ts';
-import type { CellQuery } from '../model/CellQuery.ts';
-import type { Dir4 } from '../model/Pose.ts';
+import { tileForCell, AUTOMAP_TILE_NAMES } from '../automap/AutomapRenderer.js';
+import type { EntityRecord } from '../schema/level.js';
+import type { CellQuery } from '../model/CellQuery.js';
+import type { Dir4 } from '../model/Pose.js';
 
 function u16(raw: number[], off: number): number {
   return ((raw[off] ?? 0) << 8) | (raw[off + 1] ?? 0);
@@ -97,7 +97,12 @@ describe('tileForCell baseline (no entity chain)', () => {
   });
 
   it('out-of-bounds cells are treated as wall (tile 0)', () => {
-    const level: CellQuery = { inBounds: () => false, wallAt: () => false, planeAt: () => 0, entitiesAt: () => [] };
+    const level: CellQuery = {
+      inBounds: () => false,
+      wallAt: () => false,
+      planeAt: () => 0,
+      entitiesAt: () => [],
+    };
     expect(tileForCell(level, X, Y)).toBe(0);
   });
 });

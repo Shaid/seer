@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { SmusEngine, SID_REST } from '../smus-engine.ts';
-import type { SmusScore } from '../smus-engine.ts';
+import { SmusEngine, SID_REST } from '../smus-engine.js';
+import type { SmusScore } from '../smus-engine.js';
 
 /**
  * Build a minimal SmusScore with the given tempo and N quarter-note events.

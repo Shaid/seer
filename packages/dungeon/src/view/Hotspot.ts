@@ -15,10 +15,10 @@
  * whichever piece is actually visible on top at that pixel rather than the
  * first one in list order.
  */
-import type { DrawItem } from './DrawItem.ts';
-import type { PieceBankLookup } from '../raster/composite.ts';
-import { resolveFrameName } from '../raster/anim.ts';
-import { topmostFirst } from './order.ts';
+import type { DrawItem } from './DrawItem.js';
+import type { PieceBankLookup } from '../raster/composite.js';
+import { resolveFrameName } from '../raster/anim.js';
+import { topmostFirst } from './order.js';
 
 export interface HotspotHit {
   item: DrawItem;
@@ -26,10 +26,17 @@ export interface HotspotHit {
 }
 
 /** The destination rectangle a `DrawItem` occupies on the surface, resolving its (possibly animated) frame at `tick` to get a concrete size. */
-function destRect(banks: PieceBankLookup, item: DrawItem, tick: number): { x: number; y: number; w: number; h: number } | null {
+function destRect(
+  banks: PieceBankLookup,
+  item: DrawItem,
+  tick: number,
+): { x: number; y: number; w: number; h: number } | null {
   const bank = banks[item.bank];
   if (!bank) return null;
-  const cell = item.cellX !== undefined && item.cellY !== undefined ? { x: item.cellX, y: item.cellY } : undefined;
+  const cell =
+    item.cellX !== undefined && item.cellY !== undefined
+      ? { x: item.cellX, y: item.cellY }
+      : undefined;
   const frameName = resolveFrameName(item.frame, tick, cell);
   if (!bank.hasFrame(frameName)) return null;
   const rect = bank.frame(frameName);
@@ -47,12 +54,23 @@ function destRect(banks: PieceBankLookup, item: DrawItem, tick: number): { x: nu
  * against `items`' hotspots, topmost-first. Returns `null` on a miss or when
  * nothing in `items` carries a `hotspot`.
  */
-export function pickHotspot(items: DrawItem[], banks: PieceBankLookup, tick: number, surfaceX: number, surfaceY: number): HotspotHit | null {
+export function pickHotspot(
+  items: DrawItem[],
+  banks: PieceBankLookup,
+  tick: number,
+  surfaceX: number,
+  surfaceY: number,
+): HotspotHit | null {
   for (const item of topmostFirst(items)) {
     if (!item.hotspot) continue;
     const rect = destRect(banks, item, tick);
     if (!rect) continue;
-    if (surfaceX >= rect.x && surfaceX < rect.x + rect.w && surfaceY >= rect.y && surfaceY < rect.y + rect.h) {
+    if (
+      surfaceX >= rect.x &&
+      surfaceX < rect.x + rect.w &&
+      surfaceY >= rect.y &&
+      surfaceY < rect.y + rect.h
+    ) {
       return { item, hotspot: item.hotspot };
     }
   }

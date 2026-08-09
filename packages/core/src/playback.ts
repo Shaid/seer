@@ -168,7 +168,10 @@ export function formatClock(seconds: number | null | undefined): string {
  * Callers pass a thunk rather than an engine so this works equally for a
  * `PlaybackEngine` and for a raw media element.
  */
-export function attemptPlayback(play: () => void | Promise<void>, onFailure: (err: unknown) => void): void {
+export function attemptPlayback(
+  play: () => void | Promise<void>,
+  onFailure: (err: unknown) => void,
+): void {
   try {
     Promise.resolve(play()).catch(onFailure);
   } catch (err) {

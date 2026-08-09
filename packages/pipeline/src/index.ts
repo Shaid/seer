@@ -10,12 +10,9 @@ export {
   resType,
   findFileCI,
   resolveDataDir,
-} from './config.ts';
+} from './config.js';
 
-export {
-  type PipelineResult,
-  runPipeline,
-} from './pipeline.ts';
+export { type PipelineResult, runPipeline } from './pipeline.js';
 
 export {
   readBinary,
@@ -25,15 +22,15 @@ export {
   writeJson,
   resolveDataFile,
   scanFilesByExtension,
-} from './io.ts';
+} from './io.js';
 
-export { hexDump } from './hex-dump.ts';
+export { hexDump } from './hex-dump.js';
 
-export { decompressLZEXE, type LZEXEResult } from './lzexe.ts';
+export { decompressLZEXE, type LZEXEResult } from './lzexe.js';
 
 export {
   type ShardableEntry,
   type GroupIndexEntry,
   type CategoryIndexEntry,
   writeShardedManifest,
-} from './manifest-sharding.ts';
+} from './manifest-sharding.js';

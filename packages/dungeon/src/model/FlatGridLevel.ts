@@ -11,10 +11,10 @@
  * query for the same edge reads its neighbour's plane value instead of its
  * own — see `wallAt` below).
  */
-import type { CellQuery } from './CellQuery.ts';
-import type { Dir4 } from './Pose.ts';
-import { step } from './Direction.ts';
-import type { DungeonLevelFile, EntityRecord, LevelUnit, WallStorage } from '../schema/level.ts';
+import type { CellQuery } from './CellQuery.js';
+import type { Dir4 } from './Pose.js';
+import { step } from './Direction.js';
+import type { DungeonLevelFile, EntityRecord, LevelUnit, WallStorage } from '../schema/level.js';
 
 export class FlatGridLevel implements CellQuery {
   readonly width: number;
@@ -43,7 +43,9 @@ export class FlatGridLevel implements CellQuery {
       // throws instead of guessing. Fix Direction.ts to actually consult
       // yAxisDown (threaded through every step()/project() call site) before
       // removing this guard for a real yAxisDown:true game.
-      throw new Error('FlatGridLevel: yAxisDown:true is not yet supported -- see this constructor\'s comment');
+      throw new Error(
+        "FlatGridLevel: yAxisDown:true is not yet supported -- see this constructor's comment",
+      );
     }
     this.width = file.cellSpace.width;
     this.height = file.cellSpace.height;
@@ -52,10 +54,14 @@ export class FlatGridLevel implements CellQuery {
     const requirePlane = (name: string) => {
       const plane = unit.planes[name];
       if (!plane) {
-        throw new Error(`FlatGridLevel: unit ${unit.id} has no plane "${name}" named by wallStorage`);
+        throw new Error(
+          `FlatGridLevel: unit ${unit.id} has no plane "${name}" named by wallStorage`,
+        );
       }
       if (plane.length !== cellCount) {
-        throw new Error(`FlatGridLevel: unit ${unit.id} plane "${name}" has ${plane.length} elements, expected ${cellCount}`);
+        throw new Error(
+          `FlatGridLevel: unit ${unit.id} plane "${name}" has ${plane.length} elements, expected ${cellCount}`,
+        );
       }
       return plane;
     };
@@ -75,14 +81,21 @@ export class FlatGridLevel implements CellQuery {
         // not a wrong-but-visible read), because the loop's first matching
         // branch short-circuits before the second plane is ever consulted.
         // Reject that at construction time rather than let it through.
-        if (dirA === dirB || ((dirA + 2) % 4) === dirB) {
-          throw new Error(`FlatGridLevel: wallStorage.planeDirs [${dirA}, ${dirB}] must be perpendicular (differ by 1 or 3 mod 4) -- a pair sharing or opposing the same axis leaves one plane unreachable`);
+        if (dirA === dirB || (dirA + 2) % 4 === dirB) {
+          throw new Error(
+            `FlatGridLevel: wallStorage.planeDirs [${dirA}, ${dirB}] must be perpendicular (differ by 1 or 3 mod 4) -- a pair sharing or opposing the same axis leaves one plane unreachable`,
+          );
         }
-        this.sharedEdgePlanes = [requirePlane(file.wallStorage.planes[0]), requirePlane(file.wallStorage.planes[1])];
+        this.sharedEdgePlanes = [
+          requirePlane(file.wallStorage.planes[0]),
+          requirePlane(file.wallStorage.planes[1]),
+        ];
         break;
       }
       default:
-        throw new Error(`FlatGridLevel: wallStorage.kind "${(file.wallStorage as WallStorage).kind}" is not yet implemented`);
+        throw new Error(
+          `FlatGridLevel: wallStorage.kind "${(file.wallStorage as WallStorage).kind}" is not yet implemented`,
+        );
     }
     this.wallStorage = file.wallStorage;
     this.entities = file.entities;
@@ -99,7 +112,9 @@ export class FlatGridLevel implements CellQuery {
 
   wallAt(x: number, y: number, dir: Dir4): boolean {
     if (!this.inBounds(x, y)) {
-      throw new Error(`FlatGridLevel.wallAt: (${x}, ${y}) is out of bounds (${this.width}x${this.height})`);
+      throw new Error(
+        `FlatGridLevel.wallAt: (${x}, ${y}) is out of bounds (${this.width}x${this.height})`,
+      );
     }
     if (this.wallStorage.kind === 'bitflags') {
       const bits = this.bitflagsPlane![this.index(x, y)] ?? 0;
@@ -109,7 +124,9 @@ export class FlatGridLevel implements CellQuery {
       return this.sharedEdgeValueAt(x, y, dir, this.wallStorage) !== 0;
     }
     // Unreachable: the constructor already rejects any other kind.
-    throw new Error(`FlatGridLevel.wallAt: wallStorage.kind "${this.wallStorage.kind}" is not implemented`);
+    throw new Error(
+      `FlatGridLevel.wallAt: wallStorage.kind "${this.wallStorage.kind}" is not implemented`,
+    );
   }
 
   /**
@@ -147,7 +164,9 @@ export class FlatGridLevel implements CellQuery {
     // Unreachable: the constructor rejects any planeDirs pair that isn't
     // perpendicular, and a perpendicular pair's two (own, opposite) facing
     // sets always partition all 4 facings exactly once between them.
-    throw new Error(`FlatGridLevel.sharedEdgeValueAt: dir ${dir} matches neither planeDirs entry nor its opposite`);
+    throw new Error(
+      `FlatGridLevel.sharedEdgeValueAt: dir ${dir} matches neither planeDirs entry nor its opposite`,
+    );
   }
 
   planeAt(name: string, x: number, y: number): number {

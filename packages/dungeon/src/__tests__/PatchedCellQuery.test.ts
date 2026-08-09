@@ -5,11 +5,16 @@
  * mutating the underlying level data.
  */
 import { describe, expect, it } from 'vitest';
-import { PatchedCellQuery } from '../model/PatchedCellQuery.ts';
-import { doorState, DOOR_OPEN_BIT, DOOR_LOCKED_BIT, applyEntityStatePatch } from '../model/EntityState.ts';
-import type { CellQuery } from '../model/CellQuery.ts';
-import type { EntityRecord } from '../schema/level.ts';
-import type { Dir4 } from '../model/Pose.ts';
+import { PatchedCellQuery } from '../model/PatchedCellQuery.js';
+import {
+  doorState,
+  DOOR_OPEN_BIT,
+  DOOR_LOCKED_BIT,
+  applyEntityStatePatch,
+} from '../model/EntityState.js';
+import type { CellQuery } from '../model/CellQuery.js';
+import type { EntityRecord } from '../schema/level.js';
+import type { Dir4 } from '../model/Pose.js';
 
 const DOOR_HANDLE = '1:2:3:7';
 const DOOR_RECORD: EntityRecord = { type: 0x11, flags: 0, raw: new Array(20).fill(0) };
@@ -38,8 +43,14 @@ describe('doorState / applyEntityStatePatch — decoding record +0x0E', () => {
   });
 
   it('bit 1 set: locked (independent of open)', () => {
-    expect(doorState({ type: 0x11, flags: DOOR_LOCKED_BIT })).toEqual({ open: false, locked: true });
-    expect(doorState({ type: 0x11, flags: DOOR_OPEN_BIT | DOOR_LOCKED_BIT })).toEqual({ open: true, locked: true });
+    expect(doorState({ type: 0x11, flags: DOOR_LOCKED_BIT })).toEqual({
+      open: false,
+      locked: true,
+    });
+    expect(doorState({ type: 0x11, flags: DOOR_OPEN_BIT | DOOR_LOCKED_BIT })).toEqual({
+      open: true,
+      locked: true,
+    });
   });
 
   it('treats a missing flags field as 0', () => {
@@ -47,8 +58,12 @@ describe('doorState / applyEntityStatePatch — decoding record +0x0E', () => {
   });
 
   it('applyEntityStatePatch only touches the bits the patch specifies', () => {
-    expect(applyEntityStatePatch(DOOR_LOCKED_BIT, { open: true })).toBe(DOOR_OPEN_BIT | DOOR_LOCKED_BIT);
-    expect(applyEntityStatePatch(DOOR_OPEN_BIT | DOOR_LOCKED_BIT, { locked: false })).toBe(DOOR_OPEN_BIT);
+    expect(applyEntityStatePatch(DOOR_LOCKED_BIT, { open: true })).toBe(
+      DOOR_OPEN_BIT | DOOR_LOCKED_BIT,
+    );
+    expect(applyEntityStatePatch(DOOR_OPEN_BIT | DOOR_LOCKED_BIT, { locked: false })).toBe(
+      DOOR_OPEN_BIT,
+    );
     expect(applyEntityStatePatch(0xff00, {})).toBe(0xff00); // untouched high bits survive
   });
 });

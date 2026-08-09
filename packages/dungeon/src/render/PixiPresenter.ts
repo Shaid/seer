@@ -5,8 +5,8 @@
  * fractional scale, so indexed pixel art stays crisp.
  */
 import { BufferImageSource, Container, Sprite, Texture } from 'pixi.js';
-import type { IndexedSurface } from '../raster/IndexedSurface.ts';
-import { indicesToRGBA, type RGBAColor } from '../raster/palette.ts';
+import type { IndexedSurface } from '../raster/IndexedSurface.js';
+import { indicesToRGBA, type RGBAColor } from '../raster/palette.js';
 
 export class PixiPresenter {
   readonly sprite: Sprite;
@@ -35,7 +35,10 @@ export class PixiPresenter {
 
   /** Add the sprite to `container`, scaled by the largest whole integer that fits `(targetWidth, targetHeight)`. */
   attachTo(container: Container, targetWidth: number, targetHeight: number): void {
-    this.scale = Math.max(1, Math.floor(Math.min(targetWidth / this.surface.width, targetHeight / this.surface.height)));
+    this.scale = Math.max(
+      1,
+      Math.floor(Math.min(targetWidth / this.surface.width, targetHeight / this.surface.height)),
+    );
     this.sprite.scale.set(this.scale);
     container.addChild(this.sprite);
   }

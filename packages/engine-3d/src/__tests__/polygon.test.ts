@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildPolygonModel, computeModelEdges, normalizePolygonModel, normalizePolygonSet, triangulateFan } from '../polygon.ts';
-import type { PolygonModel } from '../types.ts';
+import {
+  buildPolygonModel,
+  computeModelEdges,
+  normalizePolygonModel,
+  normalizePolygonSet,
+  triangulateFan,
+} from '../polygon.js';
+import type { PolygonModel } from '../types.js';
 
 describe('triangulateFan', () => {
   it('triangulates a 3-vertex face into exactly one triangle', () => {
@@ -25,27 +31,48 @@ describe('triangulateFan', () => {
 describe('computeModelEdges', () => {
   it('prefers declared edges[] over deriving from faces when both are present', () => {
     const model: Pick<PolygonModel, 'edges' | 'faces' | 'verts'> = {
-      verts: [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+      verts: [
+        [0, 0, 0],
+        [1, 0, 0],
+        [0, 1, 0],
+      ],
       edges: [[0, 1]], // deliberately NOT the full face ring
       faces: [{ verts: [0, 1, 2], fill: 0 }],
     };
     expect(computeModelEdges(model)).toEqual([[0, 1]]);
   });
 
-  it('derives edges from each face\'s vertex ring (consecutive pairs, wrapping) when no edges[] is declared', () => {
+  it("derives edges from each face's vertex ring (consecutive pairs, wrapping) when no edges[] is declared", () => {
     const model: Pick<PolygonModel, 'edges' | 'faces' | 'verts'> = {
-      verts: [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]],
+      verts: [
+        [0, 0, 0],
+        [1, 0, 0],
+        [1, 1, 0],
+        [0, 1, 0],
+      ],
       edges: [],
       faces: [{ verts: [0, 1, 2, 3], fill: 0 }],
     };
     // Ring 0-1-2-3-0: edges (0,1) (1,2) (2,3) (3,0)->(0,3)
-    expect(computeModelEdges(model)).toEqual([[0, 1], [1, 2], [2, 3], [0, 3]]);
+    expect(computeModelEdges(model)).toEqual([
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [0, 3],
+    ]);
   });
 
   it('dedupes (a,b) against (b,a) regardless of declaration order', () => {
     const model: Pick<PolygonModel, 'edges' | 'faces' | 'verts'> = {
-      verts: [[0, 0, 0], [1, 0, 0]],
-      edges: [[0, 1], [1, 0], [0, 1]],
+      verts: [
+        [0, 0, 0],
+        [1, 0, 0],
+      ],
+      edges: [
+        [0, 1],
+        [1, 0],
+        [0, 1],
+      ],
       faces: [],
     };
     expect(computeModelEdges(model)).toEqual([[0, 1]]);
@@ -53,7 +80,12 @@ describe('computeModelEdges', () => {
 
   it('dedupes edges derived from two faces sharing an edge', () => {
     const model: Pick<PolygonModel, 'edges' | 'faces' | 'verts'> = {
-      verts: [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]],
+      verts: [
+        [0, 0, 0],
+        [1, 0, 0],
+        [1, 1, 0],
+        [0, 1, 0],
+      ],
       edges: [],
       faces: [
         { verts: [0, 1, 2], fill: 0 },
@@ -70,8 +102,14 @@ describe('computeModelEdges', () => {
 
   it('drops out-of-range edge indices rather than throwing', () => {
     const model: Pick<PolygonModel, 'edges' | 'faces' | 'verts'> = {
-      verts: [[0, 0, 0], [1, 0, 0]],
-      edges: [[0, 1], [0, 5]],
+      verts: [
+        [0, 0, 0],
+        [1, 0, 0],
+      ],
+      edges: [
+        [0, 1],
+        [0, 5],
+      ],
       faces: [],
     };
     expect(computeModelEdges(model)).toEqual([[0, 1]]);
@@ -108,13 +146,17 @@ describe('normalizePolygonModel / normalizePolygonSet — regression: Carrier Co
       [5, 0, 0],
       [0, 5, 0],
     ],
-    edges: [[0, 1], [1, 2], [2, 0]],
+    edges: [
+      [0, 1],
+      [1, 2],
+      [2, 0],
+    ],
     faces: [{ fill: 0x0203, verts: [0, 1, 2] }],
     effectId: 7,
     stats: { source: 'hunter' },
   };
 
-  it('normalizes Carrier Command\'s bare-array faces without throwing, defaulting fill to 0', () => {
+  it("normalizes Carrier Command's bare-array faces without throwing, defaulting fill to 0", () => {
     const model = normalizePolygonModel(carrierCommandFixture, 0);
     expect(model.verts).toEqual(carrierCommandFixture.vertices);
     expect(model.faces).toEqual([
@@ -125,11 +167,15 @@ describe('normalizePolygonModel / normalizePolygonSet — regression: Carrier Co
     expect(model.edges).toEqual([]);
   });
 
-  it('normalizes hunter\'s {fill,verts} face objects', () => {
+  it("normalizes hunter's {fill,verts} face objects", () => {
     const model = normalizePolygonModel(hunterFixture, 0);
     expect(model.faces).toEqual([{ verts: [0, 1, 2], fill: 0x0203 }]);
     expect(model.typeTag).toBe(7);
-    expect(model.edges).toEqual([[0, 1], [1, 2], [2, 0]]);
+    expect(model.edges).toEqual([
+      [0, 1],
+      [1, 2],
+      [2, 0],
+    ]);
     expect(model.stats).toEqual({ source: 'hunter' });
   });
 
@@ -150,7 +196,7 @@ describe('normalizePolygonModel / normalizePolygonSet — regression: Carrier Co
     }
   });
 
-  it('normalizePolygonSet handles a bare array (both fixtures\' documents are arrays)', () => {
+  it("normalizePolygonSet handles a bare array (both fixtures' documents are arrays)", () => {
     const models = normalizePolygonSet([carrierCommandFixture, hunterFixture]);
     expect(models).toHaveLength(2);
     expect(models[0]!.id).toBe(1);
@@ -198,7 +244,9 @@ describe('normalizePolygonModel — field aliasing', () => {
   });
 
   it('aliases vertices > verts for the vertex array, in that priority order', () => {
-    expect(normalizePolygonModel({ vertices: [[1, 1, 1]], verts: [[2, 2, 2]] }, 0).verts).toEqual([[1, 1, 1]]);
+    expect(normalizePolygonModel({ vertices: [[1, 1, 1]], verts: [[2, 2, 2]] }, 0).verts).toEqual([
+      [1, 1, 1],
+    ]);
     expect(normalizePolygonModel({ verts: [[2, 2, 2]] }, 0).verts).toEqual([[2, 2, 2]]);
   });
 });

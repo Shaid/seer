@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decompressLZEXE } from '../lzexe.ts';
+import { decompressLZEXE } from '../lzexe.js';
 
 /**
  * Error-path coverage only. Full decompression correctness (the LZSS body

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mixVoiceStereo, applyMasterGain } from '../mix.ts';
+import { mixVoiceStereo, applyMasterGain } from '../mix.js';
 
 describe('mixVoiceStereo', () => {
   it('accumulates additively rather than overwriting', () => {

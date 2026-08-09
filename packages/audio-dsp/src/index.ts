@@ -11,6 +11,15 @@
  * importantly, what deliberately stayed out of this package.
  */
 
-export { renderToStereoBuffers, type BlockRenderer, type RenderToStereoBuffersOptions } from './render-driver.ts';
-export { mixVoiceStereo, applyMasterGain } from './mix.ts';
-export { resampleLooped, GAUSSIAN_TABLE, type InterpolationKernel, type ResampleResult } from './resample.ts';
+export {
+  renderToStereoBuffers,
+  type BlockRenderer,
+  type RenderToStereoBuffersOptions,
+} from './render-driver.js';
+export { mixVoiceStereo, applyMasterGain } from './mix.js';
+export {
+  resampleLooped,
+  GAUSSIAN_TABLE,
+  type InterpolationKernel,
+  type ResampleResult,
+} from './resample.js';

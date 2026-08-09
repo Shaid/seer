@@ -1,15 +1,15 @@
-export { TopDownCamera, TopDownCamera as Camera } from './TopDownCamera.ts';
-export type { CameraState, TopDownCameraOptions } from './TopDownCamera.ts';
-export type { BaseCamera } from './BaseCamera.ts';
-export { SideViewCamera } from './SideViewCamera.ts';
-export { DisplayMode } from './DisplayMode.ts';
-export type { DisplayModeType, DisplayModeConfig } from './DisplayMode.ts';
-export { InputManager } from './InputManager.ts';
-export type { InputConfig, ClickHandler } from './InputManager.ts';
-export { Game, createGame, resolveCamera } from './Game.ts';
-export type { GameOptions, CreateGameOptions } from './Game.ts';
-export { KeyState } from './KeyState.ts';
-export { PointerState } from './PointerState.ts';
+export { TopDownCamera, TopDownCamera as Camera } from './TopDownCamera.js';
+export type { CameraState, TopDownCameraOptions } from './TopDownCamera.js';
+export type { BaseCamera } from './BaseCamera.js';
+export { SideViewCamera } from './SideViewCamera.js';
+export { DisplayMode } from './DisplayMode.js';
+export type { DisplayModeType, DisplayModeConfig } from './DisplayMode.js';
+export { InputManager } from './InputManager.js';
+export type { InputConfig, ClickHandler } from './InputManager.js';
+export { Game, createGame, resolveCamera } from './Game.js';
+export type { GameOptions, CreateGameOptions } from './Game.js';
+export { KeyState } from './KeyState.js';
+export { PointerState } from './PointerState.js';
 export {
   computeUIScale,
   computeViewportBounds,
@@ -19,5 +19,5 @@ export {
   sliceAtlasKeyed,
   findNearestByWorldCoord,
   screenToWorld,
-} from './pixi-helpers.ts';
-export type { LabelStyleOptions } from './pixi-helpers.ts';
+} from './pixi-helpers.js';
+export type { LabelStyleOptions } from './pixi-helpers.js';

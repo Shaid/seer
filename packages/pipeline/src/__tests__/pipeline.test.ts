@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { GameConfig } from '../config.ts';
-import { runPipeline } from '../pipeline.ts';
+import type { GameConfig } from '../config.js';
+import { runPipeline } from '../pipeline.js';
 
 const FIXTURE_ROOT = resolve(process.cwd(), 'data', '__pipeline_test__');
 
@@ -40,7 +40,15 @@ describe('runPipeline', () => {
 
   it('reports a config as failed when it has no data dir on disk', async () => {
     const config = makeGameConfig({
-      platforms: [{ platform: 'amiga', dataDirs: ['__does_not_exist__'], expectedFiles: ['GAME.EXE', 'DATA.DAT'], supported: true, assetDir: 'demo' }],
+      platforms: [
+        {
+          platform: 'amiga',
+          dataDirs: ['__does_not_exist__'],
+          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
+          supported: true,
+          assetDir: 'demo',
+        },
+      ],
     });
     const results = await runPipeline([config]);
     expect(results).toHaveLength(1);
@@ -60,7 +68,17 @@ describe('runPipeline', () => {
     rmSync(resolve(dataDir, 'GAME.EXE'));
     const exportGameData = vi.fn();
     const config = makeGameConfig({
-      platforms: [{ platform: 'amiga', dataDirs: ['__pipeline_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE', 'DATA.DAT'], supported: true, assetDir: 'demo', exportGameData }],
+      platforms: [
+        {
+          platform: 'amiga',
+          dataDirs: ['__pipeline_test__/amiga'],
+          executable: 'GAME.EXE',
+          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
+          supported: true,
+          assetDir: 'demo',
+          exportGameData,
+        },
+      ],
     });
     const results = await runPipeline([config]);
     expect(exportGameData).not.toHaveBeenCalled();
@@ -74,7 +92,18 @@ describe('runPipeline', () => {
     const exportGameData = vi.fn();
     const buildAssets = vi.fn();
     const config = makeGameConfig({
-      platforms: [{ platform: 'amiga', dataDirs: ['__pipeline_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE', 'DATA.DAT'], supported: true, assetDir: 'demo', exportGameData, buildAssets }],
+      platforms: [
+        {
+          platform: 'amiga',
+          dataDirs: ['__pipeline_test__/amiga'],
+          executable: 'GAME.EXE',
+          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
+          supported: true,
+          assetDir: 'demo',
+          exportGameData,
+          buildAssets,
+        },
+      ],
     });
     const results = await runPipeline([config]);
 
@@ -93,7 +122,18 @@ describe('runPipeline', () => {
     });
     const buildAssets = vi.fn();
     const config = makeGameConfig({
-      platforms: [{ platform: 'amiga', dataDirs: ['__pipeline_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE', 'DATA.DAT'], supported: true, assetDir: 'demo', exportGameData, buildAssets }],
+      platforms: [
+        {
+          platform: 'amiga',
+          dataDirs: ['__pipeline_test__/amiga'],
+          executable: 'GAME.EXE',
+          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
+          supported: true,
+          assetDir: 'demo',
+          exportGameData,
+          buildAssets,
+        },
+      ],
     });
     const results = await runPipeline([config]);
 
@@ -112,7 +152,17 @@ describe('runPipeline', () => {
       order.push('end');
     });
     const config = makeGameConfig({
-      platforms: [{ platform: 'amiga', dataDirs: ['__pipeline_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE', 'DATA.DAT'], supported: true, assetDir: 'demo', exportGameData }],
+      platforms: [
+        {
+          platform: 'amiga',
+          dataDirs: ['__pipeline_test__/amiga'],
+          executable: 'GAME.EXE',
+          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
+          supported: true,
+          assetDir: 'demo',
+          exportGameData,
+        },
+      ],
     });
     const results = await runPipeline([config]);
 
@@ -129,7 +179,17 @@ describe('runPipeline', () => {
       throw new Error('async failure after await');
     });
     const config = makeGameConfig({
-      platforms: [{ platform: 'amiga', dataDirs: ['__pipeline_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE', 'DATA.DAT'], supported: true, assetDir: 'demo', exportGameData }],
+      platforms: [
+        {
+          platform: 'amiga',
+          dataDirs: ['__pipeline_test__/amiga'],
+          executable: 'GAME.EXE',
+          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
+          supported: true,
+          assetDir: 'demo',
+          exportGameData,
+        },
+      ],
     });
     const results = await runPipeline([config]);
 
@@ -142,7 +202,17 @@ describe('runPipeline', () => {
   it('skips unsupported configs entirely', async () => {
     const exportGameData = vi.fn();
     const config = makeGameConfig({
-      platforms: [{ platform: 'amiga', dataDirs: ['__pipeline_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE', 'DATA.DAT'], supported: false, assetDir: 'demo', exportGameData }],
+      platforms: [
+        {
+          platform: 'amiga',
+          dataDirs: ['__pipeline_test__/amiga'],
+          executable: 'GAME.EXE',
+          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
+          supported: false,
+          assetDir: 'demo',
+          exportGameData,
+        },
+      ],
     });
     const results = await runPipeline([config]);
     expect(exportGameData).not.toHaveBeenCalled();
@@ -150,8 +220,32 @@ describe('runPipeline', () => {
   });
 
   it('expands game "all" to every distinct game in the config', async () => {
-    const a: GameConfig = { id: 'a', displayName: 'A', platforms: [{ platform: 'amiga', dataDirs: ['__pipeline_test__/amiga'], expectedFiles: ['GAME.EXE', 'DATA.DAT'], supported: true, assetDir: 'a' }] };
-    const b: GameConfig = { id: 'b', displayName: 'B', platforms: [{ platform: 'amiga', dataDirs: ['__pipeline_test__/amiga'], expectedFiles: ['GAME.EXE', 'DATA.DAT'], supported: true, assetDir: 'b' }] };
+    const a: GameConfig = {
+      id: 'a',
+      displayName: 'A',
+      platforms: [
+        {
+          platform: 'amiga',
+          dataDirs: ['__pipeline_test__/amiga'],
+          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
+          supported: true,
+          assetDir: 'a',
+        },
+      ],
+    };
+    const b: GameConfig = {
+      id: 'b',
+      displayName: 'B',
+      platforms: [
+        {
+          platform: 'amiga',
+          dataDirs: ['__pipeline_test__/amiga'],
+          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
+          supported: true,
+          assetDir: 'b',
+        },
+      ],
+    };
     const results = await runPipeline([a, b], { game: 'all', platform: 'amiga' });
     expect(results.map((r) => r.game).sort()).toEqual(['a', 'b']);
   });
@@ -165,8 +259,22 @@ describe('runPipeline', () => {
       id: 'demo',
       displayName: 'Demo',
       platforms: [
-        { platform: 'amiga', dataDirs: ['__pipeline_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE', 'DATA.DAT'], supported: true, assetDir: 'demo' },
-        { platform: 'dos', dataDirs: ['__pipeline_test__/dos'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE', 'DATA.DAT'], supported: true, assetDir: 'demo' },
+        {
+          platform: 'amiga',
+          dataDirs: ['__pipeline_test__/amiga'],
+          executable: 'GAME.EXE',
+          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
+          supported: true,
+          assetDir: 'demo',
+        },
+        {
+          platform: 'dos',
+          dataDirs: ['__pipeline_test__/dos'],
+          executable: 'GAME.EXE',
+          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
+          supported: true,
+          assetDir: 'demo',
+        },
       ],
     };
     const results = await runPipeline([config], { game: 'demo', platform: 'all' });
@@ -180,7 +288,16 @@ describe('runPipeline', () => {
     writeFileSync(resolve(nested, 'GAME.EXE'), '');
 
     const config = makeGameConfig({
-      platforms: [{ platform: 'amiga', dataDirs: ['demo/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE', 'DATA.DAT'], supported: true, assetDir: 'demo' }],
+      platforms: [
+        {
+          platform: 'amiga',
+          dataDirs: ['demo/amiga'],
+          executable: 'GAME.EXE',
+          expectedFiles: ['GAME.EXE', 'DATA.DAT'],
+          supported: true,
+          assetDir: 'demo',
+        },
+      ],
     });
     const results = await runPipeline([config], { dataDir: customRoot });
     expect(results[0].steps).toEqual([

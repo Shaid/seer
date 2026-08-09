@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PlaybackEngine, PlaybackState } from '@seer-project/core';
-import { AudioBarController, type AudioBarElements } from '../audio-bar.ts';
+import { AudioBarController, type AudioBarElements } from '../audio-bar.js';
 
 /**
  * A minimal, fully controllable fake `PlaybackEngine` — real DOM elements
@@ -74,7 +74,8 @@ function makeFakeEngine(
   // only play()/stop(), with no paused state to resume from.
   if (opts.noPause) delete (engine as Partial<PlaybackEngine>).pause;
   if (opts.stop) engine.stop = vi.fn(() => engine.setState({ isPlaying: false, currentTime: 0 }));
-  if (opts.seek) engine.seek = vi.fn((seconds: number) => engine.setState({ currentTime: seconds }));
+  if (opts.seek)
+    engine.seek = vi.fn((seconds: number) => engine.setState({ currentTime: seconds }));
   if (opts.setVolume) engine.setVolume = vi.fn((v: number) => engine.setState({ volume: v }));
 
   return engine;
@@ -158,7 +159,10 @@ describe('AudioBarController', () => {
   });
 
   it('reflects a seekable engine with a live time readout and a visible slider', () => {
-    const engine = makeFakeEngine({ seekable: true, currentTime: 30, duration: 120 }, { seek: true });
+    const engine = makeFakeEngine(
+      { seekable: true, currentTime: 30, duration: 120 },
+      { seek: true },
+    );
     controller.attach(engine);
     expect(els.seekInput!.classList.contains('hidden')).toBe(false);
     expect(els.seekInput!.value).toBe('250'); // 30/120 of the slider's 0-1000 range
@@ -173,7 +177,7 @@ describe('AudioBarController', () => {
     expect(els.seekInput!.classList.contains('hidden')).toBe(true);
   });
 
-  it('scales seek by the slider\'s own min/max rather than a hardcoded range', () => {
+  it("scales seek by the slider's own min/max rather than a hardcoded range", () => {
     const plainRangeEls = makeElements();
     // HTML's default range scale, instead of the 0-1000 real projects use.
     plainRangeEls.seekInput!.max = '100';
@@ -327,7 +331,7 @@ describe('AudioBarController', () => {
     minimalController.detach();
   });
 
-  it('works with no seekInput at all (wyrm\'s panel shape — tracker playback is never seekable) and falls back to detail text in timeLabel', () => {
+  it("works with no seekInput at all (wyrm's panel shape — tracker playback is never seekable) and falls back to detail text in timeLabel", () => {
     const bar = document.createElement('div');
     const toggleBtn = document.createElement('button');
     const timeLabel = document.createElement('span');

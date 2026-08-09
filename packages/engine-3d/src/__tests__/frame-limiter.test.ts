@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFrameLimiter } from '../frame-limiter.ts';
+import { createFrameLimiter } from '../frame-limiter.js';
 
 /** A fake clock the limiter drives entirely off — no real timers, no flake. */
 function fakeClock(startMs = 0) {

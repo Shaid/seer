@@ -9,7 +9,7 @@
  * never be imported from browser-bundled code under src/).
  *
  * The config table is defined via defineGameConfig() from @seer-project/pipeline —
- * the nested GameConfig[] shape that runPipeline() and create-seer templates
+ * the nested GameConfig[] shape that runPipeline() and create-seer-app templates
  * target.
  */
 

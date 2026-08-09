@@ -1,0 +1,21 @@
+# Build output and generated content
+dist/
+wwwdocs/dist/
+wwwdocs/generated/
+wwwdocs/src/content/docs/start-here/
+wwwdocs/src/content/docs/packages/
+wwwdocs/src/content/docs/guides/
+wwwdocs/src/content/docs/recompilation/
+wwwdocs/src/content/docs/roadmap/
+
+# Scaffolder templates are rendered, not compiled — several are deliberately
+# not valid standalone TypeScript/JS until Eta substitutes into them.
+packages/create-seer-app/templates/
+
+# A near-verbatim port of Martin Cameron's Micromod ProTracker replay
+# (BSD 3-Clause, see packages/tracker/THIRD-PARTY-LICENSES.md). It keeps
+# upstream's formatting on purpose so it stays diffable against the original
+# when upstream changes; reformatting rewrites essentially every line of it
+# and throws that away. Its own `player.ts` wrapper is ours and is formatted
+# normally.
+packages/tracker/src/micromod.ts

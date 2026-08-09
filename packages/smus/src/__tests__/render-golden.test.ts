@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { parseInstr } from '../sampled-sound.ts';
-import type { InstrEmbedded } from '../sampled-sound.ts';
-import { SmusEngine, instrumentFromSynth } from '../smus-engine.ts';
-import type { SmusScore, Instrument } from '../smus-engine.ts';
+import { parseInstr } from '../sampled-sound.js';
+import type { InstrEmbedded } from '../sampled-sound.js';
+import { SmusEngine, instrumentFromSynth } from '../smus-engine.js';
+import type { SmusScore, Instrument } from '../smus-engine.js';
 
 /**
  * Golden PCM regression fixtures, captured against the pre-refactor

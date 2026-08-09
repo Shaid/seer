@@ -3,9 +3,9 @@
  * `serialize()`/`restore()` in a later milestone just needs to round-trip
  * this plus a visited set.
  */
-export type { Dir4 } from '../schema/level.ts';
-import type { Dir4 } from '../schema/level.ts';
-import { rotate } from './Direction.ts';
+export type { Dir4 } from '../schema/level.js';
+import type { Dir4 } from '../schema/level.js';
+import { rotate } from './Direction.js';
 
 export interface Pose {
   /** The `LevelUnit.id` this pose is in. */

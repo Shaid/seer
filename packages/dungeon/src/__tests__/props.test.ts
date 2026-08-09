@@ -21,15 +21,15 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
 import type { AtlasMeta } from '@seer-project/core';
-import { PieceBank } from '../raster/PieceBank.ts';
-import { IndexedSurface } from '../raster/IndexedSurface.ts';
-import { compositeDrawList } from '../raster/composite.ts';
-import { validateSlotTableFile, validateDungeonLevelFile } from '../schema/validate.ts';
-import { FlatGridLevel } from '../model/FlatGridLevel.ts';
-import { buildViewList } from '../view/buildViewList.ts';
-import { viewSpecFromSlotTable } from '../view/ViewSpec.ts';
-import type { Pose, Dir4 } from '../model/Pose.ts';
-import type { SemanticsFile } from '../schema/semantics.ts';
+import { PieceBank } from '../raster/PieceBank.js';
+import { IndexedSurface } from '../raster/IndexedSurface.js';
+import { compositeDrawList } from '../raster/composite.js';
+import { validateSlotTableFile, validateDungeonLevelFile } from '../schema/validate.js';
+import { FlatGridLevel } from '../model/FlatGridLevel.js';
+import { buildViewList } from '../view/buildViewList.js';
+import { viewSpecFromSlotTable } from '../view/ViewSpec.js';
+import type { Pose, Dir4 } from '../model/Pose.js';
+import type { SemanticsFile } from '../schema/semantics.js';
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
 
@@ -53,12 +53,20 @@ function loadFixtures() {
   // including door-lock's `wall-decorations` bank entry (its `FrameTemplate`
   // needs a second atlas the wall/alcove/plaque/stairs/door-switch classes
   // don't reference at all).
-  const slots = validateSlotTableFile(JSON.parse(readFileSync(`${FIXTURES}slots-with-props.json`, 'utf8')));
+  const slots = validateSlotTableFile(
+    JSON.parse(readFileSync(`${FIXTURES}slots-with-props.json`, 'utf8')),
+  );
   const bank = loadBank('dungeon-bcdfx');
   return { level, slots, bank };
 }
 
-const SEMANTICS = { schemaVersion: 1, confidence: 'confirmed', source: 'props.test.ts', walls: {}, features: {} } as SemanticsFile;
+const SEMANTICS = {
+  schemaVersion: 1,
+  confidence: 'confirmed',
+  source: 'props.test.ts',
+  walls: {},
+  features: {},
+} as SemanticsFile;
 
 // (map, row, col, expected propType) — real records, see module doc comment.
 // `slots.json`'s prop atlas frames (`dungeon-bcdfx`) don't include the
@@ -85,7 +93,11 @@ describe('M5 props: real bcdfs cells x 4 facings', () => {
   const { level: levelFile, slots, bank } = loadFixtures();
   const decorBank = loadBank('wall-decorations');
   const floorItemBank = loadBank('floor-items');
-  const banks = { [slots.banks[0]!.id]: bank, [slots.banks[1]!.id]: decorBank, [slots.banks[2]!.id]: floorItemBank };
+  const banks = {
+    [slots.banks[0]!.id]: bank,
+    [slots.banks[1]!.id]: decorBank,
+    [slots.banks[2]!.id]: floorItemBank,
+  };
   const spec = viewSpecFromSlotTable(slots);
   const unit = levelFile.units.find((u) => u.id === 1);
   if (!unit) throw new Error('fixture is missing unit 1');
@@ -100,27 +112,30 @@ describe('M5 props: real bcdfs cells x 4 facings', () => {
     }
   });
 
-  it.each(REAL_CELLS)('($row,$col) [$propType]: renders across all 4 facings with zero exceptions, zero out-of-atlas refs, zero out-of-surface writes', ({ row, col }) => {
-    let anyPropDrawn = false;
+  it.each(REAL_CELLS)(
+    '($row,$col) [$propType]: renders across all 4 facings with zero exceptions, zero out-of-atlas refs, zero out-of-surface writes',
+    ({ row, col }) => {
+      let anyPropDrawn = false;
 
-    for (const facing of FACINGS) {
-      const pose: Pose = { level: 1, x: col, y: row, facing };
-      const items = buildViewList(cellLevel, pose, spec, SEMANTICS, slots);
-      const propItems = items.filter((i) => i.kind === 'prop');
-      if (propItems.length > 0) anyPropDrawn = true;
+      for (const facing of FACINGS) {
+        const pose: Pose = { level: 1, x: col, y: row, facing };
+        const items = buildViewList(cellLevel, pose, spec, SEMANTICS, slots);
+        const propItems = items.filter((i) => i.kind === 'prop');
+        if (propItems.length > 0) anyPropDrawn = true;
 
-      const surface = new IndexedSurface(slots.surface.width, slots.surface.height);
-      const dataLengthBefore = surface.data.length;
-      expect(() => compositeDrawList(surface, banks, slots, items)).not.toThrow();
-      expect(surface.data.length).toBe(dataLengthBefore);
-    }
+        const surface = new IndexedSurface(slots.surface.width, slots.surface.height);
+        const dataLengthBefore = surface.data.length;
+        expect(() => compositeDrawList(surface, banks, slots, items)).not.toThrow();
+        expect(surface.data.length).toBe(dataLengthBefore);
+      }
 
-    // Not every facing draws this cell's structure (single-wall/right-only
-    // gating means at most one or two of the four facings ever will — see
-    // buildViewList's module doc comment) but at least one of the four
-    // real, on-disk facings must, or the wiring is a silent no-op.
-    expect(anyPropDrawn).toBe(true);
-  });
+      // Not every facing draws this cell's structure (single-wall/right-only
+      // gating means at most one or two of the four facings ever will — see
+      // buildViewList's module doc comment) but at least one of the four
+      // real, on-disk facings must, or the wiring is a silent no-op.
+      expect(anyPropDrawn).toBe(true);
+    },
+  );
 
   it('a cell with no entities never emits a prop item', () => {
     // (0,0) on unit 1 is defensive-fill territory (not a real on-disk
@@ -160,10 +175,14 @@ describe('M5 props: real bcdfs cells x 4 facings', () => {
     // composite of all 8 was visually confirmed ungarbled this session (see
     // data-structure.md's writeup) -- not re-asserted pixel-by-pixel here.
     const CLIPPED_KEYS = [
-      'prop:alcove:-1:1:0', 'prop:alcove:1:1:0',
-      'prop:plaque:-1:1:0', 'prop:plaque:1:1:0',
-      'prop:stairs-a:-1:1', 'prop:stairs-a:1:1',
-      'prop:stairs-b:-1:1', 'prop:stairs-b:1:1',
+      'prop:alcove:-1:1:0',
+      'prop:alcove:1:1:0',
+      'prop:plaque:-1:1:0',
+      'prop:plaque:1:1:0',
+      'prop:stairs-a:-1:1',
+      'prop:stairs-a:1:1',
+      'prop:stairs-b:-1:1',
+      'prop:stairs-b:1:1',
     ];
     let checked = 0;
     for (const key of CLIPPED_KEYS) {

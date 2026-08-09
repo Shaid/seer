@@ -12,10 +12,10 @@
  * host decision) — `setPatch` applies whatever the host hands it,
  * unconditionally.
  */
-import type { CellQuery } from './CellQuery.ts';
-import type { Dir4 } from './Pose.ts';
-import type { EntityRecord } from '../schema/level.ts';
-import { applyEntityStatePatch, type EntityStatePatch } from './EntityState.ts';
+import type { CellQuery } from './CellQuery.js';
+import type { Dir4 } from './Pose.js';
+import type { EntityRecord } from '../schema/level.js';
+import { applyEntityStatePatch, type EntityStatePatch } from './EntityState.js';
 
 export class PatchedCellQuery implements CellQuery {
   private readonly base: CellQuery;
@@ -45,7 +45,9 @@ export class PatchedCellQuery implements CellQuery {
 
   entityHandlesAt(x: number, y: number): Array<{ handle: string; entity: EntityRecord }> {
     if (this.base.entityHandlesAt) {
-      return this.base.entityHandlesAt(x, y).map(({ handle, entity }) => ({ handle, entity: this.applyPatch(handle, entity) }));
+      return this.base
+        .entityHandlesAt(x, y)
+        .map(({ handle, entity }) => ({ handle, entity: this.applyPatch(handle, entity) }));
     }
     // No handle-capable base (e.g. a geometry-only test `CellQuery`) —
     // synthesize a per-call, position-scoped handle rather than silently
@@ -54,7 +56,10 @@ export class PatchedCellQuery implements CellQuery {
     // entity `entitiesAt` would have returned. This handle is stable across
     // repeated calls at the same `(x, y)` (same array order each time) but
     // is not a durable cross-session identity like `FlatGridLevel`'s.
-    return this.base.entitiesAt(x, y).map((entity, i) => ({ handle: `unpatchable:${x}:${y}:${i}`, entity: this.applyPatch(`unpatchable:${x}:${y}:${i}`, entity) }));
+    return this.base.entitiesAt(x, y).map((entity, i) => ({
+      handle: `unpatchable:${x}:${y}:${i}`,
+      entity: this.applyPatch(`unpatchable:${x}:${y}:${i}`, entity),
+    }));
   }
 
   entitiesAt(x: number, y: number): EntityRecord[] {

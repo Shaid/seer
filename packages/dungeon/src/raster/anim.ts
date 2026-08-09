@@ -7,7 +7,7 @@
  * `compositeDrawList` and `view/Hotspot.ts`'s picking (which must resolve
  * the *currently displayed* frame to size its hit-rect correctly).
  */
-import type { AnimRef, FrameRef, FrameTemplate } from '../schema/slots.ts';
+import type { AnimRef, FrameRef, FrameTemplate } from '../schema/slots.js';
 
 /** Structural guard: an `AnimRef` is any non-string frame with a `frames` array — see `FrameRef`'s doc comment for why this is shape-based, not tag-based. */
 export function isAnimRef(frame: FrameRef): frame is AnimRef {
@@ -16,7 +16,11 @@ export function isAnimRef(frame: FrameRef): frame is AnimRef {
 
 /** Structural guard: a `FrameTemplate` is any non-string frame with a `template` string — see `FrameRef`'s doc comment. */
 export function isFrameTemplate(frame: FrameRef): frame is FrameTemplate {
-  return typeof frame === 'object' && frame !== null && typeof (frame as FrameTemplate).template === 'string';
+  return (
+    typeof frame === 'object' &&
+    frame !== null &&
+    typeof (frame as FrameTemplate).template === 'string'
+  );
 }
 
 /**
@@ -38,9 +42,14 @@ function positiveMod(n: number, m: number): number {
 }
 
 /** The `anim.frames` index selected at `tick`, given an optional cell for `phase: 'cell'`. */
-export function animFrameIndex(anim: AnimRef, tick: number, cell?: { x: number; y: number }): number {
+export function animFrameIndex(
+  anim: AnimRef,
+  tick: number,
+  cell?: { x: number; y: number },
+): number {
   const period = anim.periodTicks ?? anim.frames.length * anim.ticksPerFrame;
-  const phaseOffset = anim.phase === 'cell' ? cellSeed(cell?.x ?? 0, cell?.y ?? 0) % period : (anim.phaseTicks ?? 0);
+  const phaseOffset =
+    anim.phase === 'cell' ? cellSeed(cell?.x ?? 0, cell?.y ?? 0) % period : (anim.phaseTicks ?? 0);
   const t = positiveMod(tick + phaseOffset, period);
   return Math.floor(t / anim.ticksPerFrame) % anim.frames.length;
 }
@@ -54,9 +63,15 @@ export function animFrameIndex(anim: AnimRef, tick: number, cell?: { x: number; 
  * since neither the compositor nor this function has the pose/entity
  * context a template needs — see `FrameRef`'s doc comment.
  */
-export function resolveFrameName(frame: FrameRef, tick: number, cell?: { x: number; y: number }): string {
+export function resolveFrameName(
+  frame: FrameRef,
+  tick: number,
+  cell?: { x: number; y: number },
+): string {
   if (isFrameTemplate(frame)) {
-    throw new Error(`resolveFrameName: unresolved frame template "${frame.template}" — buildViewList must substitute this before the item reaches the compositor`);
+    throw new Error(
+      `resolveFrameName: unresolved frame template "${frame.template}" — buildViewList must substitute this before the item reaches the compositor`,
+    );
   }
   if (!isAnimRef(frame)) return frame;
   return frame.frames[animFrameIndex(frame, tick, cell)]!;
@@ -69,6 +84,11 @@ export function resolveFrameName(frame: FrameRef, tick: number, cell?: { x: numb
  * animated pieces only needs to recomposite when at least one of them
  * reports `true` here.
  */
-export function animFrameChanges(anim: AnimRef, prevTick: number, nextTick: number, cell?: { x: number; y: number }): boolean {
+export function animFrameChanges(
+  anim: AnimRef,
+  prevTick: number,
+  nextTick: number,
+  cell?: { x: number; y: number },
+): boolean {
   return animFrameIndex(anim, prevTick, cell) !== animFrameIndex(anim, nextTick, cell);
 }

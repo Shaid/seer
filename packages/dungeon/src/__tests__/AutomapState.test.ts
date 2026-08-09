@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AutomapState } from '../automap/AutomapState.ts';
+import { AutomapState } from '../automap/AutomapState.js';
 
 const sizeOf = () => ({ width: 4, height: 4 });
 
@@ -34,7 +34,10 @@ describe('AutomapState', () => {
     state.onEnterCell(1, 0, 0);
     state.onEnterCell(1, 3, 2);
     const cells = state.visitedCells(1).sort((a, b) => a.x - b.x || a.y - b.y);
-    expect(cells).toEqual([{ x: 0, y: 0 }, { x: 3, y: 2 }]);
+    expect(cells).toEqual([
+      { x: 0, y: 0 },
+      { x: 3, y: 2 },
+    ]);
   });
 
   it('serialize/restore round-trips visited state', () => {

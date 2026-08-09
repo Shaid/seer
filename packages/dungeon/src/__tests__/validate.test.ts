@@ -3,7 +3,7 @@ import {
   validateDungeonLevelFile,
   validateSlotTableFile,
   validateSemanticsFile,
-} from '../schema/validate.ts';
+} from '../schema/validate.js';
 
 const minimalLevel = {
   schemaVersion: 1,
@@ -12,9 +12,7 @@ const minimalLevel = {
   cellSpace: { kind: 'flat', width: 64, height: 64 },
   wallStorage: { kind: 'bitflags', plane: 'wallFlags', bits: [12, 13, 14, 15] },
   yAxisDown: false,
-  units: [
-    { id: 1, planes: { wallFlags: [0, 1, 2] } },
-  ],
+  units: [{ id: 1, planes: { wallFlags: [0, 1, 2] } }],
 };
 
 const minimalSlots = {
@@ -24,12 +22,24 @@ const minimalSlots = {
   depthCount: 4,
   lateralOffsets: [0, 1, -1],
   frontWallMaxDepth: 3,
-  banks: [{ id: 'dungeon-bcdfx', atlas: 'textures/dungeon-bcdfx.json', image: 'textures/dungeon-bcdfx.png' }],
+  banks: [
+    {
+      id: 'dungeon-bcdfx',
+      atlas: 'textures/dungeon-bcdfx.json',
+      image: 'textures/dungeon-bcdfx.png',
+    },
+  ],
   slots: {
-    'front:0:0': { draws: [{ bank: 'dungeon-bcdfx', frame: 'wall0-face', destX: 16, destY: 5, blend: 'replace' }] },
+    'front:0:0': {
+      draws: [
+        { bank: 'dungeon-bcdfx', frame: 'wall0-face', destX: 16, destY: 5, blend: 'replace' },
+      ],
+    },
     'front:-1:0': null,
   },
-  staticSlots: [{ draws: [{ bank: 'dungeon-bcdfx', frame: 'ceiling', destX: 0, destY: 0, blend: 'replace' }] }],
+  staticSlots: [
+    { draws: [{ bank: 'dungeon-bcdfx', frame: 'ceiling', destX: 0, destY: 0, blend: 'replace' }] },
+  ],
 };
 
 const minimalSemantics = {
@@ -53,8 +63,12 @@ describe('validateDungeonLevelFile', () => {
   });
 
   it('rejects a bad schemaVersion', () => {
-    expect(() => validateDungeonLevelFile({ ...minimalLevel, schemaVersion: 2 })).toThrow(/schemaVersion/);
-    expect(() => validateDungeonLevelFile({ ...minimalLevel, schemaVersion: undefined })).toThrow(/schemaVersion/);
+    expect(() => validateDungeonLevelFile({ ...minimalLevel, schemaVersion: 2 })).toThrow(
+      /schemaVersion/,
+    );
+    expect(() => validateDungeonLevelFile({ ...minimalLevel, schemaVersion: undefined })).toThrow(
+      /schemaVersion/,
+    );
   });
 
   it('rejects a non-object', () => {
@@ -63,7 +77,9 @@ describe('validateDungeonLevelFile', () => {
   });
 
   it('rejects a malformed wallStorage.kind', () => {
-    expect(() => validateDungeonLevelFile({ ...minimalLevel, wallStorage: { kind: 'nonsense' } })).toThrow(/wallStorage.kind/);
+    expect(() =>
+      validateDungeonLevelFile({ ...minimalLevel, wallStorage: { kind: 'nonsense' } }),
+    ).toThrow(/wallStorage.kind/);
   });
 });
 
@@ -77,13 +93,17 @@ describe('validateSlotTableFile', () => {
   });
 
   it('rejects a bad schemaVersion', () => {
-    expect(() => validateSlotTableFile({ ...minimalSlots, schemaVersion: '1' })).toThrow(/schemaVersion/);
+    expect(() => validateSlotTableFile({ ...minimalSlots, schemaVersion: '1' })).toThrow(
+      /schemaVersion/,
+    );
   });
 
   it('rejects an invalid blend mode', () => {
     const bad = {
       ...minimalSlots,
-      slots: { 'front:0:0': { draws: [{ bank: 'x', frame: 'y', destX: 0, destY: 0, blend: 'xor' }] } },
+      slots: {
+        'front:0:0': { draws: [{ bank: 'x', frame: 'y', destX: 0, destY: 0, blend: 'xor' }] },
+      },
     };
     expect(() => validateSlotTableFile(bad)).toThrow(/blend/);
   });
@@ -98,10 +118,14 @@ describe('validateSemanticsFile', () => {
   });
 
   it('rejects a bad schemaVersion', () => {
-    expect(() => validateSemanticsFile({ ...minimalSemantics, schemaVersion: 0 })).toThrow(/schemaVersion/);
+    expect(() => validateSemanticsFile({ ...minimalSemantics, schemaVersion: 0 })).toThrow(
+      /schemaVersion/,
+    );
   });
 
   it('rejects an invalid confidence level', () => {
-    expect(() => validateSemanticsFile({ ...minimalSemantics, confidence: 'vibes' })).toThrow(/confidence/);
+    expect(() => validateSemanticsFile({ ...minimalSemantics, confidence: 'vibes' })).toThrow(
+      /confidence/,
+    );
   });
 });

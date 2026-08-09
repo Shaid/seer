@@ -5,8 +5,14 @@
  * rather than inventing a new one.
  */
 import { describe, expect, it } from 'vitest';
-import { animFrameIndex, animFrameChanges, cellSeed, isAnimRef, resolveFrameName } from '../raster/anim.ts';
-import type { AnimRef } from '../schema/slots.ts';
+import {
+  animFrameIndex,
+  animFrameChanges,
+  cellSeed,
+  isAnimRef,
+  resolveFrameName,
+} from '../raster/anim.js';
+import type { AnimRef } from '../schema/slots.js';
 
 const FIRE: AnimRef = {
   frames: Array.from({ length: 15 }, (_, i) => `fire-${i}`),
@@ -74,7 +80,9 @@ describe('animFrameIndex — phase: "cell"', () => {
 
   it('ignores phaseTicks entirely when phase is "cell"', () => {
     const withPhaseTicks: AnimRef = { ...cellAnim, phaseTicks: 999 };
-    expect(animFrameIndex(withPhaseTicks, 5, { x: 1, y: 2 })).toBe(animFrameIndex(cellAnim, 5, { x: 1, y: 2 }));
+    expect(animFrameIndex(withPhaseTicks, 5, { x: 1, y: 2 })).toBe(
+      animFrameIndex(cellAnim, 5, { x: 1, y: 2 }),
+    );
   });
 });
 

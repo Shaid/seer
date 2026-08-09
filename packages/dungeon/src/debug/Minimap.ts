@@ -10,8 +10,8 @@
  * Black Crypt convention, `model/Direction.ts`), a cell's screen row
  * decreases as `y` increases.
  */
-import type { CellQuery } from '../model/CellQuery.ts';
-import type { Pose, Dir4 } from '../model/Pose.ts';
+import type { CellQuery } from '../model/CellQuery.js';
+import type { Pose, Dir4 } from '../model/Pose.js';
 
 export interface MinimapOptions {
   /** Pixel size of one cell. Default 8. */

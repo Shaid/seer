@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { parseInstr, parseSs } from '../sampled-sound.ts';
-import type { InstrEmbedded, InstrExternal } from '../sampled-sound.ts';
+import { parseInstr, parseSs } from '../sampled-sound.js';
+import type { InstrEmbedded, InstrExternal } from '../sampled-sound.js';
 import {
   instrumentFromSynth,
   instrumentFromSampled,
   instrumentFrom8svx,
   SmusEngine,
-} from '../smus-engine.ts';
-import type { SmusScore, Instrument } from '../smus-engine.ts';
+} from '../smus-engine.js';
+import type { SmusScore, Instrument } from '../smus-engine.js';
 
 /**
  * Regression tests for behavioral bugs found while consolidating

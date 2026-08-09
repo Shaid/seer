@@ -37,7 +37,7 @@ export {
   type SInstrumentRef,
   type SEventStream,
   type SSong,
-} from './smus.ts';
+} from './smus.js';
 
 // SampledSound .instr / .ss parser
 export {
@@ -58,7 +58,7 @@ export {
   type Instr,
   type SynthModulation,
   type SsFile,
-} from './sampled-sound.ts';
+} from './sampled-sound.js';
 
 // Sonix engine + instrument converters
 export {
@@ -77,4 +77,4 @@ export {
   SID_TEMPO,
   type SmusScore,
   type Instrument,
-} from './smus-engine.ts';
+} from './smus-engine.js';

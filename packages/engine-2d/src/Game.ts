@@ -15,10 +15,10 @@
  */
 
 import { Application, type Container } from 'pixi.js';
-import type { BaseCamera } from './BaseCamera.ts';
-import { DisplayMode } from './DisplayMode.ts';
-import { InputManager } from './InputManager.ts';
-import { TopDownCamera } from './TopDownCamera.ts';
+import type { BaseCamera } from './BaseCamera.js';
+import { DisplayMode } from './DisplayMode.js';
+import { InputManager } from './InputManager.js';
+import { TopDownCamera } from './TopDownCamera.js';
 
 export interface GameOptions<TCamera extends BaseCamera = TopDownCamera> {
   /** DOM element to mount the PixiJS canvas into. */

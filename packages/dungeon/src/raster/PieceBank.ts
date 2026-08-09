@@ -34,8 +34,8 @@
  * transparent pixels in the first place).
  */
 import type { AtlasFrame, AtlasMeta } from '@seer-project/core';
-import type { BlitSource } from './IndexedSurface.ts';
-import { BACKGROUND_COLOR, type RGBAColor } from './palette.ts';
+import type { BlitSource } from './IndexedSurface.js';
+import { BACKGROUND_COLOR, type RGBAColor } from './palette.js';
 
 export interface PieceRect {
   x: number;
@@ -54,7 +54,14 @@ export class PieceBank {
   readonly palette: RGBAColor[];
   private readonly frames: Map<string, PieceRect>;
 
-  private constructor(width: number, height: number, index: Uint8Array, mask: Uint8Array, palette: RGBAColor[], frames: Map<string, PieceRect>) {
+  private constructor(
+    width: number,
+    height: number,
+    index: Uint8Array,
+    mask: Uint8Array,
+    palette: RGBAColor[],
+    frames: Map<string, PieceRect>,
+  ) {
     this.width = width;
     this.height = height;
     this.index = index;
@@ -67,10 +74,17 @@ export class PieceBank {
    * Decode `rgba` (interleaved R,G,B,A bytes, `width * height * 4` long)
    * plus its atlas metadata into a `PieceBank`.
    */
-  static fromRGBA(rgba: Uint8Array | Uint8ClampedArray, width: number, height: number, atlas: AtlasMeta): PieceBank {
+  static fromRGBA(
+    rgba: Uint8Array | Uint8ClampedArray,
+    width: number,
+    height: number,
+    atlas: AtlasMeta,
+  ): PieceBank {
     const pixelCount = width * height;
     if (rgba.length !== pixelCount * 4) {
-      throw new Error(`PieceBank.fromRGBA: expected ${pixelCount * 4} RGBA bytes for ${width}x${height}, got ${rgba.length}`);
+      throw new Error(
+        `PieceBank.fromRGBA: expected ${pixelCount * 4} RGBA bytes for ${width}x${height}, got ${rgba.length}`,
+      );
     }
 
     const index = new Uint8Array(pixelCount);
@@ -98,7 +112,9 @@ export class PieceBank {
       let idx = colorToIndex.get(key);
       if (idx === undefined) {
         if (palette.length >= MAX_PALETTE_SIZE) {
-          throw new Error(`PieceBank.fromRGBA: atlas has more than ${MAX_PALETTE_SIZE} distinct colors, cannot fit a local Uint8 palette`);
+          throw new Error(
+            `PieceBank.fromRGBA: atlas has more than ${MAX_PALETTE_SIZE} distinct colors, cannot fit a local Uint8 palette`,
+          );
         }
         idx = palette.length;
         palette.push({ r, g, b, a });
@@ -150,10 +166,14 @@ export class PieceBank {
   ): PieceBank {
     const pixelCount = width * height;
     if (rgba.length !== pixelCount * 4) {
-      throw new Error(`PieceBank.fromIndexedRGBA: expected ${pixelCount * 4} RGBA bytes for ${width}x${height}, got ${rgba.length}`);
+      throw new Error(
+        `PieceBank.fromIndexedRGBA: expected ${pixelCount * 4} RGBA bytes for ${width}x${height}, got ${rgba.length}`,
+      );
     }
     if (maskRgba.length !== pixelCount * 4) {
-      throw new Error(`PieceBank.fromIndexedRGBA: mask image must be ${width}x${height} too (${pixelCount * 4} RGBA bytes), got ${maskRgba.length}`);
+      throw new Error(
+        `PieceBank.fromIndexedRGBA: mask image must be ${width}x${height} too (${pixelCount * 4} RGBA bytes), got ${maskRgba.length}`,
+      );
     }
 
     const colorToIndex = new Map<string, number>();

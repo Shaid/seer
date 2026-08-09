@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { WalkerController, type KeyStateLike } from '../input/WalkerController.ts';
-import { DEFAULT_BINDINGS } from '../schema/bindings.ts';
-import type { Pose } from '../model/Pose.ts';
+import { WalkerController, type KeyStateLike } from '../input/WalkerController.js';
+import { DEFAULT_BINDINGS } from '../schema/bindings.js';
+import type { Pose } from '../model/Pose.js';
 
 /** A trivial `KeyStateLike` fake — a fixed set of held codes, no DOM. */
 class FakeKeys implements KeyStateLike {
@@ -47,7 +47,10 @@ describe('WalkerController throttling', () => {
   });
 
   it('turning and stepping have independent throttles', () => {
-    const controller = new WalkerController(START, DEFAULT_BINDINGS, { stepIntervalMs: 1000, turnIntervalMs: 100 });
+    const controller = new WalkerController(START, DEFAULT_BINDINGS, {
+      stepIntervalMs: 1000,
+      turnIntervalMs: 100,
+    });
     const keys = new FakeKeys(['KeyE']); // turnRight
     const result = controller.update(100, keys);
     expect(result).not.toBeNull();
@@ -57,7 +60,10 @@ describe('WalkerController throttling', () => {
   });
 
   it('only emits a new Pose on a real change, never as a side-effect of ticking', () => {
-    const controller = new WalkerController(START, DEFAULT_BINDINGS, { stepIntervalMs: 100, turnIntervalMs: 100 });
+    const controller = new WalkerController(START, DEFAULT_BINDINGS, {
+      stepIntervalMs: 100,
+      turnIntervalMs: 100,
+    });
     const keys = new FakeKeys();
     // Plenty of throttle-crossing ticks with nothing held: always null.
     for (let i = 0; i < 20; i++) expect(controller.update(37, keys)).toBeNull();
@@ -66,19 +72,25 @@ describe('WalkerController throttling', () => {
 
 describe('WalkerController movement directions', () => {
   it('forward moves in the facing direction, back moves opposite', () => {
-    const forward = new WalkerController({ ...START, facing: 1 }, DEFAULT_BINDINGS, { stepIntervalMs: 10 });
+    const forward = new WalkerController({ ...START, facing: 1 }, DEFAULT_BINDINGS, {
+      stepIntervalMs: 10,
+    });
     const fKeys = new FakeKeys(['KeyW']);
     const fResult = forward.update(10, fKeys);
     expect(fResult).toEqual({ level: 1, x: 6, y: 5, facing: 1 }); // E: x+1
 
-    const back = new WalkerController({ ...START, facing: 1 }, DEFAULT_BINDINGS, { stepIntervalMs: 10 });
+    const back = new WalkerController({ ...START, facing: 1 }, DEFAULT_BINDINGS, {
+      stepIntervalMs: 10,
+    });
     const bKeys = new FakeKeys(['KeyS']);
     const bResult = back.update(10, bKeys);
     expect(bResult).toEqual({ level: 1, x: 4, y: 5, facing: 1 }); // opposite of E: x-1
   });
 
   it('strafeLeft/strafeRight move sideways without changing facing', () => {
-    const controller = new WalkerController({ ...START, facing: 0 }, DEFAULT_BINDINGS, { stepIntervalMs: 10 });
+    const controller = new WalkerController({ ...START, facing: 0 }, DEFAULT_BINDINGS, {
+      stepIntervalMs: 10,
+    });
     const keys = new FakeKeys(['KeyA']); // strafeLeft, facing N -> left is W
     const result = controller.update(10, keys);
     expect(result).toEqual({ level: 1, x: 4, y: 5, facing: 0 });
@@ -87,14 +99,20 @@ describe('WalkerController movement directions', () => {
 
 describe('WalkerController collision integration', () => {
   it('does not move when the injected canStep predicate rejects the step, but still resets the throttle', () => {
-    const controller = new WalkerController(START, DEFAULT_BINDINGS, { stepIntervalMs: 50, canStep: () => false });
+    const controller = new WalkerController(START, DEFAULT_BINDINGS, {
+      stepIntervalMs: 50,
+      canStep: () => false,
+    });
     const keys = new FakeKeys(['KeyW']);
     expect(controller.update(50, keys)).toBeNull();
     expect(controller.pose).toEqual(START);
   });
 
   it('moves when the injected canStep predicate allows it', () => {
-    const controller = new WalkerController(START, DEFAULT_BINDINGS, { stepIntervalMs: 50, canStep: () => true });
+    const controller = new WalkerController(START, DEFAULT_BINDINGS, {
+      stepIntervalMs: 50,
+      canStep: () => true,
+    });
     const keys = new FakeKeys(['KeyW']);
     const result = controller.update(50, keys);
     expect(result).toEqual({ level: 1, x: 5, y: 6, facing: 0 });

@@ -16,16 +16,22 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { canStep } from '../model/collision.ts';
-import { FlatGridLevel } from '../model/FlatGridLevel.ts';
-import { validateDungeonLevelFile } from '../schema/validate.ts';
-import type { CellQuery } from '../model/CellQuery.ts';
-import type { Pose, Dir4 } from '../model/Pose.ts';
-import { turnLeft } from '../model/Pose.ts';
-import { step } from '../model/Direction.ts';
-import type { SemanticsFile } from '../schema/semantics.ts';
+import { canStep } from '../model/collision.js';
+import { FlatGridLevel } from '../model/FlatGridLevel.js';
+import { validateDungeonLevelFile } from '../schema/validate.js';
+import type { CellQuery } from '../model/CellQuery.js';
+import type { Pose, Dir4 } from '../model/Pose.js';
+import { turnLeft } from '../model/Pose.js';
+import { step } from '../model/Direction.js';
+import type { SemanticsFile } from '../schema/semantics.js';
 
-const SEMANTICS: SemanticsFile = { schemaVersion: 1, confidence: 'confirmed', source: 'collision.test.ts', walls: {}, features: {} };
+const SEMANTICS: SemanticsFile = {
+  schemaVersion: 1,
+  confidence: 'confirmed',
+  source: 'collision.test.ts',
+  walls: {},
+  features: {},
+};
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
 

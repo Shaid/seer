@@ -2,8 +2,8 @@
  * InputManager — Unified mouse + keyboard input handling.
  */
 
-import type { TopDownCamera } from './TopDownCamera.ts';
-import { screenToWorld } from './pixi-helpers.ts';
+import type { TopDownCamera } from './TopDownCamera.js';
+import { screenToWorld } from './pixi-helpers.js';
 
 export interface InputConfig {
   /** Pan speed in pixels/frame when using keyboard */

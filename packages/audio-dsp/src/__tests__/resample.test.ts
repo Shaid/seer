@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resampleLooped, GAUSSIAN_TABLE } from '../resample.ts';
+import { resampleLooped, GAUSSIAN_TABLE } from '../resample.js';
 
 describe('resampleLooped', () => {
   it('step = 1.0 with nearest is identity (no looping)', () => {

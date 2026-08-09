@@ -85,7 +85,10 @@ export class AudioBarController {
 
   /** Starts an engine, reporting either failure shape (rejection or synchronous throw) as a console warning — the bar's own play button still works afterwards. */
   private safePlay(engine: PlaybackEngine, message: string): void {
-    attemptPlayback(() => engine.play(), (err) => console.warn(message, err));
+    attemptPlayback(
+      () => engine.play(),
+      (err) => console.warn(message, err),
+    );
   }
 
   /**

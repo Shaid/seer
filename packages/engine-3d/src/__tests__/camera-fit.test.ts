@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { computeCameraFit } from '../camera-fit.ts';
+import { computeCameraFit } from '../camera-fit.js';
 
 describe('computeCameraFit', () => {
   it('returns null for an empty Box3', () => {
@@ -9,7 +9,10 @@ describe('computeCameraFit', () => {
   });
 
   it('frames a unit box centered at the origin', () => {
-    const box = new THREE.Box3(new THREE.Vector3(-0.5, -0.5, -0.5), new THREE.Vector3(0.5, 0.5, 0.5));
+    const box = new THREE.Box3(
+      new THREE.Vector3(-0.5, -0.5, -0.5),
+      new THREE.Vector3(0.5, 0.5, 0.5),
+    );
     const fit = computeCameraFit(box, 45);
 
     expect(fit).not.toBeNull();

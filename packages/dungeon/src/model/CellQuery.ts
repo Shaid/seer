@@ -7,8 +7,8 @@
  * and a future `RegionGridLevel` (mentioned in the walker plan, not needed
  * until a game with sparse/paged storage shows up) would implement it too.
  */
-import type { Dir4 } from './Pose.ts';
-import type { EntityRecord } from '../schema/level.ts';
+import type { Dir4 } from './Pose.js';
+import type { EntityRecord } from '../schema/level.js';
 
 export interface CellQuery {
   /** Whether `(x, y)` is a real, addressable cell in this level. */

@@ -6,8 +6,8 @@
  * `CanvasPresenter` shows the same bug as `PixiPresenter`, the fault is in
  * the compositor, not the Pixi texture upload.
  */
-import type { IndexedSurface } from '../raster/IndexedSurface.ts';
-import { indicesToRGBA, type RGBAColor } from '../raster/palette.ts';
+import type { IndexedSurface } from '../raster/IndexedSurface.js';
+import { indicesToRGBA, type RGBAColor } from '../raster/palette.js';
 
 export class CanvasPresenter {
   private readonly ctx: CanvasRenderingContext2D;

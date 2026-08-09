@@ -1,7 +1,7 @@
 /** Barrel for the zero-dependency `@seer-project/dungeon/schema` subpath. */
-export * from './version.ts';
-export * from './level.ts';
-export * from './slots.ts';
-export * from './semantics.ts';
-export * from './bindings.ts';
-export * from './validate.ts';
+export * from './version.js';
+export * from './level.js';
+export * from './slots.js';
+export * from './semantics.js';
+export * from './bindings.js';
+export * from './validate.js';

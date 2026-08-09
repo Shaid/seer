@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DisplayMode } from '../DisplayMode.ts';
+import { DisplayMode } from '../DisplayMode.js';
 
 describe('DisplayMode', () => {
   it('starts in modern mode', () => {

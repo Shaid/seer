@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { disposeObject3D } from '../dispose.ts';
+import { disposeObject3D } from '../dispose.js';
 import type * as THREE from 'three';
 
 /**

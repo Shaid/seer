@@ -5,7 +5,8 @@
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Shaid/seer.git"
+    "url": "https://github.com/Shaid/seer.git",
+    "directory": "packages/engine-2d"
   },
   "keywords": [
     "pixijs",
@@ -33,6 +34,8 @@
   },
   "files": [
     "dist",
+    "src",
+    "!src/__tests__",
     "README.md",
     "LICENSE"
   ],
@@ -42,6 +45,7 @@
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
     "prepack": "npm run build",
+    "prepublishOnly": "npm run lint && npm test",
     "pretest": "npm run build",
     "test": "vitest run",
     "lint": "eslint src/"
@@ -53,5 +57,12 @@
     "pixi.js": "^8.9.0",
     "typescript": "~6.0.2",
     "vitest": "^3.2.0"
+  },
+  "homepage": "https://seer.shaid.net",
+  "bugs": {
+    "url": "https://github.com/Shaid/seer/issues"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   }
 }

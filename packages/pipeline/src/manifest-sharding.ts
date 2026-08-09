@@ -20,7 +20,7 @@
  */
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { writeJson } from './io.ts';
+import { writeJson } from './io.js';
 
 export interface ShardableEntry {
   name: string;
@@ -96,7 +96,11 @@ export function writeShardedManifest<T extends ShardableEntry>(
   const index: CategoryIndexEntry[] = [];
   for (const [category, items] of byCategory) {
     writeJson(resolve(manifestDir, `${category}.json`), items);
-    const indexEntry: CategoryIndexEntry = { id: category, displayName: displayNames[category], count: items.length };
+    const indexEntry: CategoryIndexEntry = {
+      id: category,
+      displayName: displayNames[category],
+      count: items.length,
+    };
 
     if (items.length > GROUP_SHARD_THRESHOLD) {
       const byGroup = new Map<string, T[]>();

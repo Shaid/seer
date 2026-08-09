@@ -11,7 +11,7 @@
  * standard right-handed 2D frame, not a screen/array convention. This is
  * exactly why `DungeonLevelFile.yAxisDown` is `false` for this game.
  */
-import type { Dir4 } from './Pose.ts';
+import type { Dir4 } from './Pose.js';
 
 export const FACING_DELTAS: Record<Dir4, { dx: number; dy: number }> = {
   0: { dx: 0, dy: 1 }, // N
@@ -22,7 +22,7 @@ export const FACING_DELTAS: Record<Dir4, { dx: number; dy: number }> = {
 
 /** Rotate a facing by `delta` steps (may be negative), wrapping mod 4. */
 export function rotate(facing: Dir4, delta: number): Dir4 {
-  return (((facing + delta) % 4) + 4) % 4 as Dir4;
+  return ((((facing + delta) % 4) + 4) % 4) as Dir4;
 }
 
 /** The compass direction 90 degrees left of `facing`. */
@@ -48,7 +48,13 @@ export function step(x: number, y: number, dir: Dir4): { x: number; y: number } 
  * per square (`data-structure.md`, "Phase 1 — the sight-line walk":
  * "Lateral step (D3, + = party's right)").
  */
-export function project(x: number, y: number, facing: Dir4, depth: number, lateral: number): { x: number; y: number } {
+export function project(
+  x: number,
+  y: number,
+  facing: Dir4,
+  depth: number,
+  lateral: number,
+): { x: number; y: number } {
   const fwd = FACING_DELTAS[facing];
   const right = FACING_DELTAS[rightOf(facing)];
   return {

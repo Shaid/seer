@@ -72,7 +72,13 @@ export class NativeAudioEngine implements PlaybackEngine {
     elementOwner.set(this.el, this);
 
     const fire = () => this.fireUpdate();
-    const events: Array<keyof HTMLMediaElementEventMap> = ['timeupdate', 'loadedmetadata', 'play', 'pause', 'ended'];
+    const events: Array<keyof HTMLMediaElementEventMap> = [
+      'timeupdate',
+      'loadedmetadata',
+      'play',
+      'pause',
+      'ended',
+    ];
     for (const type of events) this.el.addEventListener(type, fire);
     this.unbindEl = () => {
       for (const type of events) this.el.removeEventListener(type, fire);
@@ -88,7 +94,10 @@ export class NativeAudioEngine implements PlaybackEngine {
     if (opts.autoplay) {
       // Autoplay can be blocked by browser policy outside a user-gesture call
       // stack; the bar's own play button still works.
-      attemptPlayback(() => this.play(), (err) => console.warn('Autoplay was blocked:', err));
+      attemptPlayback(
+        () => this.play(),
+        (err) => console.warn('Autoplay was blocked:', err),
+      );
     }
     this.fireUpdate();
   }

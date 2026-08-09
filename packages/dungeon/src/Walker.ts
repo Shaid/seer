@@ -14,23 +14,31 @@
  * overlay, and an animation tick clock. Does **not** own art decode, a
  * `Container`, or any door-opening policy — those stay the host's.
  */
-import { WalkerController, type WalkerControllerOptions, type KeyStateLike } from './input/WalkerController.ts';
-import { PatchedCellQuery } from './model/PatchedCellQuery.ts';
-import type { EntityStatePatch } from './model/EntityState.ts';
-import type { CellQuery } from './model/CellQuery.ts';
-import type { Pose } from './model/Pose.ts';
-import { buildViewList } from './view/buildViewList.ts';
-import { viewSpecFromSlotTable, type ViewSpec } from './view/ViewSpec.ts';
-import { pickHotspot } from './view/Hotspot.ts';
-import type { DrawItem } from './view/DrawItem.ts';
-import { isAnimRef, animFrameChanges } from './raster/anim.ts';
-import type { PieceBankLookup } from './raster/composite.ts';
-import type { SlotTableFile } from './schema/slots.ts';
-import type { SemanticsFile } from './schema/semantics.ts';
-import type { BindingsFile } from './schema/bindings.ts';
-import type { EntityRecord } from './schema/level.ts';
+import {
+  WalkerController,
+  type WalkerControllerOptions,
+  type KeyStateLike,
+} from './input/WalkerController.js';
+import { PatchedCellQuery } from './model/PatchedCellQuery.js';
+import type { EntityStatePatch } from './model/EntityState.js';
+import type { CellQuery } from './model/CellQuery.js';
+import type { Pose } from './model/Pose.js';
+import { buildViewList } from './view/buildViewList.js';
+import { viewSpecFromSlotTable, type ViewSpec } from './view/ViewSpec.js';
+import { pickHotspot } from './view/Hotspot.js';
+import type { DrawItem } from './view/DrawItem.js';
+import { isAnimRef, animFrameChanges } from './raster/anim.js';
+import type { PieceBankLookup } from './raster/composite.js';
+import type { SlotTableFile } from './schema/slots.js';
+import type { SemanticsFile } from './schema/semantics.js';
+import type { BindingsFile } from './schema/bindings.js';
+import type { EntityRecord } from './schema/level.js';
 
-export type InteractHandler = (hotspot: { code: number }, entity: EntityRecord | null, handle: string | null) => void;
+export type InteractHandler = (
+  hotspot: { code: number },
+  entity: EntityRecord | null,
+  handle: string | null,
+) => void;
 
 export interface WalkerPickResult {
   hotspot: { code: number };
@@ -111,7 +119,8 @@ export class Walker {
 
     const prevTick = this.tick;
     this.tick += dtMs * this.ticksPerMs;
-    if (!this.dirty && this.anyVisibleAnimationCrossedFrameBoundary(prevTick, this.tick)) this.dirty = true;
+    if (!this.dirty && this.anyVisibleAnimationCrossedFrameBoundary(prevTick, this.tick))
+      this.dirty = true;
 
     return newPose;
   }
@@ -132,7 +141,13 @@ export class Walker {
    */
   get items(): DrawItem[] {
     if (this.dirty) {
-      this.cachedItems = buildViewList(this.level, this.pose, this.spec, this.semantics, this.slots);
+      this.cachedItems = buildViewList(
+        this.level,
+        this.pose,
+        this.spec,
+        this.semantics,
+        this.slots,
+      );
       this.dirty = false;
     }
     return this.cachedItems;
@@ -141,7 +156,10 @@ export class Walker {
   private anyVisibleAnimationCrossedFrameBoundary(prevTick: number, nextTick: number): boolean {
     for (const item of this.cachedItems) {
       if (!isAnimRef(item.frame)) continue;
-      const cell = item.cellX !== undefined && item.cellY !== undefined ? { x: item.cellX, y: item.cellY } : undefined;
+      const cell =
+        item.cellX !== undefined && item.cellY !== undefined
+          ? { x: item.cellX, y: item.cellY }
+          : undefined;
       if (animFrameChanges(item.frame, prevTick, nextTick, cell)) return true;
     }
     return false;

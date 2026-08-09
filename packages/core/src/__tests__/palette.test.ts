@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cyclePalette } from '../palette.ts';
+import { cyclePalette } from '../palette.js';
 
 describe('cyclePalette', () => {
   it('rotates forward: last entry in range wraps to start', () => {

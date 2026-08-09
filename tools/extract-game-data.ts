@@ -85,9 +85,7 @@ export function parseArgs(argv: string[]): Options {
   const resolvedGame: GameId | 'all' = game ?? DEFAULT_GAME;
   const resolvedPlatform: PlatformId | 'all' =
     platform ??
-    (resolvedGame === 'all'
-      ? 'all'
-      : (getSupportedPlatforms(resolvedGame)[0] ?? PLATFORM_IDS[0]));
+    (resolvedGame === 'all' ? 'all' : (getSupportedPlatforms(resolvedGame)[0] ?? PLATFORM_IDS[0]));
 
   return { game: resolvedGame, platform: resolvedPlatform, exportOnly, assetsOnly };
 }

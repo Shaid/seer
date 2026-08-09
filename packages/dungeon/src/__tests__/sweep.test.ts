@@ -27,15 +27,15 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
 import type { AtlasMeta } from '@seer-project/core';
-import { PieceBank } from '../raster/PieceBank.ts';
-import { IndexedSurface } from '../raster/IndexedSurface.ts';
-import { compositeDrawList } from '../raster/composite.ts';
-import { validateSlotTableFile, validateDungeonLevelFile } from '../schema/validate.ts';
-import { FlatGridLevel } from '../model/FlatGridLevel.ts';
-import { buildViewList } from '../view/buildViewList.ts';
-import { viewSpecFromSlotTable } from '../view/ViewSpec.ts';
-import type { Pose, Dir4 } from '../model/Pose.ts';
-import type { SemanticsFile } from '../schema/semantics.ts';
+import { PieceBank } from '../raster/PieceBank.js';
+import { IndexedSurface } from '../raster/IndexedSurface.js';
+import { compositeDrawList } from '../raster/composite.js';
+import { validateSlotTableFile, validateDungeonLevelFile } from '../schema/validate.js';
+import { FlatGridLevel } from '../model/FlatGridLevel.js';
+import { buildViewList } from '../view/buildViewList.js';
+import { viewSpecFromSlotTable } from '../view/ViewSpec.js';
+import type { Pose, Dir4 } from '../model/Pose.js';
+import type { SemanticsFile } from '../schema/semantics.js';
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
 
@@ -50,10 +50,19 @@ function loadFixtures() {
   return { level, slots, bank };
 }
 
-const SEMANTICS = { schemaVersion: 1, confidence: 'confirmed', source: 'sweep test', walls: {}, features: {} } as SemanticsFile;
+const SEMANTICS = {
+  schemaVersion: 1,
+  confidence: 'confirmed',
+  source: 'sweep test',
+  walls: {},
+  features: {},
+} as SemanticsFile;
 
 /** Every populated `(x, y)` in a unit, per its own bookkeeping plane. */
-function populatedCells(unit: { planes: Record<string, number[]> }, width: number): Array<{ x: number; y: number }> {
+function populatedCells(
+  unit: { planes: Record<string, number[]> },
+  width: number,
+): Array<{ x: number; y: number }> {
   const out: Array<{ x: number; y: number }> = [];
   const populated = unit.planes.populated;
   if (!populated) throw new Error('fixture is missing the populated plane');
@@ -120,7 +129,9 @@ describe('M2 sweep: all 13 maps x sampled poses x 4 facings', () => {
 
     expect(poseCount).toBe(expectedPoseCount);
     expect(poseCount).toBeGreaterThan(0);
-    console.log(`sweep: ${levelFile.units.length} units, ${poseCount} poses, ${frameCount} draw items composited, zero exceptions`);
+    console.log(
+      `sweep: ${levelFile.units.length} units, ${poseCount} poses, ${frameCount} draw items composited, zero exceptions`,
+    );
     // Composites thousands of poses in one test, so it lands just over
     // vitest's 5s default when the suite runs its files in parallel — fast on
     // its own, flaky under load. Given an explicit ceiling rather than a

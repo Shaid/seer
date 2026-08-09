@@ -31,12 +31,12 @@
  * in their JS insertion order, unsorted — for a slot table that's already
  * been authored/sorted by its producer.
  */
-import type { PieceBank } from './PieceBank.ts';
-import type { IndexedSurface } from './IndexedSurface.ts';
-import type { PieceDraw, Slot, SlotTableFile } from '../schema/slots.ts';
-import type { DrawItem } from '../view/DrawItem.ts';
-import { paintOrder } from '../view/order.ts';
-import { resolveFrameName } from './anim.ts';
+import type { PieceBank } from './PieceBank.js';
+import type { IndexedSurface } from './IndexedSurface.js';
+import type { PieceDraw, Slot, SlotTableFile } from '../schema/slots.js';
+import type { DrawItem } from '../view/DrawItem.js';
+import { paintOrder } from '../view/order.js';
+import { resolveFrameName } from './anim.js';
 
 /** Named piece banks a `SlotTableFile`'s draws reference by `PieceDraw.bank`. */
 export type PieceBankLookup = Record<string, PieceBank>;
@@ -66,12 +66,29 @@ function drawPieceDraw(
   const sy = draw.srcY ?? rect.y;
   const sw = draw.srcW ?? rect.w;
   const sh = draw.srcH ?? rect.h;
-  surface.blit(bank.source(), sx, sy, sw, sh, draw.destX, draw.destY, draw.mirrorX ?? false, draw.blend);
+  surface.blit(
+    bank.source(),
+    sx,
+    sy,
+    sw,
+    sh,
+    draw.destX,
+    draw.destY,
+    draw.mirrorX ?? false,
+    draw.blend,
+  );
 }
 
-function drawSlot(surface: IndexedSurface, banks: PieceBankLookup, slot: Slot | null | undefined, context: string, tick: number): void {
+function drawSlot(
+  surface: IndexedSurface,
+  banks: PieceBankLookup,
+  slot: Slot | null | undefined,
+  context: string,
+  tick: number,
+): void {
   if (!slot) return;
-  for (const draw of slot.draws) drawPieceDraw(surface, banks, draw, `compositeSlotTable: ${context}`, tick);
+  for (const draw of slot.draws)
+    drawPieceDraw(surface, banks, draw, `compositeSlotTable: ${context}`, tick);
 }
 
 // `front:<lateral>:<depth>` / `side:<L|R>:<depth>` (walls) or
@@ -109,8 +126,15 @@ function parseSlotKey(key: string): ParsedSlotKey | null {
 // `view/order.ts` for the `DrawItem`-based equivalent `compositeDrawList` uses.
 const KIND_ORDER: Record<'side' | 'front' | 'prop', number> = { side: 0, front: 1, prop: 2 };
 
-export function compositeSlotTable(surface: IndexedSurface, banks: PieceBankLookup, table: SlotTableFile, tick = 0): void {
-  (table.staticSlots ?? []).forEach((slot, i) => drawSlot(surface, banks, slot, `staticSlots[${i}]`, tick));
+export function compositeSlotTable(
+  surface: IndexedSurface,
+  banks: PieceBankLookup,
+  table: SlotTableFile,
+  tick = 0,
+): void {
+  (table.staticSlots ?? []).forEach((slot, i) =>
+    drawSlot(surface, banks, slot, `staticSlots[${i}]`, tick),
+  );
 
   const keys = Object.keys(table.slots);
 
@@ -121,7 +145,10 @@ export function compositeSlotTable(surface: IndexedSurface, banks: PieceBankLook
 
   const parsed = keys.map((key) => {
     const p = parseSlotKey(key);
-    if (!p) throw new Error(`compositeSlotTable: slot key "${key}" doesn't match "front:<lateral>:<depth>" / "side:<L|R>:<depth>" — cannot painter-sort it. Use ordering: 'array' for non-standard keys.`);
+    if (!p)
+      throw new Error(
+        `compositeSlotTable: slot key "${key}" doesn't match "front:<lateral>:<depth>" / "side:<L|R>:<depth>" — cannot painter-sort it. Use ordering: 'array' for non-standard keys.`,
+      );
     return p;
   });
 
@@ -143,13 +170,31 @@ export function compositeSlotTable(surface: IndexedSurface, banks: PieceBankLook
  * `tick` (default 0, so every pre-M4 caller is unaffected) resolves any
  * `AnimRef` frames via each item's own `cellX`/`cellY` for `phase: 'cell'`.
  */
-export function compositeDrawList(surface: IndexedSurface, banks: PieceBankLookup, table: SlotTableFile, items: DrawItem[], tick = 0): void {
-  (table.staticSlots ?? []).forEach((slot, i) => drawSlot(surface, banks, slot, `staticSlots[${i}]`, tick));
+export function compositeDrawList(
+  surface: IndexedSurface,
+  banks: PieceBankLookup,
+  table: SlotTableFile,
+  items: DrawItem[],
+  tick = 0,
+): void {
+  (table.staticSlots ?? []).forEach((slot, i) =>
+    drawSlot(surface, banks, slot, `staticSlots[${i}]`, tick),
+  );
 
   const sorted = paintOrder(items);
 
   sorted.forEach((item, i) => {
-    const cell = item.cellX !== undefined && item.cellY !== undefined ? { x: item.cellX, y: item.cellY } : undefined;
-    drawPieceDraw(surface, banks, item, `compositeDrawList: items[${i}] (${item.kind}:${item.lateral}:${item.depth})`, tick, cell);
+    const cell =
+      item.cellX !== undefined && item.cellY !== undefined
+        ? { x: item.cellX, y: item.cellY }
+        : undefined;
+    drawPieceDraw(
+      surface,
+      banks,
+      item,
+      `compositeDrawList: items[${i}] (${item.kind}:${item.lateral}:${item.depth})`,
+      tick,
+      cell,
+    );
   });
 }

@@ -1,6 +1,11 @@
 import * as THREE from 'three';
-import type { Model3D, ModelRepresentations, PolygonFace, PolygonModel } from './types.ts';
-import { resolveColor, type ColorMode, type ColorResolver, type HeightRange } from './color-modes.ts';
+import type { Model3D, ModelRepresentations, PolygonFace, PolygonModel } from './types.js';
+import {
+  resolveColor,
+  type ColorMode,
+  type ColorResolver,
+  type HeightRange,
+} from './color-modes.js';
 
 // ── normalization ────────────────────────────────────────────────────────
 
@@ -46,7 +51,8 @@ export function normalizePolygonModel(raw: unknown, index: number): PolygonModel
   const verts = asVertexArray(o.vertices) ?? asVertexArray(o.verts) ?? [];
   const edges = asEdgeArray(o.edges);
   const faces = asFaceArray(o.faces);
-  const typeTag = asFiniteNumber(o.effectId) ?? asFiniteNumber(o.type_hi) ?? asFiniteNumber(o.flags) ?? 0;
+  const typeTag =
+    asFiniteNumber(o.effectId) ?? asFiniteNumber(o.type_hi) ?? asFiniteNumber(o.flags) ?? 0;
   const stats = o.stats && typeof o.stats === 'object' ? (o.stats as Record<string, unknown>) : {};
   const id = asFiniteNumber(o.id) ?? index;
   const name = typeof o.name === 'string' ? o.name : undefined;
@@ -64,7 +70,8 @@ export function normalizePolygonModel(raw: unknown, index: number): PolygonModel
 export function normalizePolygonSet(raw: unknown): PolygonModel[] {
   const list: unknown[] = Array.isArray(raw)
     ? raw
-    : ((raw && typeof raw === 'object' ? (raw as { objects?: unknown[] }).objects : undefined) ?? []);
+    : ((raw && typeof raw === 'object' ? (raw as { objects?: unknown[] }).objects : undefined) ??
+      []);
   return list.map((item, i) => normalizePolygonModel(item, i));
 }
 
@@ -94,7 +101,9 @@ export function triangulateFan(vertexCount: number): number[] {
  * dropped rather than clamped, so a malformed edge/face doesn't silently
  * connect the wrong vertices.
  */
-export function computeModelEdges(model: Pick<PolygonModel, 'edges' | 'faces' | 'verts'>): Array<[number, number]> {
+export function computeModelEdges(
+  model: Pick<PolygonModel, 'edges' | 'faces' | 'verts'>,
+): Array<[number, number]> {
   const vertexCount = model.verts.length;
   const seen = new Set<string>();
   const result: Array<[number, number]> = [];
@@ -152,7 +161,9 @@ function vertexAt(points: THREE.Vector3[], index: number): THREE.Vector3 {
 
 function computeCentroid(verts: number[][]): [number, number, number] {
   if (verts.length === 0) return [0, 0, 0];
-  let cx = 0, cy = 0, cz = 0;
+  let cx = 0,
+    cy = 0,
+    cz = 0;
   for (const v of verts) {
     cx += v[0] ?? 0;
     cy += v[1] ?? 0;
@@ -163,7 +174,8 @@ function computeCentroid(verts: number[][]): [number, number, number] {
 
 function heightRangeOf(points: THREE.Vector3[]): HeightRange | undefined {
   if (points.length === 0) return undefined;
-  let min = Infinity, max = -Infinity;
+  let min = Infinity,
+    max = -Infinity;
   for (const p of points) {
     if (p.y < min) min = p.y;
     if (p.y > max) max = p.y;
@@ -171,7 +183,13 @@ function heightRangeOf(points: THREE.Vector3[]): HeightRange | undefined {
   return min <= max ? { min, max } : undefined;
 }
 
-function buildFacesRepr(model: PolygonModel, points: THREE.Vector3[], colorMode: ColorMode, colorResolver: ColorResolver | undefined, heightRange: HeightRange | undefined): THREE.Mesh | null {
+function buildFacesRepr(
+  model: PolygonModel,
+  points: THREE.Vector3[],
+  colorMode: ColorMode,
+  colorResolver: ColorResolver | undefined,
+  heightRange: HeightRange | undefined,
+): THREE.Mesh | null {
   if (model.faces.length === 0) return null;
 
   const positions: number[] = [];
@@ -184,7 +202,11 @@ function buildFacesRepr(model: PolygonModel, points: THREE.Vector3[], colorMode:
     if (face.verts.length < 3) continue;
 
     const y0 = vertexAt(points, face.verts[0]!).y;
-    const color = resolveColor(colorMode, { objectId: model.id, faceIndex: fi, fill: face.fill, y: y0, heightRange }, colorResolver);
+    const color = resolveColor(
+      colorMode,
+      { objectId: model.id, faceIndex: fi, fill: face.fill, y: y0, heightRange },
+      colorResolver,
+    );
 
     for (const vi of face.verts) {
       const p = vertexAt(points, vi);
@@ -207,7 +229,11 @@ function buildFacesRepr(model: PolygonModel, points: THREE.Vector3[], colorMode:
   return new THREE.Mesh(geom, material);
 }
 
-function buildLinesRepr(model: PolygonModel, points: THREE.Vector3[], lineColor: number): THREE.LineSegments | null {
+function buildLinesRepr(
+  model: PolygonModel,
+  points: THREE.Vector3[],
+  lineColor: number,
+): THREE.LineSegments | null {
   const edges = computeModelEdges(model);
   if (edges.length === 0) return null;
 
@@ -220,17 +246,29 @@ function buildLinesRepr(model: PolygonModel, points: THREE.Vector3[], lineColor:
 
   const geom = new THREE.BufferGeometry();
   geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  const material = new THREE.LineBasicMaterial({ color: lineColor, transparent: true, opacity: 0.5 });
+  const material = new THREE.LineBasicMaterial({
+    color: lineColor,
+    transparent: true,
+    opacity: 0.5,
+  });
   return new THREE.LineSegments(geom, material);
 }
 
-function buildPointsRepr(points: THREE.Vector3[], pointColor: number, pointSize: number): THREE.Points | null {
+function buildPointsRepr(
+  points: THREE.Vector3[],
+  pointColor: number,
+  pointSize: number,
+): THREE.Points | null {
   if (points.length === 0) return null;
   const positions: number[] = [];
   for (const p of points) positions.push(p.x, p.y, p.z);
   const geom = new THREE.BufferGeometry();
   geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  const material = new THREE.PointsMaterial({ color: pointColor, size: pointSize, sizeAttenuation: true });
+  const material = new THREE.PointsMaterial({
+    color: pointColor,
+    size: pointSize,
+    sizeAttenuation: true,
+  });
   return new THREE.Points(geom, material);
 }
 
@@ -255,7 +293,9 @@ export function buildPolygonModel(model: PolygonModel, opts: PolygonBuildOptions
   const pointSize = opts.pointSize ?? 30;
 
   const [cx, cy, cz] = center ? computeCentroid(model.verts) : [0, 0, 0];
-  const points = model.verts.map((v) => new THREE.Vector3((v[0] ?? 0) - cx, (v[1] ?? 0) - cy, (v[2] ?? 0) - cz));
+  const points = model.verts.map(
+    (v) => new THREE.Vector3((v[0] ?? 0) - cx, (v[1] ?? 0) - cy, (v[2] ?? 0) - cz),
+  );
   const heightRange = heightRangeOf(points);
 
   const faces = buildFacesRepr(model, points, colorMode, opts.colorResolver, heightRange);
@@ -306,7 +346,11 @@ export function buildPolygonModel(model: PolygonModel, opts: PolygonBuildOptions
  * real color/texture information that a `ColorMode` has no data to usefully
  * override (see `color-modes.ts`'s doc comment on `ColorMode`).
  */
-export function recolorPolygonModel(model: Model3D, mode: ColorMode, resolver?: ColorResolver): void {
+export function recolorPolygonModel(
+  model: Model3D,
+  mode: ColorMode,
+  resolver?: ColorResolver,
+): void {
   const polygon = model.polygon;
   const facesMesh = model.repr.faces;
   if (!polygon || !facesMesh) return;
@@ -322,7 +366,11 @@ export function recolorPolygonModel(model: Model3D, mode: ColorMode, resolver?: 
     const face = polygon.faces[fi]!;
     if (face.verts.length < 3) continue;
     const y0 = positionAttr ? positionAttr.getY(vertexCursor) : 0;
-    const color = resolveColor(mode, { objectId: polygon.id, faceIndex: fi, fill: face.fill, y: y0, heightRange }, resolver);
+    const color = resolveColor(
+      mode,
+      { objectId: polygon.id, faceIndex: fi, fill: face.fill, y: y0, heightRange },
+      resolver,
+    );
     for (let i = 0; i < face.verts.length; i++) {
       colorAttr.setXYZ(vertexCursor, color.r, color.g, color.b);
       vertexCursor++;
@@ -331,9 +379,12 @@ export function recolorPolygonModel(model: Model3D, mode: ColorMode, resolver?: 
   colorAttr.needsUpdate = true;
 }
 
-function heightRangeFromAttribute(attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): HeightRange | undefined {
+function heightRangeFromAttribute(
+  attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute,
+): HeightRange | undefined {
   if (attr.count === 0) return undefined;
-  let min = Infinity, max = -Infinity;
+  let min = Infinity,
+    max = -Infinity;
   for (let i = 0; i < attr.count; i++) {
     const y = attr.getY(i);
     if (y < min) min = y;

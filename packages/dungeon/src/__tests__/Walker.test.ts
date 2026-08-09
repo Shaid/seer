@@ -9,19 +9,25 @@
  * a frame boundary.
  */
 import { describe, expect, it } from 'vitest';
-import { Walker } from '../Walker.ts';
-import { PieceBank } from '../raster/PieceBank.ts';
-import { doorState } from '../model/EntityState.ts';
-import { DEFAULT_BINDINGS } from '../schema/bindings.ts';
-import type { CellQuery } from '../model/CellQuery.ts';
-import type { SlotTableFile } from '../schema/slots.ts';
-import type { SemanticsFile } from '../schema/semantics.ts';
-import type { PieceBankLookup } from '../raster/composite.ts';
-import type { EntityRecord } from '../schema/level.ts';
-import type { Pose, Dir4 } from '../model/Pose.ts';
-import type { KeyStateLike } from '../input/WalkerController.ts';
+import { Walker } from '../Walker.js';
+import { PieceBank } from '../raster/PieceBank.js';
+import { doorState } from '../model/EntityState.js';
+import { DEFAULT_BINDINGS } from '../schema/bindings.js';
+import type { CellQuery } from '../model/CellQuery.js';
+import type { SlotTableFile } from '../schema/slots.js';
+import type { SemanticsFile } from '../schema/semantics.js';
+import type { PieceBankLookup } from '../raster/composite.js';
+import type { EntityRecord } from '../schema/level.js';
+import type { Pose, Dir4 } from '../model/Pose.js';
+import type { KeyStateLike } from '../input/WalkerController.js';
 
-const SEMANTICS = { schemaVersion: 1, confidence: 'confirmed', source: 'test', walls: {}, features: {} } as SemanticsFile;
+const SEMANTICS = {
+  schemaVersion: 1,
+  confidence: 'confirmed',
+  source: 'test',
+  walls: {},
+  features: {},
+} as SemanticsFile;
 const DOOR_SWITCH_HANDLE = '1:0:0:9';
 
 // Pose starts at (0,0) facing E (1); depth 0 projects to the party's own
@@ -79,13 +85,21 @@ function makeBanks(): PieceBankLookup {
 const START_POSE: Pose = { level: 1, x: 0, y: 0, facing: 1 as Dir4 };
 
 function makeWalker(options: ConstructorParameters<typeof Walker>[6] = {}) {
-  return new Walker(makeLevel(), makeSlots(), SEMANTICS, makeBanks(), START_POSE, DEFAULT_BINDINGS, options);
+  return new Walker(
+    makeLevel(),
+    makeSlots(),
+    SEMANTICS,
+    makeBanks(),
+    START_POSE,
+    DEFAULT_BINDINGS,
+    options,
+  );
 }
 
 const noKeys: KeyStateLike = { isDown: () => false };
 
 describe('Walker.items', () => {
-  it('builds the initial view lazily from the starting pose, carrying the door-switch\'s injected hotspot code', () => {
+  it("builds the initial view lazily from the starting pose, carrying the door-switch's injected hotspot code", () => {
     const walker = makeWalker();
     expect(walker.items).toHaveLength(1);
     expect(walker.items[0]!.hotspot).toEqual({ code: 0x64 });
@@ -172,8 +186,13 @@ describe('Walker.setPose / update — movement integration', () => {
 describe('Walker animation clock', () => {
   function makeAnimatedWalker() {
     const slots = makeSlots();
-    slots.slots['prop:door-switch:0:0']!.draws[0]!.frame = { frames: ['chain', 'chain'], ticksPerFrame: 4 };
-    return new Walker(makeLevel(), slots, SEMANTICS, makeBanks(), START_POSE, DEFAULT_BINDINGS, { ticksPerMs: 1 });
+    slots.slots['prop:door-switch:0:0']!.draws[0]!.frame = {
+      frames: ['chain', 'chain'],
+      ticksPerFrame: 4,
+    };
+    return new Walker(makeLevel(), slots, SEMANTICS, makeBanks(), START_POSE, DEFAULT_BINDINGS, {
+      ticksPerMs: 1,
+    });
   }
 
   it('does not rebuild items on every update() when no animated piece crosses a frame boundary', () => {

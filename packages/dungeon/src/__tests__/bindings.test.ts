@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { validateBindingsFile } from '../schema/validate.ts';
-import { DEFAULT_BINDINGS, BINDING_ACTIONS } from '../schema/bindings.ts';
+import { validateBindingsFile } from '../schema/validate.js';
+import { DEFAULT_BINDINGS, BINDING_ACTIONS } from '../schema/bindings.js';
 
 describe('DEFAULT_BINDINGS', () => {
   it('is positional (WASD + QE + arrows), and covers every action', () => {
@@ -24,7 +24,9 @@ describe('DEFAULT_BINDINGS', () => {
 
 describe('validateBindingsFile', () => {
   it('rejects a bad schemaVersion', () => {
-    expect(() => validateBindingsFile({ ...DEFAULT_BINDINGS, schemaVersion: 2 })).toThrow(/schemaVersion/);
+    expect(() => validateBindingsFile({ ...DEFAULT_BINDINGS, schemaVersion: 2 })).toThrow(
+      /schemaVersion/,
+    );
   });
 
   it('rejects a missing action', () => {
@@ -46,7 +48,12 @@ describe('validateBindingsFile', () => {
   it('accepts a rebinding — changing which codes trigger an action is exactly what config-driven rebinding means', () => {
     const custom = {
       ...DEFAULT_BINDINGS,
-      bindings: { ...DEFAULT_BINDINGS.bindings, forward: ['KeyI'], turnLeft: ['KeyJ'], turnRight: ['KeyL'] },
+      bindings: {
+        ...DEFAULT_BINDINGS.bindings,
+        forward: ['KeyI'],
+        turnLeft: ['KeyJ'],
+        turnRight: ['KeyL'],
+      },
     };
     const result = validateBindingsFile(custom);
     expect(result.bindings.forward).toEqual(['KeyI']);

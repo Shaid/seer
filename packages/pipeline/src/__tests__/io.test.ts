@@ -9,7 +9,7 @@ import {
   writeWav,
   resolveDataFile,
   scanFilesByExtension,
-} from '../io.ts';
+} from '../io.js';
 
 /** Read a 4-byte little-endian u32 out of a raw file buffer. */
 function u32le(buf: Buffer, off: number): number {

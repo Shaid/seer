@@ -33,7 +33,12 @@ export interface LoadPlacedSceneOptions {
  * hardcoded `` `${ASSET_BASE}/meshes/${name}.gltf` `` — the host still owns
  * that naming convention, just expressed as a callback instead of baked in.
  */
-export async function loadPlacedScene(root: THREE.Object3D, placements: Placement[], resolveUrl: (meshName: string) => string, opts: LoadPlacedSceneOptions = {}): Promise<PlacedSceneResult> {
+export async function loadPlacedScene(
+  root: THREE.Object3D,
+  placements: Placement[],
+  resolveUrl: (meshName: string) => string,
+  opts: LoadPlacedSceneOptions = {},
+): Promise<PlacedSceneResult> {
   const loader = opts.loader ?? new GLTFLoader();
   const uniqueMeshNames = [...new Set(placements.map((p) => p.mesh))];
   const loadedByName = new Map<string, THREE.Object3D>();
@@ -57,7 +62,12 @@ export async function loadPlacedScene(root: THREE.Object3D, placements: Placemen
     if (!template) continue;
     const instance = template.clone();
     instance.position.fromArray(placement.translation);
-    instance.quaternion.set(placement.rotation[0], placement.rotation[1], placement.rotation[2], placement.rotation[3]);
+    instance.quaternion.set(
+      placement.rotation[0],
+      placement.rotation[1],
+      placement.rotation[2],
+      placement.rotation[3],
+    );
     instance.scale.fromArray(placement.scale);
     root.add(instance);
     placed++;

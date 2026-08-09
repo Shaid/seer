@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { createFrameLimiter, type FrameLimiterOptions } from './frame-limiter.ts';
+import { createFrameLimiter, type FrameLimiterOptions } from './frame-limiter.js';
 
 export interface LightConfig {
   color?: THREE.ColorRepresentation;
@@ -90,7 +90,12 @@ function addLights(scene: THREE.Scene, lights: ViewportOptions['lights']): void 
 }
 
 function buildGrid(cfg: GridConfig): THREE.GridHelper {
-  const grid = new THREE.GridHelper(cfg.size, cfg.divisions, cfg.color1 ?? 0x3a3a3a, cfg.color2 ?? 0x2a2a2a);
+  const grid = new THREE.GridHelper(
+    cfg.size,
+    cfg.divisions,
+    cfg.color1 ?? 0x3a3a3a,
+    cfg.color2 ?? 0x2a2a2a,
+  );
   if (cfg.y !== undefined) grid.position.y = cfg.y;
   return grid;
 }
@@ -113,7 +118,12 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(opts.background ?? 0x161616);
 
-  const camera = new THREE.PerspectiveCamera(opts.fov ?? 45, width / height, opts.near ?? 0.01, opts.far ?? 10000);
+  const camera = new THREE.PerspectiveCamera(
+    opts.fov ?? 45,
+    width / height,
+    opts.near ?? 0.01,
+    opts.far ?? 10000,
+  );
   if (opts.cameraPosition) camera.position.set(...opts.cameraPosition);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });

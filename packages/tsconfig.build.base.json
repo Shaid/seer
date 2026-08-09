@@ -14,8 +14,18 @@
     "noEmit": false,
     "outDir": "${configDir}/dist",
     "rootDir": "${configDir}/src",
-    "allowImportingTsExtensions": true,
-    "rewriteRelativeImportExtensions": true,
+    // Explicitly OFF, overriding the repo-root tsconfig each package inherits
+    // (that one keeps it on for the app and tools/, where nothing is emitted).
+    //
+    // allowImportingTsExtensions + rewriteRelativeImportExtensions rewrite
+    // `./x.ts` -> `./x.js` in emitted *JavaScript* but leave the specifiers
+    // untouched in emitted *declarations*, so every published .d.ts pointed at
+    // a `.ts` file that `files` never ships and consumers with a default
+    // tsconfig could not resolve the types at all. That was invisible in this
+    // repo because every in-house consumer sets allowImportingTsExtensions
+    // itself. Package source therefore imports `./x.js` directly, which tsc
+    // and every bundler resolve back to `./x.ts` during development.
+    "allowImportingTsExtensions": false,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true

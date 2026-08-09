@@ -41,7 +41,7 @@ vi.mock('three', async (importOriginal) => {
   return { ...actual, WebGLRenderer: FakeWebGLRenderer };
 });
 
-const { createViewport } = await import('../viewport.ts');
+const { createViewport } = await import('../viewport.js');
 
 function makeContainer(width: number, height: number): HTMLElement {
   const el = document.createElement('div');
@@ -88,8 +88,16 @@ describe('createViewport — sizing reads the passed container', () => {
     const containerA = makeContainer(400, 300);
     const containerB = makeContainer(800, 200);
 
-    const viewportA = createViewport(containerA, { frameLimiter: false, grid: false, lights: false });
-    const viewportB = createViewport(containerB, { frameLimiter: false, grid: false, lights: false });
+    const viewportA = createViewport(containerA, {
+      frameLimiter: false,
+      grid: false,
+      lights: false,
+    });
+    const viewportB = createViewport(containerB, {
+      frameLimiter: false,
+      grid: false,
+      lights: false,
+    });
 
     expect(viewportA.camera.aspect).toBeCloseTo(400 / 300, 5);
     expect(viewportB.camera.aspect).toBeCloseTo(800 / 200, 5);
@@ -112,8 +120,16 @@ describe('createViewport — sizing reads the passed container', () => {
     const containerA = makeContainer(400, 300);
     const containerB = makeContainer(400, 300);
 
-    const viewportA = createViewport(containerA, { frameLimiter: false, grid: false, lights: false });
-    const viewportB = createViewport(containerB, { frameLimiter: false, grid: false, lights: false });
+    const viewportA = createViewport(containerA, {
+      frameLimiter: false,
+      grid: false,
+      lights: false,
+    });
+    const viewportB = createViewport(containerB, {
+      frameLimiter: false,
+      grid: false,
+      lights: false,
+    });
 
     expect(containerA.contains(viewportA.renderer.domElement)).toBe(true);
     expect(containerB.contains(viewportB.renderer.domElement)).toBe(true);
@@ -157,10 +173,14 @@ describe('createViewport — dispose()', () => {
     expect(raf.requestAnimationFrame.mock.calls.length).toBe(callsBeforeFire); // no frame 3
   });
 
-  it('disposing one viewport does not cancel another viewport\'s render loop', () => {
+  it("disposing one viewport does not cancel another viewport's render loop", () => {
     const containerA = makeContainer(400, 300);
     const containerB = makeContainer(400, 300);
-    const viewportA = createViewport(containerA, { frameLimiter: false, grid: false, lights: false });
+    const viewportA = createViewport(containerA, {
+      frameLimiter: false,
+      grid: false,
+      lights: false,
+    });
     createViewport(containerB, { frameLimiter: false, grid: false, lights: false });
 
     const idA = raf.requestAnimationFrame.mock.results[0]!.value as number;

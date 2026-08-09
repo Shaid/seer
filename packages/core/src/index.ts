@@ -5,9 +5,9 @@
  * import them from '@seer-project/engine-2d/pixi-helpers' so that non-rendering
  * code never pulls in a PixiJS dependency.
  */
-export * from './binary.ts';
-export * from './binary-reader.ts';
-export * from './assets.ts';
-export * from './palette.ts';
-export * from './atlas.ts';
-export * from './playback.ts';
+export * from './binary.js';
+export * from './binary-reader.js';
+export * from './assets.js';
+export * from './palette.js';
+export * from './atlas.js';
+export * from './playback.js';

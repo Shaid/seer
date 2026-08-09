@@ -1,12 +1,8 @@
 import { parseIff, findChunks, findChunk } from '@seer-project/iff';
 import { renderToStereoBuffers, mixVoiceStereo, applyMasterGain } from '@seer-project/audio-dsp';
 import type { BlockRenderer } from '@seer-project/audio-dsp';
-import type {
-  InstrEmbedded,
-  InstrExternal,
-  Instr8SVX,
-  SsFile,
-} from './sampled-sound.ts';
+import type { InstrEmbedded, InstrExternal, Instr8SVX, SsFile } from './sampled-sound.js';
+import { toI16, toI32 } from '@seer-project/core';
 
 function readCString(data: Uint8Array, start = 0, maxLen?: number): string {
   const end = maxLen !== undefined ? Math.min(data.length, start + maxLen) : data.length;
@@ -36,16 +32,6 @@ const NOTE_PERIOD = [
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
-
-function toI16(x: number): number {
-  x &= 0xffff;
-  return x & 0x8000 ? x - 0x10000 : x;
-}
-
-function toI32(x: number): number {
-  x &= 0xffffffff;
-  return x & 0x80000000 ? x - 0x100000000 : x;
-}
 
 export function sonixRateUnits(r: number): number {
   r &= 0xffff;

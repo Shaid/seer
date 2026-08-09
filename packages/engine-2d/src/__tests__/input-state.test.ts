@@ -10,8 +10,8 @@
  * dispatched event, so a bare EventTarget is a faithful enough fake.
  */
 import { describe, it, expect } from 'vitest';
-import { KeyState } from '../KeyState.ts';
-import { PointerState } from '../PointerState.ts';
+import { KeyState } from '../KeyState.js';
+import { PointerState } from '../PointerState.js';
 
 function fakeTarget() {
   return new EventTarget();
@@ -25,7 +25,13 @@ function mouseEvent(
   type: string,
   props: Partial<{ clientX: number; clientY: number; buttons: number; button: number }>,
 ): Event {
-  return Object.assign(new Event(type), { clientX: 0, clientY: 0, buttons: 0, button: 0, ...props });
+  return Object.assign(new Event(type), {
+    clientX: 0,
+    clientY: 0,
+    buttons: 0,
+    button: 0,
+    ...props,
+  });
 }
 
 describe('KeyState', () => {

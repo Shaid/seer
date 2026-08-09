@@ -5,8 +5,8 @@
  * `Slot`'s own `draws`) plus provenance (`kind`/`depth`/`lateral`) a debug
  * overlay or a painter's-order sort can use without re-parsing the slot key.
  */
-import type { BlendMode, FrameRef } from '../schema/slots.ts';
-import type { EntityRecord } from '../schema/level.ts';
+import type { BlendMode, FrameRef } from '../schema/slots.js';
+import type { EntityRecord } from '../schema/level.js';
 
 export type DrawItemKind = 'front' | 'side' | 'prop';
 

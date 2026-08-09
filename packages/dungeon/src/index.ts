@@ -3,36 +3,36 @@
  * (also independently available, dependency-free, at `@seer-project/dungeon/schema`)
  * alongside the raster and render layers.
  */
-export * from './schema/index.ts';
+export * from './schema/index.js';
 
-export * from './model/CellQuery.ts';
-export * from './model/FlatGridLevel.ts';
-export * from './model/Pose.ts';
-export * from './model/Direction.ts';
-export * from './model/collision.ts';
-export * from './model/EntityState.ts';
-export * from './model/PatchedCellQuery.ts';
+export * from './model/CellQuery.js';
+export * from './model/FlatGridLevel.js';
+export * from './model/Pose.js';
+export * from './model/Direction.js';
+export * from './model/collision.js';
+export * from './model/EntityState.js';
+export * from './model/PatchedCellQuery.js';
 
-export * from './view/ViewSpec.ts';
-export * from './view/DrawItem.ts';
-export * from './view/buildViewList.ts';
-export * from './view/order.ts';
-export * from './view/Hotspot.ts';
+export * from './view/ViewSpec.js';
+export * from './view/DrawItem.js';
+export * from './view/buildViewList.js';
+export * from './view/order.js';
+export * from './view/Hotspot.js';
 
-export * from './raster/IndexedSurface.ts';
-export * from './raster/PieceBank.ts';
-export * from './raster/palette.ts';
-export * from './raster/composite.ts';
-export * from './raster/anim.ts';
+export * from './raster/IndexedSurface.js';
+export * from './raster/PieceBank.js';
+export * from './raster/palette.js';
+export * from './raster/composite.js';
+export * from './raster/anim.js';
 
-export * from './render/CanvasPresenter.ts';
-export * from './render/PixiPresenter.ts';
+export * from './render/CanvasPresenter.js';
+export * from './render/PixiPresenter.js';
 
-export * from './input/WalkerController.ts';
+export * from './input/WalkerController.js';
 
-export * from './automap/AutomapState.ts';
-export * from './automap/AutomapRenderer.ts';
+export * from './automap/AutomapState.js';
+export * from './automap/AutomapRenderer.js';
 
-export * from './debug/Minimap.ts';
+export * from './debug/Minimap.js';
 
-export * from './Walker.ts';
+export * from './Walker.js';

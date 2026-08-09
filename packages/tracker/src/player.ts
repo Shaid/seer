@@ -1,4 +1,4 @@
-import { Module, Micromod } from './micromod.ts'
+import { Module, Micromod } from './micromod.js';
 
 const WORKLET_CODE = `
 const PAULA_FREQUENCY = 3546894.6;
@@ -41,55 +41,61 @@ class TrackerWorklet extends AudioWorkletProcessor {
 }
 
 registerProcessor('tracker-worklet', TrackerWorklet)
-`
+`;
 
-let workletUrl: string | null = null
+let workletUrl: string | null = null;
 
 function getWorkletUrl(): string {
   if (!workletUrl) {
-    const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' })
-    workletUrl = URL.createObjectURL(blob)
+    const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' });
+    workletUrl = URL.createObjectURL(blob);
   }
-  return workletUrl
+  return workletUrl;
 }
 
 export class TrackerPlayer {
-  private ctx: AudioContext | null = null
-  private gainNode: GainNode | null = null
-  private workletNode: AudioWorkletNode | null = null
-  private _mod: Module | null = null
-  private _player: Micromod | null = null
-  private _volume = 0.3
-  private _loaded = false
+  private ctx: AudioContext | null = null;
+  private gainNode: GainNode | null = null;
+  private workletNode: AudioWorkletNode | null = null;
+  private _mod: Module | null = null;
+  private _player: Micromod | null = null;
+  private _volume = 0.3;
+  private _loaded = false;
 
-  get loaded(): boolean { return this._loaded }
-  get playing(): boolean { return this.workletNode !== null }
+  get loaded(): boolean {
+    return this._loaded;
+  }
+  get playing(): boolean {
+    return this.workletNode !== null;
+  }
 
   set volume(v: number) {
-    this._volume = v
-    if (this.gainNode) this.gainNode.gain.value = v
+    this._volume = v;
+    if (this.gainNode) this.gainNode.gain.value = v;
   }
-  get volume(): number { return this._volume }
+  get volume(): number {
+    return this._volume;
+  }
 
   async load(data: Uint8Array): Promise<void> {
-    this._mod = new Module(data)
-    this._loaded = true
+    this._mod = new Module(data);
+    this._loaded = true;
   }
 
   async play(ctx?: AudioContext): Promise<void> {
-    if (!this._mod || this.workletNode) return
+    if (!this._mod || this.workletNode) return;
 
-    this.ctx = ctx || new AudioContext()
-    if (this.ctx.state === 'suspended') await this.ctx.resume()
+    this.ctx = ctx || new AudioContext();
+    if (this.ctx.state === 'suspended') await this.ctx.resume();
 
-    this.gainNode = this.ctx.createGain()
-    this.gainNode.gain.value = this._volume
+    this.gainNode = this.ctx.createGain();
+    this.gainNode.gain.value = this._volume;
 
-    const url = getWorkletUrl()
-    await this.ctx.audioWorklet.addModule(url)
-    this.workletNode = new AudioWorkletNode(this.ctx, 'tracker-worklet')
+    const url = getWorkletUrl();
+    await this.ctx.audioWorklet.addModule(url);
+    this.workletNode = new AudioWorkletNode(this.ctx, 'tracker-worklet');
 
-    this._player = new Micromod(this._mod, this.ctx.sampleRate)
+    this._player = new Micromod(this._mod, this.ctx.sampleRate);
 
     this.workletNode.port.postMessage({
       type: 'play',
@@ -97,20 +103,20 @@ export class TrackerPlayer {
         player: this._player,
         sampleRate: this.ctx.sampleRate,
       },
-    })
+    });
 
-    this.workletNode.connect(this.gainNode).connect(this.ctx.destination)
+    this.workletNode.connect(this.gainNode).connect(this.ctx.destination);
   }
 
   stop(): void {
     if (this.workletNode) {
-      this.workletNode.port.postMessage({ type: 'stop' })
-      this.workletNode.disconnect()
-      this.workletNode = null
+      this.workletNode.port.postMessage({ type: 'stop' });
+      this.workletNode.disconnect();
+      this.workletNode = null;
     }
     if (this.gainNode) {
-      this.gainNode.disconnect()
-      this.gainNode = null
+      this.gainNode.disconnect();
+      this.gainNode = null;
     }
   }
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { attemptPlayback, formatClock } from '../playback.ts';
-import type { PlaybackState } from '../playback.ts';
+import { attemptPlayback, formatClock } from '../playback.js';
+import type { PlaybackState } from '../playback.js';
 
 describe('formatClock', () => {
   it('formats whole minutes and seconds with zero-padded seconds', () => {
@@ -84,7 +84,13 @@ describe('PlaybackState', () => {
   });
 
   it('narrows duration to a number when seekable is true', () => {
-    const state: PlaybackState = { isPlaying: false, currentTime: 30, title: 't', seekable: true, duration: 120 };
+    const state: PlaybackState = {
+      isPlaying: false,
+      currentTime: 30,
+      title: 't',
+      seekable: true,
+      duration: 120,
+    };
     if (state.seekable) {
       // No null check needed — that is the point of the discriminated union.
       expect(state.currentTime / state.duration).toBeCloseTo(0.25);
@@ -96,9 +102,21 @@ describe('PlaybackState', () => {
     // typecheck if the annotated line ever stops being an error, so an
     // accidental widening of PlaybackState breaks the build here.
     // @ts-expect-error - seekable: true requires a numeric duration
-    const noDuration: PlaybackState = { isPlaying: false, currentTime: 0, title: 't', seekable: true, duration: null };
+    const noDuration: PlaybackState = {
+      isPlaying: false,
+      currentTime: 0,
+      title: 't',
+      seekable: true,
+      duration: null,
+    };
     // @ts-expect-error - seekable: false requires duration to be null
-    const strayDuration: PlaybackState = { isPlaying: false, currentTime: 0, title: 't', seekable: false, duration: 90 };
+    const strayDuration: PlaybackState = {
+      isPlaying: false,
+      currentTime: 0,
+      title: 't',
+      seekable: false,
+      duration: 90,
+    };
     expect(noDuration.seekable).toBe(true);
     expect(strayDuration.seekable).toBe(false);
   });

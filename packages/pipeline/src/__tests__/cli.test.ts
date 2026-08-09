@@ -1,4 +1,14 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+  vi,
+  type MockInstance,
+} from 'vitest';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
@@ -8,12 +18,20 @@ import {
   cmdDoctor,
   cmdExtract,
   cmdHexDump,
-} from '../cli.ts';
-import type { GameConfig } from '../config.ts';
+} from '../cli.js';
+import type { GameConfig } from '../config.js';
 
 describe('parseArgs', () => {
   it('extracts --game and --platform', () => {
-    const result = parseArgs(['node', 'seer', 'extract', '--game', 'mygame', '--platform', 'amiga']);
+    const result = parseArgs([
+      'node',
+      'seer',
+      'extract',
+      '--game',
+      'mygame',
+      '--platform',
+      'amiga',
+    ]);
     expect(result).toEqual({ game: 'mygame', platform: 'amiga' });
   });
 
@@ -152,9 +170,19 @@ describe('cmdDoctor', () => {
   });
 
   it('reports the data dir as not found when nothing matches on disk', () => {
-    cmdDoctor([makeGameConfig({
-      platforms: [{ platform: 'amiga', dataDirs: ['__does_not_exist__'], expectedFiles: ['GAME.EXE'], supported: true, assetDir: 'demo' }],
-    })]);
+    cmdDoctor([
+      makeGameConfig({
+        platforms: [
+          {
+            platform: 'amiga',
+            dataDirs: ['__does_not_exist__'],
+            expectedFiles: ['GAME.EXE'],
+            supported: true,
+            assetDir: 'demo',
+          },
+        ],
+      }),
+    ]);
 
     const warnedText = warnSpy.mock.calls.map((c) => c.join(' ')).join('\n');
     expect(warnedText).toContain('Data dir: not found');
@@ -164,12 +192,27 @@ describe('cmdDoctor', () => {
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(resolve(dataDir, 'GAME.EXE'), '');
 
-    cmdDoctor([makeGameConfig({
-      platforms: [
-        { platform: 'amiga', dataDirs: ['__cli_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE'], supported: true, assetDir: 'demo' },
-        { platform: 'dos', dataDirs: ['__does_not_exist_dos__'], expectedFiles: ['GAME.EXE'], supported: false, assetDir: 'demo' },
-      ],
-    })]);
+    cmdDoctor([
+      makeGameConfig({
+        platforms: [
+          {
+            platform: 'amiga',
+            dataDirs: ['__cli_test__/amiga'],
+            executable: 'GAME.EXE',
+            expectedFiles: ['GAME.EXE'],
+            supported: true,
+            assetDir: 'demo',
+          },
+          {
+            platform: 'dos',
+            dataDirs: ['__does_not_exist_dos__'],
+            expectedFiles: ['GAME.EXE'],
+            supported: false,
+            assetDir: 'demo',
+          },
+        ],
+      }),
+    ]);
 
     const text = loggedText();
     expect(text).toContain('Found 1 game(s), 2 game+platform entries in config.');
@@ -181,9 +224,21 @@ describe('cmdDoctor', () => {
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(resolve(dataDir, 'GAME.EXE'), '');
 
-    cmdDoctor([makeGameConfig({
-      platforms: [{ platform: 'amiga', dataDirs: ['__cli_test__/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE'], supported: true, assetDir: 'demo', exportGameData: () => {} }],
-    })]);
+    cmdDoctor([
+      makeGameConfig({
+        platforms: [
+          {
+            platform: 'amiga',
+            dataDirs: ['__cli_test__/amiga'],
+            executable: 'GAME.EXE',
+            expectedFiles: ['GAME.EXE'],
+            supported: true,
+            assetDir: 'demo',
+            exportGameData: () => {},
+          },
+        ],
+      }),
+    ]);
 
     const text = loggedText();
     expect(text).toContain('exportGameData: registered');
@@ -196,9 +251,23 @@ describe('cmdDoctor', () => {
     mkdirSync(nested, { recursive: true });
     writeFileSync(resolve(nested, 'GAME.EXE'), '');
 
-    cmdDoctor([makeGameConfig({
-      platforms: [{ platform: 'amiga', dataDirs: ['demo/amiga'], executable: 'GAME.EXE', expectedFiles: ['GAME.EXE'], supported: true, assetDir: 'demo' }],
-    })], customRoot);
+    cmdDoctor(
+      [
+        makeGameConfig({
+          platforms: [
+            {
+              platform: 'amiga',
+              dataDirs: ['demo/amiga'],
+              executable: 'GAME.EXE',
+              expectedFiles: ['GAME.EXE'],
+              supported: true,
+              assetDir: 'demo',
+            },
+          ],
+        }),
+      ],
+      customRoot,
+    );
 
     expect(loggedText()).toContain(`Data dir: found at ${nested}`);
     rmSync(customRoot, { recursive: true, force: true });
@@ -226,16 +295,18 @@ describe('cmdExtract', () => {
 
   it('does not exit when all steps succeed', async () => {
     const config = makeGameConfig({
-      platforms: [{
-        platform: 'amiga',
-        dataDirs: ['__cli_extract_test__/amiga'],
-        executable: 'GAME.EXE',
-        expectedFiles: ['GAME.EXE'],
-        supported: true,
-        assetDir: 'demo',
-        exportGameData: () => {},
-        buildAssets: () => {},
-      }],
+      platforms: [
+        {
+          platform: 'amiga',
+          dataDirs: ['__cli_extract_test__/amiga'],
+          executable: 'GAME.EXE',
+          expectedFiles: ['GAME.EXE'],
+          supported: true,
+          assetDir: 'demo',
+          exportGameData: () => {},
+          buildAssets: () => {},
+        },
+      ],
     });
     await cmdExtract([config], 'demo', 'amiga');
     expect(exitSpy).not.toHaveBeenCalled();
@@ -243,15 +314,19 @@ describe('cmdExtract', () => {
 
   it('exits with code 1 when a step fails', async () => {
     const config = makeGameConfig({
-      platforms: [{
-        platform: 'amiga',
-        dataDirs: ['__cli_extract_test__/amiga'],
-        executable: 'GAME.EXE',
-        expectedFiles: ['GAME.EXE'],
-        supported: true,
-        assetDir: 'demo',
-        exportGameData: () => { throw new Error('boom'); },
-      }],
+      platforms: [
+        {
+          platform: 'amiga',
+          dataDirs: ['__cli_extract_test__/amiga'],
+          executable: 'GAME.EXE',
+          expectedFiles: ['GAME.EXE'],
+          supported: true,
+          assetDir: 'demo',
+          exportGameData: () => {
+            throw new Error('boom');
+          },
+        },
+      ],
     });
     await cmdExtract([config], 'demo', 'amiga');
     expect(exitSpy).toHaveBeenCalledWith(1);

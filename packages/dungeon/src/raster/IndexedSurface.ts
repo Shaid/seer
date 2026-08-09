@@ -10,7 +10,7 @@
  * against both the source and destination bounds so a bad descriptor
  * coordinate can't corrupt memory outside the framebuffer.
  */
-import type { BlendMode } from '../schema/slots.ts';
+import type { BlendMode } from '../schema/slots.js';
 
 export type { BlendMode };
 
@@ -93,7 +93,8 @@ export class IndexedSurface {
 
         const destIdx = destRowBase + destX;
         const value = src.data[srcIdx] as number;
-        this.data[destIdx] = blend === 'or' ? ((this.data[destIdx] as number) | value) & 0xff : value;
+        this.data[destIdx] =
+          blend === 'or' ? ((this.data[destIdx] as number) | value) & 0xff : value;
       }
     }
   }

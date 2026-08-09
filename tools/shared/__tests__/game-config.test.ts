@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getGameConfig, getSupportedPlatforms, flattenConfigs } from '@seer-project/pipeline';
-import {
-  GAME_IDS,
-  PLATFORM_IDS,
-  GAME_CONFIGS,
-  GAME_PLATFORMS,
-} from '../game-config.ts';
+import { GAME_IDS, PLATFORM_IDS, GAME_CONFIGS, GAME_PLATFORMS } from '../game-config.ts';
 
 describe('GAME_IDS / PLATFORM_IDS', () => {
   it('are non-empty and match game-id.ts', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { TopDownCamera } from '../TopDownCamera.ts';
-import { DisplayMode } from '../DisplayMode.ts';
+import { TopDownCamera } from '../TopDownCamera.js';
+import { DisplayMode } from '../DisplayMode.js';
 
 const WORLD_W = 4352;
 const WORLD_H = 3328;

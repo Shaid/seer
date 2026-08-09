@@ -6,7 +6,7 @@
  * `viewSpecFromSlotTable` below derives one from the other so the two never
  * drift apart in a real caller.
  */
-import type { SlotTableFile } from '../schema/slots.ts';
+import type { SlotTableFile } from '../schema/slots.js';
 
 export interface ViewSpec {
   /** Number of depths visited, 0 (nearest) through `depthCount - 1` (farthest). */

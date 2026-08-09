@@ -1,4 +1,4 @@
-import type { Endianness } from './binary.ts';
+import type { Endianness } from './binary.js';
 
 /**
  * BinaryReader — sequential cursor-based reader over an ArrayBuffer.
@@ -7,14 +7,36 @@ import type { Endianness } from './binary.ts';
  * hardcoded assumption, since different retro platforms use different byte
  * orders (e.g. 68000-based systems are big-endian; x86 DOS is little-endian).
  * Pass `'le'` when reading data produced by a little-endian target.
+ *
+ * Unlike the standalone readers in `binary.ts`, this **throws `RangeError`** on
+ * overrun. Use it for walking a format you have already confirmed; use those
+ * for speculative probing where a miss is expected.
+ *
+ * **Views the whole `buffer`.** Passing `someUint8Array.buffer` from a
+ * *subarray* reads the underlying buffer, not the subarray's slice of it —
+ * pass `byteOffset`/`byteLength` explicitly, or `dataViewOf()` a Uint8Array and
+ * hand over `view.buffer, view.byteOffset, view.byteLength`.
  */
 export class BinaryReader {
   private view: DataView;
   private _offset: number;
   private _endian: Endianness;
 
-  constructor(buffer: ArrayBuffer, offset = 0, endian: Endianness = 'be') {
-    this.view = new DataView(buffer);
+  /**
+   * @param buffer      Backing buffer.
+   * @param offset      Starting cursor position, relative to `byteOffset`.
+   * @param endian      Byte order for multi-byte reads (default big-endian).
+   * @param byteOffset  Start of the readable window within `buffer` (default 0).
+   * @param byteLength  Length of that window (default: to the end of `buffer`).
+   */
+  constructor(
+    buffer: ArrayBuffer,
+    offset = 0,
+    endian: Endianness = 'be',
+    byteOffset = 0,
+    byteLength?: number,
+  ) {
+    this.view = new DataView(buffer, byteOffset, byteLength ?? buffer.byteLength - byteOffset);
     this._offset = offset;
     this._endian = endian;
   }
@@ -98,7 +120,13 @@ export class BinaryReader {
     return String.fromCharCode(...bytes);
   }
 
-  /** Read `length` bytes as a Uint8Array. */
+  /**
+   * Read `length` bytes as a Uint8Array.
+   *
+   * Returns a **view onto the backing buffer**, not a copy — mutating it
+   * mutates the source. Copy it (`.slice()`) if you intend to modify it or to
+   * retain it past the buffer's lifetime. Contrast `subReader()`, which copies.
+   */
   readBytes(length: number): Uint8Array {
     if (this._offset + length > this.view.byteLength) {
       throw new RangeError(
@@ -129,7 +157,12 @@ export class BinaryReader {
     return String.fromCharCode(...bytes.subarray(0, end));
   }
 
-  /** Create a sub-reader from the current position for `length` bytes. */
+  /**
+   * Create a sub-reader from the current position for `length` bytes.
+   *
+   * **Copies** those bytes, so the sub-reader is independent of this one's
+   * buffer. Contrast `readBytes()`, which returns a view.
+   */
   subReader(length: number): BinaryReader {
     const start = this.view.byteOffset + this._offset;
     const buffer = this.view.buffer.slice(start, start + length) as ArrayBuffer;

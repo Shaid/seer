@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { loadAssets, createAssetLoader } from '../assets.ts';
+import { loadAssets, createAssetLoader } from '../assets.js';
 
 function mockFetch(responses: Record<string, unknown | string>): void {
   globalThis.fetch = vi.fn(async (url: string | URL) => {
@@ -40,10 +40,9 @@ describe('loadAssets', () => {
       '/assets/game1/amiga/labels.txt': 'hello world',
     });
 
-    const assets = await loadAssets<{ labels: string }>(
-      '/assets/game1/amiga',
-      { labels: 'labels.txt' },
-    );
+    const assets = await loadAssets<{ labels: string }>('/assets/game1/amiga', {
+      labels: 'labels.txt',
+    });
 
     expect(assets.labels).toBe('hello world');
   });
@@ -54,10 +53,10 @@ describe('loadAssets', () => {
       '/assets/g/p/b.json': { b: 2 },
     });
 
-    const assets = await loadAssets<{ a: { a: number }; b: { b: number } }>(
-      '/assets/g/p',
-      { a: 'a.json', b: 'b.json' },
-    );
+    const assets = await loadAssets<{ a: { a: number }; b: { b: number } }>('/assets/g/p', {
+      a: 'a.json',
+      b: 'b.json',
+    });
 
     expect(assets.a).toEqual({ a: 1 });
     expect(assets.b).toEqual({ b: 2 });
@@ -66,9 +65,9 @@ describe('loadAssets', () => {
   it('throws on HTTP errors', async () => {
     mockFetch({});
 
-    await expect(
-      loadAssets<{ x: unknown }>('/assets/g/p', { x: 'missing.json' }),
-    ).rejects.toThrow('Failed to fetch');
+    await expect(loadAssets<{ x: unknown }>('/assets/g/p', { x: 'missing.json' })).rejects.toThrow(
+      'Failed to fetch',
+    );
   });
 });
 

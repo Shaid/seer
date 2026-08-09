@@ -1,12 +1,12 @@
-import { createViewport, type Viewport, type ViewportOptions } from './viewport.ts';
-import { createAnimationController, type AnimationController } from './animation.ts';
-import { applyRenderMode, defaultRenderMode, type RenderMode } from './render-modes.ts';
-import { recolorPolygonModel } from './polygon.ts';
-import type { ColorMode, ColorResolver } from './color-modes.ts';
-import { fitCameraToObject } from './camera-fit.ts';
-import { disposeObject3D } from './dispose.ts';
-import { meshStats, type MeshStats } from './stats.ts';
-import type { Model3D } from './types.ts';
+import { createViewport, type Viewport, type ViewportOptions } from './viewport.js';
+import { createAnimationController, type AnimationController } from './animation.js';
+import { applyRenderMode, defaultRenderMode, type RenderMode } from './render-modes.js';
+import { recolorPolygonModel } from './polygon.js';
+import type { ColorMode, ColorResolver } from './color-modes.js';
+import { fitCameraToObject } from './camera-fit.js';
+import { disposeObject3D } from './dispose.js';
+import { meshStats, type MeshStats } from './stats.js';
+import type { Model3D } from './types.js';
 import * as THREE from 'three';
 
 export type MeshSessionOptions = ViewportOptions;
@@ -61,7 +61,10 @@ export interface MeshSession {
   dispose(): void;
 }
 
-export function createMeshSession(container: HTMLElement, opts: MeshSessionOptions = {}): MeshSession {
+export function createMeshSession(
+  container: HTMLElement,
+  opts: MeshSessionOptions = {},
+): MeshSession {
   const viewport = createViewport(container, opts);
   const trackedModels: Model3D[] = [];
 

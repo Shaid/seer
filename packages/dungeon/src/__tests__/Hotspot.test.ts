@@ -4,11 +4,11 @@
  * coordinates that should and shouldn't hit it.
  */
 import { describe, expect, it } from 'vitest';
-import { pickHotspot } from '../view/Hotspot.ts';
-import { paintOrder, topmostFirst, comparePaintOrder } from '../view/order.ts';
-import { PieceBank } from '../raster/PieceBank.ts';
-import type { DrawItem } from '../view/DrawItem.ts';
-import type { PieceBankLookup } from '../raster/composite.ts';
+import { pickHotspot } from '../view/Hotspot.js';
+import { paintOrder, topmostFirst, comparePaintOrder } from '../view/order.js';
+import { PieceBank } from '../raster/PieceBank.js';
+import type { DrawItem } from '../view/DrawItem.js';
+import type { PieceBankLookup } from '../raster/composite.js';
 
 // A 4x4 opaque-red atlas with two named frames: "wall" (0,0,4,2) and "plaque" (0,2,2,2).
 const rgba = new Uint8Array(4 * 4 * 4).fill(0);
@@ -71,15 +71,43 @@ describe('pickHotspot', () => {
     // a "wall" front-wall hotspot and a "plaque" prop hotspot fully inside
     // it, overlapping at (1,1). Props paint after (on top of) walls at
     // equal depth, so the plaque must win here.
-    const wall = item({ kind: 'front', depth: 0, destX: 0, destY: 0, frame: 'wall', hotspot: { code: 0x64 } });
-    const plaque = item({ kind: 'prop', depth: 0, destX: 0, destY: 0, frame: 'plaque', hotspot: { code: 0x6a } });
+    const wall = item({
+      kind: 'front',
+      depth: 0,
+      destX: 0,
+      destY: 0,
+      frame: 'wall',
+      hotspot: { code: 0x64 },
+    });
+    const plaque = item({
+      kind: 'prop',
+      depth: 0,
+      destX: 0,
+      destY: 0,
+      frame: 'plaque',
+      hotspot: { code: 0x6a },
+    });
     const hit = pickHotspot([wall, plaque], banks, 0, 1, 1);
     expect(hit!.hotspot.code).toBe(0x6a);
   });
 
-  it('falls through to a farther hotspot when the click misses the nearer one\'s rect but hits the farther one\'s', () => {
-    const wall = item({ kind: 'front', depth: 1, destX: 0, destY: 0, frame: 'wall', hotspot: { code: 0x64 } }); // 4x2 rect
-    const plaque = item({ kind: 'prop', depth: 0, destX: 0, destY: 0, frame: 'plaque', hotspot: { code: 0x6a } }); // 2x2 rect
+  it("falls through to a farther hotspot when the click misses the nearer one's rect but hits the farther one's", () => {
+    const wall = item({
+      kind: 'front',
+      depth: 1,
+      destX: 0,
+      destY: 0,
+      frame: 'wall',
+      hotspot: { code: 0x64 },
+    }); // 4x2 rect
+    const plaque = item({
+      kind: 'prop',
+      depth: 0,
+      destX: 0,
+      destY: 0,
+      frame: 'plaque',
+      hotspot: { code: 0x6a },
+    }); // 2x2 rect
     const hit = pickHotspot([wall, plaque], banks, 0, 3, 0); // inside wall's rect, outside plaque's
     expect(hit!.hotspot.code).toBe(0x64);
   });
@@ -91,7 +119,7 @@ describe('pickHotspot', () => {
 });
 
 describe('view/order paint order (shared with compositeDrawList)', () => {
-  it('sorts nearest depth first, farthest last (on top — Black Crypt\'s own nested-wall-frame convention, see raster/composite.ts\'s module doc comment)', () => {
+  it("sorts nearest depth first, farthest last (on top — Black Crypt's own nested-wall-frame convention, see raster/composite.ts's module doc comment)", () => {
     const near = item({ depth: 0 });
     const far = item({ depth: 2 });
     expect(paintOrder([near, far])).toEqual([near, far]);

@@ -20,10 +20,10 @@
  * (throttling, binding dispatch) independent of any real `CellQuery`; a host
  * wires the real predicate in via `options.canStep`.
  */
-import type { Pose, Dir4 } from '../model/Pose.ts';
-import { turnLeft, turnRight } from '../model/Pose.ts';
-import { rotate, leftOf, rightOf, step as stepCell } from '../model/Direction.ts';
-import type { BindingsFile } from '../schema/bindings.ts';
+import type { Pose, Dir4 } from '../model/Pose.js';
+import { turnLeft, turnRight } from '../model/Pose.js';
+import { rotate, leftOf, rightOf, step as stepCell } from '../model/Direction.js';
+import type { BindingsFile } from '../schema/bindings.js';
 
 /**
  * The subset of `@seer-project/engine-2d`'s `KeyState` this controller needs. A real

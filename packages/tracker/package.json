@@ -1,11 +1,12 @@
 {
   "name": "@seer-project/tracker",
   "version": "0.1.0",
-  "description": "Custom 4-channel Paula sample-based tracker module parser and player — Dune Amiga audio engine",
+  "description": "Custom 4-channel Paula sample-based tracker module parser and player \u2014 Dune Amiga audio engine",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Shaid/seer.git"
+    "url": "https://github.com/Shaid/seer.git",
+    "directory": "packages/tracker"
   },
   "keywords": [
     "tracker",
@@ -25,6 +26,8 @@
   },
   "files": [
     "dist",
+    "src",
+    "!src/__tests__",
     "README.md",
     "LICENSE",
     "THIRD-PARTY-LICENSES.md"
@@ -35,6 +38,7 @@
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
     "prepack": "npm run build",
+    "prepublishOnly": "npm run lint && npm test",
     "pretest": "npm run build",
     "test": "vitest run",
     "lint": "eslint src/"
@@ -45,5 +49,12 @@
   "devDependencies": {
     "typescript": "~6.0.2",
     "vitest": "^3.2.0"
+  },
+  "homepage": "https://seer.shaid.net",
+  "bugs": {
+    "url": "https://github.com/Shaid/seer/issues"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   }
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { TrackerPlayer } from '../player.ts';
-import { buildAudibleMod } from './mod-fixture.ts';
+import { TrackerPlayer } from '../player.js';
+import { buildAudibleMod } from './mod-fixture.js';
 
 /**
  * `TrackerPlayer` owns the Web Audio plumbing (AudioContext, worklet, gain

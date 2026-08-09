@@ -1,11 +1,21 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { applyRenderMode, defaultRenderMode, supportedRenderModes, type RenderMode } from '../render-modes.ts';
-import type { Model3D, ModelRepresentations } from '../types.ts';
+import {
+  applyRenderMode,
+  defaultRenderMode,
+  supportedRenderModes,
+  type RenderMode,
+} from '../render-modes.js';
+import type { Model3D, ModelRepresentations } from '../types.js';
 
 function makePolygonModel(opts: { faces?: boolean; lines?: boolean; points?: boolean }): Model3D {
   const object = new THREE.Group();
-  const repr: ModelRepresentations = { faces: null, lines: null, points: null, originalMaterials: new Map() };
+  const repr: ModelRepresentations = {
+    faces: null,
+    lines: null,
+    points: null,
+    originalMaterials: new Map(),
+  };
 
   if (opts.faces) {
     const geom = new THREE.BufferGeometry();
@@ -33,7 +43,11 @@ function makePolygonModel(opts: { faces?: boolean; lines?: boolean; points?: boo
   return { object, source: 'polygon', animations: [], hasTextures: false, repr };
 }
 
-function makeGltfModel(): { model: Model3D; mesh: THREE.Mesh; originalMaterial: THREE.MeshStandardMaterial } {
+function makeGltfModel(): {
+  model: Model3D;
+  mesh: THREE.Mesh;
+  originalMaterial: THREE.MeshStandardMaterial;
+} {
   const object = new THREE.Group();
   const geom = new THREE.BufferGeometry();
   geom.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3));
@@ -45,16 +59,50 @@ function makeGltfModel(): { model: Model3D; mesh: THREE.Mesh; originalMaterial: 
   originalMaterials.set(mesh, originalMaterial);
   const repr: ModelRepresentations = { faces: null, lines: null, points: null, originalMaterials };
 
-  return { model: { object, source: 'gltf', animations: [], hasTextures: true, repr }, mesh, originalMaterial };
+  return {
+    model: { object, source: 'gltf', animations: [], hasTextures: true, repr },
+    mesh,
+    originalMaterial,
+  };
 }
 
 describe('supportedRenderModes / defaultRenderMode — applicability matrix', () => {
-  const cases: Array<{ name: string; model: () => Model3D; supported: RenderMode[]; def: RenderMode }> = [
-    { name: 'polygon with faces+wireframe+points all built', model: () => makePolygonModel({ faces: true, lines: true, points: true }), supported: ['faces', 'wireframe', 'points'], def: 'faces' },
-    { name: 'polygon with no faces[] (wireframe+points only)', model: () => makePolygonModel({ lines: true, points: true }), supported: ['wireframe', 'points'], def: 'wireframe' },
-    { name: 'polygon with points only (no faces, no derivable edges)', model: () => makePolygonModel({ points: true }), supported: ['points'], def: 'points' },
-    { name: 'polygon with nothing built (empty model)', model: () => makePolygonModel({}), supported: [], def: 'points' },
-    { name: 'gltf always supports all four regardless of repr contents', model: () => makeGltfModel().model, supported: ['textured', 'faces', 'wireframe', 'points'], def: 'textured' },
+  const cases: Array<{
+    name: string;
+    model: () => Model3D;
+    supported: RenderMode[];
+    def: RenderMode;
+  }> = [
+    {
+      name: 'polygon with faces+wireframe+points all built',
+      model: () => makePolygonModel({ faces: true, lines: true, points: true }),
+      supported: ['faces', 'wireframe', 'points'],
+      def: 'faces',
+    },
+    {
+      name: 'polygon with no faces[] (wireframe+points only)',
+      model: () => makePolygonModel({ lines: true, points: true }),
+      supported: ['wireframe', 'points'],
+      def: 'wireframe',
+    },
+    {
+      name: 'polygon with points only (no faces, no derivable edges)',
+      model: () => makePolygonModel({ points: true }),
+      supported: ['points'],
+      def: 'points',
+    },
+    {
+      name: 'polygon with nothing built (empty model)',
+      model: () => makePolygonModel({}),
+      supported: [],
+      def: 'points',
+    },
+    {
+      name: 'gltf always supports all four regardless of repr contents',
+      model: () => makeGltfModel().model,
+      supported: ['textured', 'faces', 'wireframe', 'points'],
+      def: 'textured',
+    },
   ];
 
   for (const c of cases) {
@@ -107,7 +155,9 @@ describe('applyRenderMode — gltf', () => {
     const { model, mesh, originalMaterial } = makeGltfModel();
     applyRenderMode(model, 'faces');
     expect(mesh.material).toBeInstanceOf(THREE.MeshLambertMaterial);
-    expect((mesh.material as THREE.MeshLambertMaterial).color.getHex()).toBe(originalMaterial.color.getHex());
+    expect((mesh.material as THREE.MeshLambertMaterial).color.getHex()).toBe(
+      originalMaterial.color.getHex(),
+    );
     expect(mesh.visible).toBe(true);
   });
 

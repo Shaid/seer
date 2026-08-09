@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { r16, r24, r32, dataViewOf } from '../binary.ts';
+import { r16, r24, r32, dataViewOf } from '../binary.js';
 
 describe('dataViewOf', () => {
   it('creates a DataView over the array with correct byteOffset/byteLength', () => {

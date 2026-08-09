@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseIff, findChunk, findChunks } from '../iff.ts';
+import { parseIff, findChunk, findChunks } from '../iff.js';
 
 /** Helper: build a minimal IFF FORM buffer. */
 function buildIff(type: string, chunks: Array<{ id: string; data: number[] }>): ArrayBuffer {

@@ -41,7 +41,10 @@ export type ColorResolver = (ctx: ColorResolverContext) => THREE.Color;
  * `fillToColor` (`viewer.ts:242-246`): `createPaletteResolver(PALETTE, f => (f>>8)&0xf)`
  * reproduces it exactly, with nothing Amiga-specific inside this package.
  */
-export function createPaletteResolver(palette: readonly number[], decodeIndex: (fill: number) => number): ColorResolver {
+export function createPaletteResolver(
+  palette: readonly number[],
+  decodeIndex: (fill: number) => number,
+): ColorResolver {
   return (ctx) => {
     if (palette.length === 0) return new THREE.Color(FALLBACK_HEX);
     const raw = decodeIndex(ctx.fill);
@@ -66,7 +69,11 @@ function clamp01(t: number): number {
  * (falling back to a flat grey if none was supplied, rather than throwing —
  * a model with no injected palette should still render, just uncolored).
  */
-export function resolveColor(mode: ColorMode, ctx: ColorResolverContext, resolver?: ColorResolver): THREE.Color {
+export function resolveColor(
+  mode: ColorMode,
+  ctx: ColorResolverContext,
+  resolver?: ColorResolver,
+): THREE.Color {
   switch (mode) {
     case 'palette':
       return resolver ? resolver(ctx) : new THREE.Color(FALLBACK_HEX);

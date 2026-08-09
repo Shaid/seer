@@ -9,19 +9,29 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { validateSlotTableFile, validateDungeonLevelFile } from '../schema/validate.ts';
-import { FlatGridLevel } from '../model/FlatGridLevel.ts';
-import { buildViewList } from '../view/buildViewList.ts';
-import { viewSpecFromSlotTable } from '../view/ViewSpec.ts';
-import type { Pose, Dir4 } from '../model/Pose.ts';
-import type { SemanticsFile } from '../schema/semantics.ts';
+import { validateSlotTableFile, validateDungeonLevelFile } from '../schema/validate.js';
+import { FlatGridLevel } from '../model/FlatGridLevel.js';
+import { buildViewList } from '../view/buildViewList.js';
+import { viewSpecFromSlotTable } from '../view/ViewSpec.js';
+import type { Pose, Dir4 } from '../model/Pose.js';
+import type { SemanticsFile } from '../schema/semantics.js';
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
-const SEMANTICS = { schemaVersion: 1, confidence: 'confirmed', source: 'test', walls: {}, features: {} } as SemanticsFile;
+const SEMANTICS = {
+  schemaVersion: 1,
+  confidence: 'confirmed',
+  source: 'test',
+  walls: {},
+  features: {},
+} as SemanticsFile;
 
 function load() {
-  const levelFile = validateDungeonLevelFile(JSON.parse(readFileSync(`${FIXTURES}levels-trimmed.json`, 'utf8')));
-  const slots = validateSlotTableFile(JSON.parse(readFileSync(`${FIXTURES}slots-with-props.json`, 'utf8')));
+  const levelFile = validateDungeonLevelFile(
+    JSON.parse(readFileSync(`${FIXTURES}levels-trimmed.json`, 'utf8')),
+  );
+  const slots = validateSlotTableFile(
+    JSON.parse(readFileSync(`${FIXTURES}slots-with-props.json`, 'utf8')),
+  );
   const unit = levelFile.units.find((u) => u.id === 1)!;
   return { level: new FlatGridLevel(levelFile, unit), spec: viewSpecFromSlotTable(slots), slots };
 }
@@ -54,7 +64,9 @@ describe('buildViewList: M4 hotspot/entity wiring on real props.test.ts fixtures
   });
 
   it('plaque (row 5, col 43) carries hotspot code 0x6a or 0x6f (type 0x20/0x21) and a handle', () => {
-    const items = propItemsAt(43, 5).filter((i) => i.entity?.type === 0x20 || i.entity?.type === 0x21);
+    const items = propItemsAt(43, 5).filter(
+      (i) => i.entity?.type === 0x20 || i.entity?.type === 0x21,
+    );
     expect(items.length).toBeGreaterThan(0);
     for (const item of items) {
       expect([0x6a, 0x6f]).toContain(item.hotspot?.code);

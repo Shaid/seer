@@ -1,2 +1,2 @@
-export * from './audio-bar.ts';
-export * from './native-audio-engine.ts';
+export * from './audio-bar.js';
+export * from './native-audio-engine.js';

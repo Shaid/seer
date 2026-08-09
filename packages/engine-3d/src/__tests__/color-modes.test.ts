@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createPaletteResolver, resolveColor } from '../color-modes.ts';
+import { createPaletteResolver, resolveColor } from '../color-modes.js';
 
 describe('createPaletteResolver / resolveColor("palette")', () => {
   const palette = [0x000000, 0xff0000, 0x00ff00, 0x0000ff];
 
-  it('reproduces hunter\'s fillToColor bit-decode exactly: bits 11-8 select the palette index', () => {
+  it("reproduces hunter's fillToColor bit-decode exactly: bits 11-8 select the palette index", () => {
     const resolver = createPaletteResolver(palette, (fill) => (fill >> 8) & 0xf);
     // fill word 0x0203 -> colorIdx = (0x0203 >> 8) & 0xf = 2 -> palette[2] = 0x00ff00
     const color = resolver({ objectId: 0, faceIndex: 0, fill: 0x0203, y: 0 });
@@ -66,8 +66,19 @@ describe('resolveColor("height")', () => {
 
   it('uses a caller-supplied heightRange instead of the default ±2000', () => {
     const range = { min: 0, max: 100 };
-    const viaCustomRange = resolveColor('height', { objectId: 0, faceIndex: 0, fill: 0, y: 100, heightRange: range });
-    const viaDefaultRangeAtSameAbsoluteY = resolveColor('height', { objectId: 0, faceIndex: 0, fill: 0, y: 100 });
+    const viaCustomRange = resolveColor('height', {
+      objectId: 0,
+      faceIndex: 0,
+      fill: 0,
+      y: 100,
+      heightRange: range,
+    });
+    const viaDefaultRangeAtSameAbsoluteY = resolveColor('height', {
+      objectId: 0,
+      faceIndex: 0,
+      fill: 0,
+      y: 100,
+    });
     // y=100 is the *top* of the custom 0..100 range but nowhere near the top
     // of the default ±2000 range — the two must resolve to different colors,
     // proving heightRange actually changes the mapping.
@@ -76,13 +87,27 @@ describe('resolveColor("height")', () => {
 
   it('clamps y outside the range rather than producing an out-of-gamut result', () => {
     const range = { min: 0, max: 100 };
-    const belowRange = resolveColor('height', { objectId: 0, faceIndex: 0, fill: 0, y: -1000, heightRange: range });
-    const atMin = resolveColor('height', { objectId: 0, faceIndex: 0, fill: 0, y: 0, heightRange: range });
+    const belowRange = resolveColor('height', {
+      objectId: 0,
+      faceIndex: 0,
+      fill: 0,
+      y: -1000,
+      heightRange: range,
+    });
+    const atMin = resolveColor('height', {
+      objectId: 0,
+      faceIndex: 0,
+      fill: 0,
+      y: 0,
+      heightRange: range,
+    });
     expect(belowRange.getHexString()).toBe(atMin.getHexString());
   });
 
   it('falls back to a flat midpoint color for a degenerate (zero-span) range', () => {
     const range = { min: 50, max: 50 };
-    expect(() => resolveColor('height', { objectId: 0, faceIndex: 0, fill: 0, y: 50, heightRange: range })).not.toThrow();
+    expect(() =>
+      resolveColor('height', { objectId: 0, faceIndex: 0, fill: 0, y: 50, heightRange: range }),
+    ).not.toThrow();
   });
 });

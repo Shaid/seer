@@ -13,7 +13,7 @@ import {
   getAllSupportedPlatforms,
   type PlatformConfig,
   type GameConfig,
-} from '../config.ts';
+} from '../config.js';
 
 const PLACEHOLDER: PlatformConfig = {
   game: 'game1',
@@ -49,8 +49,20 @@ describe('defineGameConfig / flattenConfigs', () => {
     id: 'wime',
     displayName: 'War in Middle Earth',
     platforms: [
-      { platform: 'amiga', dataDirs: ['wime/amiga'], expectedFiles: ['a'], supported: true, assetDir: 'wime' },
-      { platform: 'dos', dataDirs: ['wime/dos'], expectedFiles: ['b'], supported: false, assetDir: 'wime' },
+      {
+        platform: 'amiga',
+        dataDirs: ['wime/amiga'],
+        expectedFiles: ['a'],
+        supported: true,
+        assetDir: 'wime',
+      },
+      {
+        platform: 'dos',
+        dataDirs: ['wime/dos'],
+        expectedFiles: ['b'],
+        supported: false,
+        assetDir: 'wime',
+      },
     ],
   };
 
@@ -75,7 +87,13 @@ describe('getPlatformConfig', () => {
     id: 'spirit',
     displayName: 'Spirit of Excalibur',
     platforms: [
-      { platform: 'amiga', dataDirs: ['spirit/amiga'], expectedFiles: [], supported: true, assetDir: 'spirit' },
+      {
+        platform: 'amiga',
+        dataDirs: ['spirit/amiga'],
+        expectedFiles: [],
+        supported: true,
+        assetDir: 'spirit',
+      },
     ],
   };
 

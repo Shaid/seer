@@ -34,24 +34,40 @@
  * hardcodes `wallFlags` — a future generalisation pass (M6) would
  * parameterise it, the same way `WallStorage.plane` already is.
  */
-import type { CellQuery } from '../model/CellQuery.ts';
-import type { EntityRecord } from '../schema/level.ts';
-import type { PieceBank } from '../raster/PieceBank.ts';
-import type { IndexedSurface } from '../raster/IndexedSurface.ts';
-import type { Dir4 } from '../model/Pose.ts';
+import type { CellQuery } from '../model/CellQuery.js';
+import type { EntityRecord } from '../schema/level.js';
+import type { PieceBank } from '../raster/PieceBank.js';
+import type { IndexedSurface } from '../raster/IndexedSurface.js';
+import type { Dir4 } from '../model/Pose.js';
 
 export const AUTOMAP_TILE_COUNT = 24;
 export const AUTOMAP_TILE_SIZE = 8;
 
 /** Mirrors `scripts/automap_tiles.py`'s `TILE_NAMES`, for debug/label use. */
 export const AUTOMAP_TILE_NAMES: Record<number, string> = {
-  0: 'wall', 1: 'stairs up', 2: 'stairs down', 3: 'door open (horizontal)',
-  4: 'door closed (horizontal)', 5: 'door open (vertical)',
-  6: 'door closed (vertical)', 7: 'pillar', 8: 'floor pit', 9: 'teleport',
-  10: 'magic field', 11: 'glyph', 12: 'fountain', 13: 'floor plate',
-  14: 'trap (visible)', 15: 'floor', 16: 'darkness',
-  17: 'party facing N', 18: 'party facing E', 19: 'party facing S',
-  20: 'party facing W', 21: 'illusionary wall', 22: 'spinner',
+  0: 'wall',
+  1: 'stairs up',
+  2: 'stairs down',
+  3: 'door open (horizontal)',
+  4: 'door closed (horizontal)',
+  5: 'door open (vertical)',
+  6: 'door closed (vertical)',
+  7: 'pillar',
+  8: 'floor pit',
+  9: 'teleport',
+  10: 'magic field',
+  11: 'glyph',
+  12: 'fountain',
+  13: 'floor plate',
+  14: 'trap (visible)',
+  15: 'floor',
+  16: 'darkness',
+  17: 'party facing N',
+  18: 'party facing E',
+  19: 'party facing S',
+  20: 'party facing W',
+  21: 'illusionary wall',
+  22: 'spinner',
   23: 'special panel',
 };
 
@@ -69,13 +85,15 @@ function dispatchOne(rec: EntityRecord, tile: number): number {
 
   if (t === 0x10 && gate) {
     const kind = u16(raw, 0x0c);
-    if (kind === 1) tile = 21; // illusionary wall
-    else if (kind === 2) tile = 10; // magic field
+    if (kind === 1)
+      tile = 21; // illusionary wall
+    else if (kind === 2)
+      tile = 10; // magic field
     else if (kind === 3) tile = 11; // glyph
   } else if (t === 0x11 && tile === 15) {
     const vertical = ((raw?.[4] ?? 0) & 0x10) !== 0; // +0x04 bit 4 = N wall -> E-W corridor
     const isOpen = ((raw?.[0x0f] ?? 0) & 0x01) !== 0;
-    tile = vertical ? (isOpen ? 5 : 6) : (isOpen ? 3 : 4);
+    tile = vertical ? (isOpen ? 5 : 6) : isOpen ? 3 : 4;
   } else if (t === 0x12 && gate) {
     const kind = u16(raw, 0x10);
     const KIND_TILE = [9, 9, 1, 2, 22];
@@ -86,7 +104,8 @@ function dispatchOne(rec: EntityRecord, tile: number): number {
     if (gate) tile = 7; // pillar
   } else if (t === 0x1e) {
     if ((raw?.[7] ?? 0) === 0 && gate) {
-      if (u16(raw, 0x0e) === 0) tile = 13; // floor plate
+      if (u16(raw, 0x0e) === 0)
+        tile = 13; // floor plate
       else if (u16(raw, 0x0c) !== 0) tile = 14; // visible trap
     }
   } else if (t === 0x1f) {

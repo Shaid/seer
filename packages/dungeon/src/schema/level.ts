@@ -14,7 +14,13 @@ export type Dir4 = 0 | 1 | 2 | 3;
 
 export type CellSpace =
   | { kind: 'flat'; width: number; height: number }
-  | { kind: 'regions'; regionCount: number; regionSize: number; worldWidth: number; worldHeight: number };
+  | {
+      kind: 'regions';
+      regionCount: number;
+      regionSize: number;
+      worldWidth: number;
+      worldHeight: number;
+    };
 
 export type WallStorage =
   | { kind: 'bitflags'; plane: string; bits: [number, number, number, number] }

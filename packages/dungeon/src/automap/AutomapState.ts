@@ -81,7 +81,9 @@ export class AutomapState {
       const unitId = Number(unitIdStr);
       const { width, height } = this.sizeOf(unitId);
       if (snapshot.width !== width) {
-        throw new Error(`AutomapState.restore: unit ${unitId} width mismatch (snapshot ${snapshot.width}, expected ${width})`);
+        throw new Error(
+          `AutomapState.restore: unit ${unitId} width mismatch (snapshot ${snapshot.width}, expected ${width})`,
+        );
       }
       const bits = new Uint8Array(width * height);
       for (const idx of snapshot.visited) bits[idx] = 1;

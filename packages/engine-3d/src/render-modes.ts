@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Model3D } from './types.ts';
+import type { Model3D } from './types.js';
 
 /**
  * The four ways a `Model3D` can be drawn. This is where the glTF/polygon
@@ -43,7 +43,8 @@ export function supportedRenderModes(model: Model3D): RenderMode[] {
 /** The mode `applyRenderMode` falls back to when asked for an unsupported one. `'textured'` for glTF (its richest mode), otherwise the first supported mode in `faces` > `wireframe` > `points` priority, or `'points'` for a completely empty model (nothing else to fall back to). */
 export function defaultRenderMode(model: Model3D): RenderMode {
   const supported = supportedRenderModes(model);
-  if (model.source === 'gltf') return supported.includes('textured') ? 'textured' : (supported[0] ?? 'textured');
+  if (model.source === 'gltf')
+    return supported.includes('textured') ? 'textured' : (supported[0] ?? 'textured');
   return supported[0] ?? 'points';
 }
 
@@ -92,15 +93,26 @@ function cacheFor(mesh: THREE.Mesh): GeneratedMaterialCache {
   return cache;
 }
 
-function facesMaterialFor(mesh: THREE.Mesh, original: THREE.Material | THREE.Material[] | undefined): THREE.MeshLambertMaterial {
+function facesMaterialFor(
+  mesh: THREE.Mesh,
+  original: THREE.Material | THREE.Material[] | undefined,
+): THREE.MeshLambertMaterial {
   const cache = cacheFor(mesh);
-  if (!cache.faces) cache.faces = new THREE.MeshLambertMaterial({ color: originalColorOf(original) });
+  if (!cache.faces)
+    cache.faces = new THREE.MeshLambertMaterial({ color: originalColorOf(original) });
   return cache.faces;
 }
 
-function wireframeMaterialFor(mesh: THREE.Mesh, original: THREE.Material | THREE.Material[] | undefined): THREE.MeshBasicMaterial {
+function wireframeMaterialFor(
+  mesh: THREE.Mesh,
+  original: THREE.Material | THREE.Material[] | undefined,
+): THREE.MeshBasicMaterial {
   const cache = cacheFor(mesh);
-  if (!cache.wireframe) cache.wireframe = new THREE.MeshBasicMaterial({ color: originalColorOf(original), wireframe: true });
+  if (!cache.wireframe)
+    cache.wireframe = new THREE.MeshBasicMaterial({
+      color: originalColorOf(original),
+      wireframe: true,
+    });
   return cache.wireframe;
 }
 

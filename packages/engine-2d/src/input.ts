@@ -5,5 +5,5 @@
  * because `KeyState`/`PointerState` have zero dependency on `Camera`,
  * `TopDownCamera`, or `InputManager` and are useful standalone.
  */
-export { KeyState } from './KeyState.ts';
-export { PointerState } from './PointerState.ts';
+export { KeyState } from './KeyState.js';
+export { PointerState } from './PointerState.js';

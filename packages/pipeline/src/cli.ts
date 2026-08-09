@@ -8,13 +8,9 @@
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import {
-  type GameConfig,
-  getAllSupportedPlatforms,
-  resolveDataDir,
-} from './config.ts';
-import { runPipeline } from './pipeline.ts';
-import { hexDump } from './hex-dump.ts';
+import { type GameConfig, getAllSupportedPlatforms, resolveDataDir } from './config.js';
+import { runPipeline } from './pipeline.js';
+import { hexDump } from './hex-dump.js';
 
 export const CONFIG_FILENAMES = ['seer.config.ts', 'seer.config.js', 'seer.config.mjs'];
 
@@ -66,9 +62,7 @@ export async function loadConfig(dir: string): Promise<GameConfig[]> {
       }
     }
   }
-  throw new Error(
-    `No config file found. Create one of: ${CONFIG_FILENAMES.join(', ')}`,
-  );
+  throw new Error(`No config file found. Create one of: ${CONFIG_FILENAMES.join(', ')}`);
 }
 
 /** Parse `--game`, `--platform`, and `--data-dir` flags from raw CLI args. */
@@ -130,13 +124,12 @@ export function cmdDoctor(configs: GameConfig[], dataDir?: string): void {
       console.log(
         `  Platform: ${platform.platform}${platform.supported ? '' : ' (not marked supported)'}`,
       );
-      console.log(`    exportGameData: ${platform.exportGameData ? 'registered' : 'not registered'}`);
+      console.log(
+        `    exportGameData: ${platform.exportGameData ? 'registered' : 'not registered'}`,
+      );
       console.log(`    buildAssets:    ${platform.buildAssets ? 'registered' : 'not registered'}`);
 
-      const resolved = resolveDataDir(
-        { ...platform, game: game.id },
-        dataDir,
-      );
+      const resolved = resolveDataDir({ ...platform, game: game.id }, dataDir);
       if (resolved) {
         console.log(`    Data dir: found at ${resolved}`);
       } else {

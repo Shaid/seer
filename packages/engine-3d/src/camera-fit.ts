@@ -31,7 +31,11 @@ const DEFAULT_PADDING = 1.35;
  * Returns `null` for an empty box (no geometry to fit — mirrors flower's
  * `if (box.isEmpty()) return;` early-out).
  */
-export function computeCameraFit(box: THREE.Box3, fovDeg: number, opts: CameraFitOptions = {}): CameraFit | null {
+export function computeCameraFit(
+  box: THREE.Box3,
+  fovDeg: number,
+  opts: CameraFitOptions = {},
+): CameraFit | null {
   if (box.isEmpty()) return null;
 
   const center = box.getCenter(new THREE.Vector3());
@@ -55,7 +59,12 @@ export function computeCameraFit(box: THREE.Box3, fovDeg: number, opts: CameraFi
  * Applies `computeCameraFit` to `camera`/`controls`, framing `object`'s
  * current world-space bounds. No-op if `object` has no geometry to bound.
  */
-export function fitCameraToObject(camera: THREE.PerspectiveCamera, controls: OrbitControls, object: THREE.Object3D, opts: CameraFitOptions = {}): void {
+export function fitCameraToObject(
+  camera: THREE.PerspectiveCamera,
+  controls: OrbitControls,
+  object: THREE.Object3D,
+  opts: CameraFitOptions = {},
+): void {
   const box = new THREE.Box3().setFromObject(object);
   const fit = computeCameraFit(box, camera.fov, opts);
   if (!fit) return;

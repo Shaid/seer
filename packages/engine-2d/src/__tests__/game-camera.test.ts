@@ -10,11 +10,11 @@
  * `game.camera` becomes, extracted so it's testable without a DOM.
  */
 import { describe, it, expect } from 'vitest';
-import { resolveCamera, type GameOptions } from '../Game.ts';
-import { TopDownCamera } from '../TopDownCamera.ts';
-import { SideViewCamera } from '../SideViewCamera.ts';
-import { DisplayMode } from '../DisplayMode.ts';
-import type { BaseCamera } from '../BaseCamera.ts';
+import { resolveCamera, type GameOptions } from '../Game.js';
+import { TopDownCamera } from '../TopDownCamera.js';
+import { SideViewCamera } from '../SideViewCamera.js';
+import { DisplayMode } from '../DisplayMode.js';
+import type { BaseCamera } from '../BaseCamera.js';
 
 describe('resolveCamera', () => {
   it('defaults to a TopDownCamera sized from worldWidth/worldHeight when no camera option is given', () => {

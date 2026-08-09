@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BinaryReader } from '../binary-reader.ts';
+import { BinaryReader } from '../binary-reader.js';
 
 describe('BinaryReader (default big-endian)', () => {
   function makeReader(bytes: number[]): BinaryReader {

@@ -8,7 +8,7 @@
  * this independently only if a real divergent need shows up (e.g. parallax
  * layers), rather than speculatively diverging now.
  */
-import { TopDownCamera } from './TopDownCamera.ts';
+import { TopDownCamera } from './TopDownCamera.js';
 
 export class SideViewCamera extends TopDownCamera {
   override readonly kind: string = 'side-view';

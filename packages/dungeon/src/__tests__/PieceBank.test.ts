@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { PieceBank } from '../raster/PieceBank.ts';
+import { PieceBank } from '../raster/PieceBank.js';
 
 // 2x2 RGBA atlas: opaque red, opaque red (same color, should share an
 // index), opaque blue, and a transparent hole.
-const rgba = new Uint8Array([
-  255, 0, 0, 255, 255, 0, 0, 255,
-  0, 0, 255, 255, 10, 20, 30, 0,
-]);
+const rgba = new Uint8Array([255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 255, 255, 10, 20, 30, 0]);
 
 const atlas = { width: 2, height: 2, frames: [{ name: 'piece', x: 0, y: 0, w: 2, h: 2 }] };
 

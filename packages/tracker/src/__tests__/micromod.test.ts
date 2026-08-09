@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Module, Micromod } from '../micromod.ts';
-import { buildMod, buildAudibleMod } from './mod-fixture.ts';
+import { Module, Micromod } from '../micromod.js';
+import { buildMod, buildAudibleMod } from './mod-fixture.js';
 
 const RATE = 44100;
 

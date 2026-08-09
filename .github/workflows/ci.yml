@@ -1,0 +1,78 @@
+name: CI
+
+# Lint and test the workspace. Until this existed, nothing ran the test suite
+# on push at all -- the only workflow was the docs deploy -- so a release could
+# have shipped from an unverified tree.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor every package declares in `engines`, and the current LTS.
+        # A test uses `import.meta.dirname`, which needs >= 20.11.
+        node-version: ['20.19', '22']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # The repo declared a Prettier config but nothing enforced it, so 86 of
+      # 156 source files had drifted out of conformance. eslint does not cover
+      # formatting, so this is its own step.
+      - name: Check formatting
+        run: npm run format:check
+
+      # Builds every package first (see the root `test` script), so this also
+      # proves the publishable `tsc -b` emit still works.
+      - name: Test
+        run: npm test
+
+  # The bug this guards against is invisible in the workspace: package sources
+  # resolve through symlinks, and every in-house consumer sets
+  # `allowImportingTsExtensions`, so a `.d.ts` importing a `.ts` path that is
+  # never shipped still typechecks here while breaking every real consumer.
+  consumer-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install and build
+        run: |
+          npm ci
+          npm run build:packages
+
+      - name: Typecheck the packed tarballs from outside the workspace
+        run: node scripts/verify-consumer.mjs

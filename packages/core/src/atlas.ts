@@ -10,7 +10,7 @@
  *
  * This lives in `@seer-project/core` specifically so there is exactly one
  * definition shared by runtime code and offline tooling alike — it used to
- * be independently redeclared in the `create-seer` scaffold's
+ * be independently redeclared in the `create-seer-app` scaffold's
  * `src/data/GameData.ts` (as a *different*, incompatible uniform-grid shape)
  * and `tools/viewer/shared.ts` (as this packed-frames shape), silently
  * disagreeing with each other in every project scaffolded from it. See

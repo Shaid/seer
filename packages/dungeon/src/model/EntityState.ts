@@ -15,7 +15,7 @@
  * that type's `+0x0E` field actually holds, which is the caller's call to
  * make (this module has no opinion on `type`).
  */
-import type { EntityRecord } from '../schema/level.ts';
+import type { EntityRecord } from '../schema/level.js';
 
 export const DOOR_OPEN_BIT = 0x1;
 export const DOOR_LOCKED_BIT = 0x2;

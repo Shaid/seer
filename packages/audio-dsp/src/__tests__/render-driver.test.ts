@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { renderToStereoBuffers } from '../render-driver.ts';
-import type { BlockRenderer } from '../render-driver.ts';
+import { renderToStereoBuffers } from '../render-driver.js';
+import type { BlockRenderer } from '../render-driver.js';
 
 /** A fake renderer producing an ascending-index ramp for `totalSamples`, then silence, finishing once `totalSamples + silentTail` samples have been produced. */
 function makeRampRenderer(totalSamples: number, silentTail: number): BlockRenderer {
@@ -44,7 +44,11 @@ describe('renderToStereoBuffers', () => {
     const renderer = makeRampRenderer(500, 100);
     // grandTotal=600; 128-sample blocks: 128,256,384,512(not finished, 512<600),640(finished, 640>=600) -> 5 blocks = 640.
     // tailSeconds huge so the trim window covers everything already rendered (no additional truncation).
-    const [left, right] = renderToStereoBuffers(renderer, { sampleRate: 1000, blockSize: 128, tailSeconds: 10 });
+    const [left, right] = renderToStereoBuffers(renderer, {
+      sampleRate: 1000,
+      blockSize: 128,
+      tailSeconds: 10,
+    });
     expect(left.length).toBe(right.length);
     expect(left.length).toBe(640);
     // first/last-of-ramp samples match the renderer's own formula, confirming chunks landed in order.
@@ -57,7 +61,12 @@ describe('renderToStereoBuffers', () => {
     const renderer = makeRampRenderer(totalSamples, 1000); // long silent tail so the untrimmed length would be much bigger
     const sampleRate = 1000;
     const tailSeconds = 0.05; // 50 samples
-    const [left] = renderToStereoBuffers(renderer, { sampleRate, blockSize: 64, tailSeconds, silenceThreshold: 1e-4 });
+    const [left] = renderToStereoBuffers(renderer, {
+      sampleRate,
+      blockSize: 64,
+      tailSeconds,
+      silenceThreshold: 1e-4,
+    });
     // lastNonZero is index totalSamples-1 (299), trim length = 299 + 50 = 349, clamped to totalLen.
     expect(left.length).toBe(300 - 1 + 50);
   });
@@ -75,7 +84,11 @@ describe('renderToStereoBuffers', () => {
       renderBlock: (n) => [new Float32Array(n), new Float32Array(n)],
       finished: false,
     };
-    const [left] = renderToStereoBuffers(neverFinishes, { sampleRate: 1000, blockSize: 100, maxSeconds: 0.5 });
+    const [left] = renderToStereoBuffers(neverFinishes, {
+      sampleRate: 1000,
+      blockSize: 100,
+      maxSeconds: 0.5,
+    });
     // maxSamples = 500, loop keeps rendering 100-sample blocks until total >= 500 -> exactly 500 (silent, untrimmed)
     expect(left.length).toBe(500);
   });

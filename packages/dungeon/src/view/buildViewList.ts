@@ -43,8 +43,8 @@
  * on *which* structure record it is, only on `(depth, lateral, ...)`), or
  * (floor-item, below) from a small arithmetic table keyed additionally by
  * the entity's own `gfxNumber`. Only `floor-plate/trap` is not wired here —
- * its art source is a still-unidentified graphics-kernel slot. See
- * `docs/blackcrypt/TODO.md`.
+ * its art source is a still-unidentified graphics-kernel slot, tracked as an
+ * open item in the driving consumer's own research notes.
  *
  * Gating, all re-derived from disassembly this pass (not guessed):
  *
@@ -94,17 +94,17 @@
  *   `FloorItemPlacement`'s doc comment) or the wall-mounted `+0x21C84`
  *   variant (kind 0-3's default, a documented, out-of-scope simplification).
  */
-import type { CellQuery } from '../model/CellQuery.ts';
-import type { Pose } from '../model/Pose.ts';
-import { leftOf, rightOf, project } from '../model/Direction.ts';
-import type { Dir4 } from '../model/Pose.ts';
-import type { ViewSpec } from './ViewSpec.ts';
-import type { SemanticsFile } from '../schema/semantics.ts';
-import type { SlotTableFile, FloorItemPlacement } from '../schema/slots.ts';
-import type { EntityRecord } from '../schema/level.ts';
-import type { DrawItem, DrawItemKind } from './DrawItem.ts';
-import type { FrameRef } from '../schema/slots.ts';
-import { isFrameTemplate } from '../raster/anim.ts';
+import type { CellQuery } from '../model/CellQuery.js';
+import type { Pose } from '../model/Pose.js';
+import { leftOf, rightOf, project } from '../model/Direction.js';
+import type { Dir4 } from '../model/Pose.js';
+import type { ViewSpec } from './ViewSpec.js';
+import type { SemanticsFile } from '../schema/semantics.js';
+import type { SlotTableFile, FloorItemPlacement } from '../schema/slots.js';
+import type { EntityRecord } from '../schema/level.js';
+import type { DrawItem, DrawItemKind } from './DrawItem.js';
+import type { FrameRef } from '../schema/slots.js';
+import { isFrameTemplate } from '../raster/anim.js';
 
 /**
  * Extra, per-instance fields merged onto every `DrawItem` a `pushSlot` call
@@ -166,7 +166,12 @@ const DOOR_LOCK_DEPTH_LABELS = ['near', 'mid', 'far'] as const;
  * function be passed as `pushSlot`'s generic `resolveFrame` even if a
  * literal-string draw ever ends up sharing a door-lock slot).
  */
-function resolveDoorLockFrame(frame: FrameRef, mapId: number, gfxIndex: number, depth: number): FrameRef {
+function resolveDoorLockFrame(
+  frame: FrameRef,
+  mapId: number,
+  gfxIndex: number,
+  depth: number,
+): FrameRef {
   if (!isFrameTemplate(frame)) return frame;
   const depthLabel = DOOR_LOCK_DEPTH_LABELS[depth] ?? DOOR_LOCK_DEPTH_LABELS[0];
   return frame.template
@@ -298,18 +303,50 @@ function pushProps(
       const dir = singleWallDir(entity.wallMask, facing);
       if (dir === null) continue;
       const kind = entity.type === 0x16 ? 'alcove' : 'plaque';
-      const hotspot = { code: entity.type === 0x16 ? ALCOVE_HOTSPOT_CODE : PLAQUE_HOTSPOT_CODES[entity.type] };
-      pushSlot(items, slots, `prop:${kind}:${lateral}:${depth}:${dir}`, 'prop', depth, lateral, { ...cell, entity, entityHandle: handle, hotspot }, undefined, kind);
+      const hotspot = {
+        code: entity.type === 0x16 ? ALCOVE_HOTSPOT_CODE : PLAQUE_HOTSPOT_CODES[entity.type],
+      };
+      pushSlot(
+        items,
+        slots,
+        `prop:${kind}:${lateral}:${depth}:${dir}`,
+        'prop',
+        depth,
+        lateral,
+        { ...cell, entity, entityHandle: handle, hotspot },
+        undefined,
+        kind,
+      );
     } else if (entity.type === 0x12) {
       if (depth >= 3) continue;
       const flight = stairsFlight(entity);
       if (flight === null) continue;
-      pushSlot(items, slots, `prop:stairs-${flight}:${lateral}:${depth}`, 'prop', depth, lateral, { ...cell, entity, entityHandle: handle }, undefined, 'stairs');
+      pushSlot(
+        items,
+        slots,
+        `prop:stairs-${flight}:${lateral}:${depth}`,
+        'prop',
+        depth,
+        lateral,
+        { ...cell, entity, entityHandle: handle },
+        undefined,
+        'stairs',
+      );
     } else if (entity.type === 0x0f) {
       if (depth >= 3) continue;
       if (!decoratesRightWall(entity.raw, facing)) continue;
       const hotspot = { code: DOOR_SWITCH_HOTSPOT_CODE };
-      pushSlot(items, slots, `prop:door-switch:${lateral}:${depth}`, 'prop', depth, lateral, { ...cell, entity, entityHandle: handle, hotspot }, undefined, 'door-switch');
+      pushSlot(
+        items,
+        slots,
+        `prop:door-switch:${lateral}:${depth}`,
+        'prop',
+        depth,
+        lateral,
+        { ...cell, entity, entityHandle: handle, hotspot },
+        undefined,
+        'door-switch',
+      );
     } else if (entity.type === 0x22) {
       if (depth >= 3) continue;
       if (!decoratesRightWall(entity.raw, facing)) continue;
@@ -321,8 +358,15 @@ function pushProps(
       if (gfxIndex < 0 || gfxIndex > 2) continue;
       const hotspot = { code: DOOR_LOCK_HOTSPOT_CODE };
       pushSlot(
-        items, slots, `prop:door-lock:${lateral}:${depth}`, 'prop', depth, lateral,
-        { ...cell, entity, entityHandle: handle, hotspot }, undefined, 'door-lock',
+        items,
+        slots,
+        `prop:door-lock:${lateral}:${depth}`,
+        'prop',
+        depth,
+        lateral,
+        { ...cell, entity, entityHandle: handle, hotspot },
+        undefined,
+        'door-lock',
         (frame) => resolveDoorLockFrame(frame, mapId, gfxIndex, depth),
       );
     } else if (entity.type !== MONSTER_TYPE_SENTINEL && !HANDLED_STRUCTURE_TYPES.has(entity.type)) {
@@ -331,9 +375,19 @@ function pushProps(
       if (!resolved) continue;
       const bank = slots.floorItem!.bank; // resolveFloorItem returned non-null, so floorItem exists
       items.push({
-        bank, frame: resolved.frame, destX: resolved.destX, destY: resolved.destY, blend: 'mask',
-        kind: 'prop', depth, lateral, propType: 'floor-item',
-        cellX: cell.x, cellY: cell.y, entity, entityHandle: handle,
+        bank,
+        frame: resolved.frame,
+        destX: resolved.destX,
+        destY: resolved.destY,
+        blend: 'mask',
+        kind: 'prop',
+        depth,
+        lateral,
+        propType: 'floor-item',
+        cellX: cell.x,
+        cellY: cell.y,
+        entity,
+        entityHandle: handle,
         origin: `bcdft S_1+0x218FA (floor-item anchor+registration, gfxNumber=${entity.gfx}, depth=${depth} lateral=${lateral})`,
       });
     }
@@ -381,7 +435,17 @@ export function buildViewList(
         ? level.entityHandlesAt(x, y)
         : level.entitiesAt(x, y).map((entity) => ({ entity }));
       if (entries.length > 0) {
-        pushProps(items, slots, entries, pose.facing, depth, lateral, spec.frontWallMaxDepth, cell, pose.level);
+        pushProps(
+          items,
+          slots,
+          entries,
+          pose.facing,
+          depth,
+          lateral,
+          spec.frontWallMaxDepth,
+          cell,
+          pose.level,
+        );
       }
     }
   }

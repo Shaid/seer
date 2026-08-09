@@ -34,7 +34,10 @@ export interface AnimationController {
  * `if (gltf.animations.length > 0)` guard (`viewer.ts:1260`): a mesh with no
  * baked clips gets no controller and no anim UI, rather than an empty one.
  */
-export function createAnimationController(root: THREE.Object3D, clips: THREE.AnimationClip[]): AnimationController | null {
+export function createAnimationController(
+  root: THREE.Object3D,
+  clips: THREE.AnimationClip[],
+): AnimationController | null {
   if (clips.length === 0) return null;
 
   const mixer = new THREE.AnimationMixer(root);

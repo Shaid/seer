@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { IndexedSurface } from '../raster/IndexedSurface.ts';
+import { IndexedSurface } from '../raster/IndexedSurface.js';
 
 describe('IndexedSurface', () => {
   it('clears to a given index (default 0)', () => {

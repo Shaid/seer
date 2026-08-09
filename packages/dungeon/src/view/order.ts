@@ -10,7 +10,7 @@
  * "topmost" for picking is just this same order, reversed. Both consumers
  * import one definition rather than risking two orderings drifting apart.
  */
-import type { DrawItem } from './DrawItem.ts';
+import type { DrawItem } from './DrawItem.js';
 
 const KIND_ORDER: Record<'side' | 'front' | 'prop', number> = { side: 0, front: 1, prop: 2 };
 

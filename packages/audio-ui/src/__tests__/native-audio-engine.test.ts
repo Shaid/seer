@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { NativeAudioEngine } from '../native-audio-engine.ts';
+import { NativeAudioEngine } from '../native-audio-engine.js';
 
 /**
  * jsdom implements `<audio>` as a real DOM element but deliberately does NOT
@@ -62,7 +62,10 @@ describe('NativeAudioEngine', () => {
 
   it('load() accepts an explicit title/detail', () => {
     const { engine } = makeEngine();
-    engine.load('/assets/track.mp3', { title: 'Boss Theme', detail: 'MPEG (MP3) · 44100 Hz · stereo' });
+    engine.load('/assets/track.mp3', {
+      title: 'Boss Theme',
+      detail: 'MPEG (MP3) · 44100 Hz · stereo',
+    });
     const state = engine.getState();
     expect(state.title).toBe('Boss Theme');
     expect(state.detail).toBe('MPEG (MP3) · 44100 Hz · stereo');
@@ -125,7 +128,7 @@ describe('NativeAudioEngine', () => {
     expect(el.volume).toBe(1);
   });
 
-  it('onStateChange fires on the element\'s playback events and the returned unsubscribe stops delivery', () => {
+  it("onStateChange fires on the element's playback events and the returned unsubscribe stops delivery", () => {
     const { el, engine } = makeEngine();
     const cb = vi.fn();
     const unsubscribe = engine.onStateChange(cb);

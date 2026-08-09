@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { FlatGridLevel } from '../model/FlatGridLevel.ts';
-import type { DungeonLevelFile } from '../schema/level.ts';
+import { FlatGridLevel } from '../model/FlatGridLevel.js';
+import type { DungeonLevelFile } from '../schema/level.js';
 
 function makeFile(wallFlags: number[], width = 3, height = 3): DungeonLevelFile {
   return {
@@ -56,7 +56,13 @@ describe('FlatGridLevel', () => {
   it('rejects a non-flat cellSpace', () => {
     const file = makeFile(new Array(9).fill(0));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (file as any).cellSpace = { kind: 'regions', regionCount: 1, regionSize: 1, worldWidth: 1, worldHeight: 1 };
+    (file as any).cellSpace = {
+      kind: 'regions',
+      regionCount: 1,
+      regionSize: 1,
+      worldWidth: 1,
+      worldHeight: 1,
+    };
     expect(() => new FlatGridLevel(file, file.units[0]!)).toThrow(/cellSpace.kind/);
   });
 
@@ -115,13 +121,18 @@ describe('FlatGridLevel with shared-edge wall storage', () => {
       game: 'test',
       platform: 'test',
       cellSpace: { kind: 'flat', width: 3, height: 3 },
-      wallStorage: { kind: 'shared-edge', planes: ['edgeN', 'edgeW'], planeDirs: [0, 3], offMapValue },
+      wallStorage: {
+        kind: 'shared-edge',
+        planes: ['edgeN', 'edgeW'],
+        planeDirs: [0, 3],
+        offMapValue,
+      },
       yAxisDown: false,
       units: [{ id: 1, planes: { edgeN, edgeW } }],
     };
   }
 
-  it('reads a cell\'s own edge directly for planeDirs-matching facings', () => {
+  it("reads a cell's own edge directly for planeDirs-matching facings", () => {
     const edgeN = [0, 0, 0, 0, 5, 0, 0, 0, 0]; // cell (1,1) N edge = 5
     const edgeW = new Array(9).fill(0);
     const file = makeSharedEdgeFile(edgeN, edgeW);
@@ -130,7 +141,7 @@ describe('FlatGridLevel with shared-edge wall storage', () => {
     expect(level.wallAt(1, 1, 3)).toBe(false); // W, own plane (all zero)
   });
 
-  it('reads the neighbour\'s plane for the opposite facings (S, E)', () => {
+  it("reads the neighbour's plane for the opposite facings (S, E)", () => {
     const edgeN = [0, 5, 0, 0, 0, 0, 0, 0, 0]; // cell (1,0) N edge = 5
     const edgeW = [0, 0, 0, 0, 0, 3, 0, 0, 0]; // cell (2,1) W edge = 3
     const file = makeSharedEdgeFile(edgeN, edgeW);
@@ -152,8 +163,14 @@ describe('FlatGridLevel with shared-edge wall storage', () => {
   it('uses offMapValue when the shared edge falls off the grid', () => {
     const edgeN = new Array(9).fill(0);
     const edgeW = new Array(9).fill(0);
-    const withoutBorder = new FlatGridLevel(makeSharedEdgeFile(edgeN, edgeW, 0), makeSharedEdgeFile(edgeN, edgeW, 0).units[0]!);
-    const withBorder = new FlatGridLevel(makeSharedEdgeFile(edgeN, edgeW, 9), makeSharedEdgeFile(edgeN, edgeW, 9).units[0]!);
+    const withoutBorder = new FlatGridLevel(
+      makeSharedEdgeFile(edgeN, edgeW, 0),
+      makeSharedEdgeFile(edgeN, edgeW, 0).units[0]!,
+    );
+    const withBorder = new FlatGridLevel(
+      makeSharedEdgeFile(edgeN, edgeW, 9),
+      makeSharedEdgeFile(edgeN, edgeW, 9).units[0]!,
+    );
     // Row y=0 is the grid's south edge (Y increases northward) — its own S
     // query has no neighbour to read.
     expect(withoutBorder.wallAt(1, 0, 2)).toBe(false);
@@ -172,7 +189,12 @@ describe('FlatGridLevel with shared-edge wall storage', () => {
       game: 'test',
       platform: 'test',
       cellSpace: { kind: 'flat', width: 3, height: 3 },
-      wallStorage: { kind: 'shared-edge', planes: ['edgeN', 'edgeS'], planeDirs: [0, 0], offMapValue: 0 },
+      wallStorage: {
+        kind: 'shared-edge',
+        planes: ['edgeN', 'edgeS'],
+        planeDirs: [0, 0],
+        offMapValue: 0,
+      },
       yAxisDown: false,
       units: [{ id: 1, planes: { edgeN: new Array(9).fill(0), edgeS: new Array(9).fill(0) } }],
     };
@@ -192,7 +214,12 @@ describe('FlatGridLevel with shared-edge wall storage', () => {
       game: 'test',
       platform: 'test',
       cellSpace: { kind: 'flat', width: 3, height: 3 },
-      wallStorage: { kind: 'shared-edge', planes: ['edgeN', 'edgeS'], planeDirs: [0, 2], offMapValue: 0 },
+      wallStorage: {
+        kind: 'shared-edge',
+        planes: ['edgeN', 'edgeS'],
+        planeDirs: [0, 2],
+        offMapValue: 0,
+      },
       yAxisDown: false,
       units: [{ id: 1, planes: { edgeN: new Array(9).fill(0), edgeS: new Array(9).fill(0) } }],
     };
@@ -202,7 +229,9 @@ describe('FlatGridLevel with shared-edge wall storage', () => {
   it('rejects yAxisDown:true rather than silently using the wrong step convention', () => {
     const file = makeSharedEdgeFile(new Array(9).fill(0), new Array(9).fill(0));
     file.yAxisDown = true;
-    expect(() => new FlatGridLevel(file, file.units[0]!)).toThrow(/yAxisDown:true is not yet supported/);
+    expect(() => new FlatGridLevel(file, file.units[0]!)).toThrow(
+      /yAxisDown:true is not yet supported/,
+    );
   });
 
   it('does not infinite-loop on a self-referential chainNext', () => {

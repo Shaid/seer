@@ -6,7 +6,7 @@
  * Not consumed by anything in M0/M1 (`buildViewList` is a later
  * milestone) — defined now for the schema/validator contract.
  */
-import type { Dir4 } from './level.ts';
+import type { Dir4 } from './level.js';
 
 export interface WallMeaning {
   label: string;
