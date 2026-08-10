@@ -55,7 +55,11 @@ const assetRoot = existsSync(repoAssetRoot)
 	: resolve(process.cwd(), 'public', 'assets', assetPath);
 const manifestPath = resolve(assetRoot, `${manifest}.json`);
 const spriteManifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as SpriteManifest;
-const imagePath = `${import.meta.env.BASE_URL}assets/${assetPath}/${manifest}.png`;
+// import.meta.env.BASE_URL's trailing slash is governed by the (unset here)
+// trailingSlash config, not by how astro.config.mjs's `base` is written --
+// strip one off before appending rather than assuming either convention.
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const imagePath = `${base}/assets/${assetPath}/${manifest}.png`;
 
 const hiddenFrameNames = new Set([
 	...Object.values(hoverPairs),

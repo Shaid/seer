@@ -81,20 +81,26 @@ When the upstream extraction changes (new sprites, corrected data, etc.):
 Most seer sites get their own subdomain and deploy at a domain root, where
 none of this matters. If `astro.config.mjs` has a non-empty `base` (e.g.
 GitHub Pages project pages, `base: '/my-repo'`), be aware: Astro/Starlight do
-**not** auto-prefix hand-authored links or images with it. Starlight's own
-generated chrome (sidebar, pagination, breadcrumbs, favicon) is base-aware
-automatically; anything typed by hand is not.
+**not** auto-prefix hand-authored links or images with it — not even inside
+Starlight's own frontmatter fields (e.g. a splash page's
+`hero.actions[].link`). Starlight's own *generated* chrome (sidebar,
+pagination, breadcrumbs, favicon) is base-aware automatically; anything you
+typed a path into yourself, YAML or JS, is not.
 
 This scaffold already writes every link and image the safe way — **keep
 following the same pattern**:
 
 - In `.astro` components or `.mdx` frontmatter/JS, build paths with
-  `` `${import.meta.env.BASE_URL}assets/...` `` (`BASE_URL` already ends in
-  `/`, so don't also prepend one).
-- In markdown/MDX prose, use a **relative path**, not an absolute
-  `/<%= it.game %>/...` or `/assets/...` — e.g. `../graphics/` for a sibling
-  page, `../../assets/<%= it.game %>/amiga/foo.png` for an image two
-  directories deep. Never hardcode the deployed base path itself.
+  `import.meta.env.BASE_URL`, but normalize its trailing slash first — it is
+  **not** guaranteed to end in `/` (that depends on the separate
+  `trailingSlash` config, not on how `base` is written):
+  `` const base = import.meta.env.BASE_URL.replace(/\/$/, ''); `${base}/assets/...` ``.
+- In markdown/MDX prose *and* frontmatter YAML link fields, use a
+  **relative path**, not an absolute `/<%= it.game %>/...` or `/assets/...` —
+  e.g. `../graphics/` for a sibling page, `../../assets/<%= it.game
+  %>/amiga/foo.png` for an image two directories deep, or just
+  `<%= it.game %>/`/`assets/foo.png` with no prefix from the depth-0
+  homepage. Never hardcode the deployed base path itself.
 - **Never use markdown `![alt](path)` image syntax for a `public/assets/`
   image.** Astro's markdown pipeline intercepts that syntax specifically: an
   absolute path silently skips base-prefixing, and a relative path fails the
@@ -105,8 +111,8 @@ following the same pattern**:
 Full writeup with the empirical evidence behind this:
 `~/.claude/skills/seer-website/references/base-path.md` (if using the
 account-wide `seer-website` skill). Before calling any subpath-deploy change
-done, build with the real `base` set and grep `dist/**/*.html` for
-un-prefixed `href="/`/`src="/`.
+done, build with the real `base` set and grep `dist/**/*.html` (including the
+homepage) for un-prefixed `href="/`/`src="/`.
 
 ## Documentation
 
