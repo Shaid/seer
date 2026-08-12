@@ -37,14 +37,26 @@
  * ## M5 — non-wall structure props
  *
  * `docs/blackcrypt/amiga/data-structure.md` "M5 — prop placement tables"
- * confirms six of the seven non-wall structure classes render either from
+ * confirms all seven non-wall structure classes render either from
  * static, view-geometry-keyed slots exactly like the walls do (`alcove`,
  * `plaque`, `stairs`, `door-switch`, `door-lock` — the pixels never depend
  * on *which* structure record it is, only on `(depth, lateral, ...)`), or
- * (floor-item, below) from a small arithmetic table keyed additionally by
- * the entity's own `gfxNumber`. Only `floor-plate/trap` is not wired here —
- * its art source is a still-unidentified graphics-kernel slot, tracked as an
- * open item in the driving consumer's own research notes.
+ * (floor-item and floor-plate, below) from small arithmetic tables keyed
+ * additionally by the entity itself. Floor-plate's art source was the last
+ * unresolved gap (`blackcrypt-floorplate-art-source`) and is now confirmed:
+ * graphics-kernel slot `$00` is `bcdfa`'s UI panel bank
+ * (`sprites/ui-panel.json`, frames `pressure_plate_{1,2}_{up,down}`).
+ *
+ * > **Documented renderer simplification (pre-existing, applies to every
+ * > non-tileset prop bank):** the plate/floor-item/door-lock atlases are
+ * > loaded via `PieceBank.fromRGBA`, whose *local* per-atlas palette
+ * > indices diverge from the tileset's indexed (EHB) index space — the
+ * > single-palette presenter (`tools/walker` presents the mixed surface
+ * > with the tileset ramp palette) therefore maps these banks' exact
+ * > colours through the wrong entries. Frame selection, mask, geometry and
+ * > placement are exact; the prop banks' precise colours are not, until the
+ * > banks are re-exported as indexed atlases sharing the tileset's EHB
+ * > palette (a renderer task, tracked with the other walker-side gaps).
  *
  * Gating, all re-derived from disassembly this pass (not guessed):
  *
@@ -100,7 +112,7 @@ import { leftOf, rightOf, project } from '../model/Direction.js';
 import type { Dir4 } from '../model/Pose.js';
 import type { ViewSpec } from './ViewSpec.js';
 import type { SemanticsFile } from '../schema/semantics.js';
-import type { SlotTableFile, FloorItemPlacement } from '../schema/slots.js';
+import type { SlotTableFile, FloorItemPlacement, FloorPlatePlacement } from '../schema/slots.js';
 import type { EntityRecord } from '../schema/level.js';
 import type { DrawItem, DrawItemKind } from './DrawItem.js';
 import type { FrameRef } from '../schema/slots.js';
@@ -248,7 +260,7 @@ const DOOR_LOCK_HOTSPOT_CODE = 0x6b;
 const MONSTER_TYPE_SENTINEL = 0x80;
 
 /** Every structure type this file renders its own dedicated way — the floor-item fallback in `pushProps` applies to anything *not* in this set (and not a monster). */
-const HANDLED_STRUCTURE_TYPES = new Set<number>([0x16, 0x20, 0x21, 0x12, 0x0f, 0x22]);
+const HANDLED_STRUCTURE_TYPES = new Set<number>([0x16, 0x20, 0x21, 0x12, 0x0f, 0x22, 0x1e]);
 
 /**
  * `blackcrypt-floor-item-placement` — `+0x218FA`'s own formula:
@@ -279,6 +291,57 @@ function resolveFloorItem(
     destX: anchor[0] - registration[0],
     destY: anchor[1] - registration[1],
   };
+}
+
+/**
+ * `blackcrypt-floorplate-placement-wiring` — the game's own floor-plate
+ * renderer (`+0x21732`) and its caller (`+0x248E`, the kind-4/12 type-0x1E
+ * case). Returns the fixed grid of viewport positions + the up/down frame
+ * name for a visible floor plate, or `null` when the game would draw
+ * nothing. Reproduced gate-for-gate:
+ *
+ * - `lateral !== 0` → nothing (the `TST.W D4 / BNE` gate — plates only
+ *   render in the centre column).
+ * - bit 1 of `raw[0x0B]` set → nothing (`BTST #1,$0B(A0)`).
+ * - `depth === 1`, `word +0x0E == 0`, `byte +0x07 == 0` → **near** plate:
+ *   `nearPositions` (13), frame `near.up` if `word +0x08 == 0` (unpressed)
+ *   else `near.down`.
+ * - `depth === 2`, same two field checks → **far** plate: `farPositions`
+ *   (11), `far.up`/`far.down` likewise.
+ * - `depth === 0` and `depth >= 3` render nothing (the caller's depth ladder
+ *   never reaches the renderer there); the `word +0x0E == 1` trap variant is
+ *   a runtime effect-`0x59` marker, not a sprite, so it renders nothing here
+ *   either.
+ *
+ * The walker renders the `$48F == 0` direct near table (the mirror-flag
+ * default — same simplification as the wall rows); the game's far path
+ * ignores `$48F` entirely, so `farPositions` are unconditional.
+ */
+function resolveFloorPlate(
+  floorPlate: FloorPlatePlacement | undefined,
+  raw: number[] | undefined,
+  depth: number,
+  lateral: number,
+): { positions: [number, number][]; frame: string } | null {
+  if (!floorPlate || !raw || raw.length < 0x10) return null;
+  if (lateral !== 0) return null;
+  if (((raw[0x0b] ?? 0) >> 1) & 1) return null;
+  const w0e = ((raw[0x0e] ?? 0) << 8) | (raw[0x0f] ?? 0);
+  const w08 = ((raw[0x08] ?? 0) << 8) | (raw[0x09] ?? 0);
+  if (w0e !== 0 || (raw[0x07] ?? 0) !== 0) return null;
+  if (depth === 1) {
+    return {
+      positions: floorPlate.nearPositions,
+      frame: w08 === 0 ? floorPlate.near.up : floorPlate.near.down,
+    };
+  }
+  if (depth === 2) {
+    return {
+      positions: floorPlate.farPositions,
+      frame: w08 === 0 ? floorPlate.far.up : floorPlate.far.down,
+    };
+  }
+  return null;
 }
 
 interface EntityHandle {
@@ -369,6 +432,34 @@ function pushProps(
         'door-lock',
         (frame) => resolveDoorLockFrame(frame, mapId, gfxIndex, depth),
       );
+    } else if (entity.type === 0x1e) {
+      // Floor plate / trap (`blackcrypt-floorplate-placement-wiring`) --
+      // centre column only, and only the renderable plate variant
+      // (`word +0x0E == 0`, `byte +0x07 == 0`) at `depth` 1 (near, 13
+      // positions) or 2 (far, 11); the `word +0x0E == 1` trap is a runtime
+      // effect marker, not a sprite. The game stamps the same sliver at
+      // *every* grid position -- no per-plate sub-position selection.
+      const plate = resolveFloorPlate(slots.floorPlate, entity.raw, depth, lateral);
+      if (!plate) continue;
+      const plateBank = slots.floorPlate!.bank; // resolveFloorPlate returned non-null
+      for (const [destX, destY] of plate.positions) {
+        items.push({
+          bank: plateBank,
+          frame: plate.frame,
+          destX,
+          destY,
+          blend: 'mask',
+          kind: 'prop',
+          depth,
+          lateral,
+          propType: 'floor-plate',
+          cellX: cell.x,
+          cellY: cell.y,
+          entity,
+          entityHandle: handle,
+          origin: `bcdft S_1+0x21732 (floor plate grid, depth=${depth} lateral=${lateral}, gfxNumber=${entity.gfx})`,
+        });
+      }
     } else if (entity.type !== MONSTER_TYPE_SENTINEL && !HANDLED_STRUCTURE_TYPES.has(entity.type)) {
       if (depth >= frontWallMaxDepth) continue;
       const resolved = resolveFloorItem(slots.floorItem, entity.gfx, depth, lateral);

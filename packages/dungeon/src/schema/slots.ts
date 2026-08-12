@@ -135,6 +135,36 @@ export interface FloorItemPlacement {
   registration: Record<string, [number, number]>;
 }
 
+/**
+ * Where a floor plate / trap (`EntityRecord.type === 0x1e`) draws from (the
+ * driving consumer tracks this as `blackcrypt-floorplate-placement-wiring`).
+ * Reproduces the game's own renderer `+0x21732` (`data-structure.md`,
+ * "Which routine draws which bank"): the *same* single descriptor is stamped
+ * at every entry of a fixed grid of viewport positions — **13 near** (`depth
+ * === 1`, center column only) or **11 far** (`depth === 2`), there is no
+ * per-plate sub-position selection at all (the on-square N/E/S/W position
+ * nibble plays no role in rendering, a correction to the earlier "which of
+ * the 13/11 does this plate resolve to" framing). `word +0x08` of the
+ * record selects `up` vs `down` art (`0` = unpressed -> `up`); the game's
+ * far path additionally ignores the `$48F(A5)` mirror flag while the near
+ * path honours it (the walker renders the default `$48F = 0` direct table,
+ * the same simplification as the wall rows). Art is the 4 `pressure_plate_*`
+ * frames of the `ui-panel` bank (`bcdfa`'s UI panel bank, slot `$00` —
+ * `blackcrypt-floorplate-art-source`).
+ */
+export interface FloorPlatePlacement {
+  /** `bank` id for the `pressure_plate_{1,2}_{up,down}` frames (`sprites/ui-panel.json`). */
+  bank: string;
+  /** Frame names at `depth === 1` (near, 16x4 slivers). */
+  near: { up: string; down: string };
+  /** Frame names at `depth === 2` (far, 16x2 slivers). */
+  far: { up: string; down: string };
+  /** The 13 fixed `(x, y)` viewport positions near plates are stamped at (`+0x21788`, direct table). */
+  nearPositions: [number, number][];
+  /** The 11 fixed `(x, y)` viewport positions far plates are stamped at (`+0x217BC`). */
+  farPositions: [number, number][];
+}
+
 export interface SlotTableFile {
   schemaVersion: 1;
   surface: { width: number; height: number };
@@ -164,4 +194,6 @@ export interface SlotTableFile {
   ordering?: 'array' | 'painter-back-to-front';
   /** M5 floor-item placement — see `FloorItemPlacement`'s doc comment. Absent for a level/fixture that doesn't model floor items. */
   floorItem?: FloorItemPlacement;
+  /** M5 floor-plate/trap placement — see `FloorPlatePlacement`'s doc comment. Absent for a level/fixture that doesn't model floor plates. */
+  floorPlate?: FloorPlatePlacement;
 }

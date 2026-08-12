@@ -1,9 +1,9 @@
 /**
  * M5 (`docs/blackcrypt/walker-plan.md`): props render without exceptions,
  * out-of-atlas frame refs or out-of-surface writes for real `bcdfs` cells
- * that actually carry each of the five wired structure classes (alcove,
- * plaque, stairs, door-switch, door-lock — see `buildViewList.ts`'s module
- * doc comment for why floor-plate/floor-item aren't wired yet).
+ * that actually carry each of the wired structure classes (alcove, plaque,
+ * stairs, door-switch, door-lock, floor-item, floor-plate — see
+ * `buildViewList.ts`'s module doc comment).
  *
  * The five `(map, row, col)` fixtures below were found by scanning real
  * `data/blackcrypt/amiga/bcdfs` via `bclib.bcdfs.read_dungeon_world` for the
@@ -93,10 +93,12 @@ describe('M5 props: real bcdfs cells x 4 facings', () => {
   const { level: levelFile, slots, bank } = loadFixtures();
   const decorBank = loadBank('wall-decorations');
   const floorItemBank = loadBank('floor-items');
+  const uiPanelBank = loadBank('ui-panel');
   const banks = {
     [slots.banks[0]!.id]: bank,
     [slots.banks[1]!.id]: decorBank,
     [slots.banks[2]!.id]: floorItemBank,
+    [slots.banks[3]!.id]: uiPanelBank,
   };
   const spec = viewSpecFromSlotTable(slots);
   const unit = levelFile.units.find((u) => u.id === 1);
@@ -221,5 +223,57 @@ describe('M5 props: real bcdfs cells x 4 facings', () => {
       }
     }
     expect(resolvedAny).toBe(true);
+  });
+
+  it('floor-plate (map-1 cell 10,25) renders at depth 1 (near) and depth 2 (far), stamping the real ui-panel frames at every fixed grid position', () => {
+    // The map-1 floor plate at (row 10, col 25) is the one renderable plate
+    // on unit 1 (`read_dungeon_world`, type 0x1e, gfx 0x42, word +0x0E == 0,
+    // byte +0x07 == 0, bit 1 of byte +0x0B clear) -- the other six map-1
+    // plates all have byte +0x07 == 1 (the "inviso" trap variant that
+    // renders nothing). Pose at (25,9) facing N puts it at depth 1 lateral
+    // 0 (near, 13 positions); pose at (25,8) facing N puts it at depth 2
+    // (far, 11 positions). word +0x08 == 0 means the unpressed frame.
+    const near = buildViewList(
+      cellLevel, { level: 1, x: 25, y: 9, facing: 0 }, spec, SEMANTICS, slots,
+    ).filter((i) => i.propType === 'floor-plate');
+    expect(near).toHaveLength(13);
+    for (const item of near) {
+      expect(item.frame).toBe('pressure_plate_1_up');
+      expect(item.bank).toBe(slots.floorPlate!.bank);
+      expect(uiPanelBank.hasFrame(item.frame as string)).toBe(true);
+      expect(item.blend).toBe('mask');
+    }
+    expect(near.map((i) => [i.destX, i.destY])).toEqual(slots.floorPlate!.nearPositions);
+
+    const far = buildViewList(
+      cellLevel, { level: 1, x: 25, y: 8, facing: 0 }, spec, SEMANTICS, slots,
+    ).filter((i) => i.propType === 'floor-plate');
+    expect(far).toHaveLength(11);
+    for (const item of far) expect(item.frame).toBe('pressure_plate_2_up');
+    expect(far.map((i) => [i.destX, i.destY])).toEqual(slots.floorPlate!.farPositions);
+
+    // Composite both so the mask+frame path is exercised against the real
+    // atlas (out-of-atlas frame ref / out-of-surface write would throw).
+    for (const items of [near, far]) {
+      const surface = new IndexedSurface(slots.surface.width, slots.surface.height);
+      expect(() => compositeDrawList(surface, banks, slots, items)).not.toThrow();
+    }
+  });
+
+  it('floor-plate is centre-column-only and never renders at depth 0 or 3', () => {
+    // (25,10) seen from (26,9) facing N lands at lateral -1 -- the game's
+    // `TST.W D4 / BNE` gate, so nothing is emitted even though the plate
+    // cell is visited. Placing the pose on the plate's own cell (depth 0)
+    // and two cells back at depth 3 also render nothing (the caller's depth
+    // ladder never reaches the renderer there).
+    const OFFSET_POSES: Array<{ level: number; x: number; y: number; facing: Dir4 }> = [
+      { level: 1, x: 26, y: 9, facing: 0 }, // lateral -1
+      { level: 1, x: 25, y: 10, facing: 0 }, // depth 0
+      { level: 1, x: 25, y: 7, facing: 0 }, // depth 3
+    ];
+    for (const pose of OFFSET_POSES) {
+      const items = buildViewList(cellLevel, pose, spec, SEMANTICS, slots);
+      expect(items.filter((i) => i.propType === 'floor-plate')).toHaveLength(0);
+    }
   });
 });

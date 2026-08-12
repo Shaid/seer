@@ -20,6 +20,7 @@ import type {
   FrameRef,
   FrameTemplate,
   FloorItemPlacement,
+  FloorPlatePlacement,
 } from './slots.js';
 import type { SemanticsFile, WallMeaning, FeatureMeaning } from './semantics.js';
 import { BINDING_ACTIONS, type BindingsFile, type BindingAction } from './bindings.js';
@@ -406,6 +407,35 @@ function validateFloorItemPlacement(v: unknown, context: string): FloorItemPlace
   };
 }
 
+function validateFloorPlatePlacement(v: unknown, context: string): FloorPlatePlacement {
+  const o = assertObject(v, context, 'floorPlate');
+  const near = assertObject(o.near, context, 'floorPlate.near');
+  const far = assertObject(o.far, context, 'floorPlate.far');
+  const nearPositions = assertArray(o.nearPositions, context, 'floorPlate.nearPositions').map((p, i) =>
+    validateXYPair(p, context, `floorPlate.nearPositions[${i}]`),
+  );
+  const farPositions = assertArray(o.farPositions, context, 'floorPlate.farPositions').map((p, i) =>
+    validateXYPair(p, context, `floorPlate.farPositions[${i}]`),
+  );
+  if (nearPositions.length !== 13)
+    fail(context, `floorPlate.nearPositions must have exactly 13 entries, got ${nearPositions.length}`);
+  if (farPositions.length !== 11)
+    fail(context, `floorPlate.farPositions must have exactly 11 entries, got ${farPositions.length}`);
+  return {
+    bank: assertString(o.bank, context, 'floorPlate.bank'),
+    near: {
+      up: assertString(near.up, context, 'floorPlate.near.up'),
+      down: assertString(near.down, context, 'floorPlate.near.down'),
+    },
+    far: {
+      up: assertString(far.up, context, 'floorPlate.far.up'),
+      down: assertString(far.down, context, 'floorPlate.far.down'),
+    },
+    nearPositions,
+    farPositions,
+  };
+}
+
 export function validateSlotTableFile(v: unknown): SlotTableFile {
   const context = 'SlotTableFile';
   assertSchemaVersion(v, context);
@@ -463,6 +493,8 @@ export function validateSlotTableFile(v: unknown): SlotTableFile {
     ordering: ordering as SlotTableFile['ordering'],
     floorItem:
       o.floorItem === undefined ? undefined : validateFloorItemPlacement(o.floorItem, context),
+    floorPlate:
+      o.floorPlate === undefined ? undefined : validateFloorPlatePlacement(o.floorPlate, context),
   };
 }
 

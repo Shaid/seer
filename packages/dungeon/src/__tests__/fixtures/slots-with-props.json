@@ -32,6 +32,11 @@
       "id": "dungeon-floor-items",
       "atlas": "sprites/floor-items.json",
       "image": "sprites/floor-items.png"
+    },
+    {
+      "id": "ui-panel",
+      "atlas": "sprites/ui-panel.json",
+      "image": "sprites/ui-panel.png"
     }
   ],
   "ordering": "painter-back-to-front",
@@ -1823,5 +1828,116 @@
         2
       ]
     }
+  },
+  "floorPlate": {
+    "bank": "ui-panel",
+    "near": {
+      "up": "pressure_plate_1_up",
+      "down": "pressure_plate_1_down"
+    },
+    "far": {
+      "up": "pressure_plate_2_up",
+      "down": "pressure_plate_2_down"
+    },
+    "nearPositions": [
+      [
+        54,
+        115
+      ],
+      [
+        53,
+        107
+      ],
+      [
+        64,
+        100
+      ],
+      [
+        81,
+        117
+      ],
+      [
+        81,
+        106
+      ],
+      [
+        92,
+        98
+      ],
+      [
+        104,
+        116
+      ],
+      [
+        113,
+        107
+      ],
+      [
+        128,
+        99
+      ],
+      [
+        133,
+        117
+      ],
+      [
+        142,
+        107
+      ],
+      [
+        142,
+        107
+      ],
+      [
+        142,
+        107
+      ]
+    ],
+    "farPositions": [
+      [
+        73,
+        89
+      ],
+      [
+        69,
+        85
+      ],
+      [
+        77,
+        83
+      ],
+      [
+        86,
+        90
+      ],
+      [
+        86,
+        85
+      ],
+      [
+        92,
+        82
+      ],
+      [
+        100,
+        89
+      ],
+      [
+        103,
+        85
+      ],
+      [
+        114,
+        83
+      ],
+      [
+        119,
+        89
+      ],
+      [
+        125,
+        85
+      ]
+    ]
   }
 }
