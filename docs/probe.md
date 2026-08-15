@@ -1,9 +1,74 @@
 # `@seer-project/probe` — agent-legible binary recon for 16-bit targets
 
-**Status: proposed — not yet implemented.** This document is a scoping
-proposal, written to capture the design before implementation starts. Update
-the status line (see `docs/engine-3d-proposal.md` for the convention) once
-work begins.
+**Status: implemented.** `@seer-project/probe` now exists
+(`packages/probe/`), along with its two prerequisites `@seer-project/gfx`
+(`packages/gfx/`) and `@seer-project/amiga` (`packages/amiga/`). See
+[`packages/probe/README.md`](../packages/probe/README.md) for the command
+reference. The sections below are the original scoping proposal, kept as
+the design record; deviations that emerged during implementation:
+
+- **`gfx`'s fourth metric is index *usage*, not compactness.** Rewarding
+  sparse index use let a 2N-plane decode of N-plane data win (it uses 11
+  of 64 indices and looks "compact"); real art picks its plane count to
+  fit its palette, so the shipped metric rewards using the claimed index
+  space, plus an explicit redundant-plane penalty.
+- **The jitter axis surfaces the parameter combination, not the exact
+  byte.** Offsets that preserve the row period decode to a plane-rotated
+  image with near-identical statistics, so the precise start byte is not
+  recoverable from the score — the contact sheet is what disambiguates it.
+- **`cnf --generate`'s string-table carver detects chains of
+  NUL-terminated strings, not printable runs** — 68k opcodes are
+  frequently printable bytes (a NOP sled is `NqNqNq…`), so "mostly
+  printable" would carve real code. Reloc-run pointer-table carving
+  requires ≥ 4 consecutive relocated longwords for the same reason
+  (isolated relocs are instruction operands).
+- **The audio plausibility gates got tighter than proposed**: roughness
+  ≤ 0.08 of full scale (the corpus ceiling is ≈ 0.066) plus a
+  zero-delta-fraction guard, because a flat bitmap decodes "smooth"
+  without being audio.
+- The audit's Frontier (6.8%, 76.2% `DC.x`) and Bane (99.5%, 2.5%)
+  numbers below were reproduced exactly by `cnf --audit` against the real
+  binaries after implementation, and `--generate` takes Frontier's
+  declarable coverage from 6.8% to 93.5% (the IRA re-run acceptance test
+  is still pending).
+- **A sixth command exists: `triage <dir>`** — whole-corpus first
+  contact (per-subdirectory extension → dominant-class tables, container
+  hits, HUNK/ADF detection, WHDLoad slave labels). Not in the original
+  five because the need only became visible in use: the same
+  batch-triage scratch script got hand-written for three corpora in a
+  row (Moonstone, crawl's `_unexplored_`, amigagames) before being
+  promoted, per the rule of three. It found, among others, Eye of the
+  Beholder's CPS-wrapped IFF forms and Reunion's Imploder-crunched MODs.
+  A second pass added collection-corpus handling (TOSEC's shape: nested
+  archives and many duplicate dumps) — ZIP descent with
+  CRC-before-inflate dedupe, ADF-filesystem descent, and slave labels.
+  A third added partial reads for corpora on network shares, where bytes
+  transferred is the real cost: archives are parsed tail-first so a
+  duplicate dump costs its central directory rather than its payloads,
+  and files over a size threshold are sampled head+tail. Measured on
+  triplicated dumps: 63% of bytes avoided, wall time flat. 307 MB local
+  resolves to 37,312 logical files, 10,579 duplicates skipped, in under
+  a minute.
+- **Two more prerequisites landed in `@seer-project/amiga`**, both
+  driven by corpus shape rather than the original design: a read-only
+  OFS/FFS ADF reader (so a mountable disk is walked, not carved — and
+  a RawDIC image is *identified* as such rather than misparsed) and a
+  WHDLoad slave parser (286 games in the amigagames corpus
+  self-identify with title, year and publisher).
+- **`audio`'s container scan works at any offset**, not just 0. The
+  first end-to-end acceptance run (Moonstone, a genuinely unsolved
+  corpus — see `moonstone/docs/moonstone/amiga/probe-recon.md`) found
+  the game's entire sound library shipped as IFF 8SVX forms concatenated
+  inside the CODE hunk of HUNK executables, invisible to an
+  offset-0-only scan. The shipped scan sweeps validated FORMs across the
+  whole file, unwraps HUNK payloads, and writes one WAV per voice at its
+  real VHDR rate. That acceptance run also confirmed the
+  hypotheses-not-findings rule earning its keep in the other direction:
+  a ByteRun1 decode of Moonstone's `.piv` data landed one byte off an
+  exact 320×5×139 size — and the sweep correctly scored the output as
+  noise (`rle-decode-succeeds-on-garbage`, live).
+
+---
 
 ## Context
 

@@ -96,6 +96,16 @@ candidate:
 
 ## 1. Retro bitmap graphics primitives
 
+> **Status update: the Amiga slice has landed.** `@seer-project/gfx`
+> (`packages/gfx/`) now ships `decodePlanar` (plane-major /
+> row-interleaved / word-interleaved with `offset`/`rowBytes`/
+> `planeStride`/`interleave`), `expandColorWord`/`expandPalette`
+> (`amiga12`/`amiga24`), `indicesToRGBA` with the `transparentIndex:
+> number | null` shape, and `greyscaleRamp` — built for
+> `@seer-project/probe` as its second consumer. What remains of this
+> section: ST/SNES/Megadrive/EGA chunky decoders, atlas-pack/blit
+> helpers, and migrating the six per-repo copies below onto the package.
+
 **What it is.** Decode planar (bitplane) or chunky (packed-pixel) bitmap data
 into an 8-bit palette-index buffer; expand a hardware colour word into 8-bit
 RGB; convert indices + palette → RGBA with a transparency rule; blit cells
@@ -567,6 +577,15 @@ assertions have canonical types to assert against.
 ---
 
 ## 9. AmigaOS HUNK executable parsing
+
+> **Status update: landed.** `@seer-project/amiga` (`packages/amiga/`)
+> now ships `parseHunkFile` (based on #1 below, plus decoded
+> `HUNK_RELOC32` offsets and `HUNK_SYMBOL` entries, the header
+> memory-size table, and the tests #1 never had), `hunkLoadAddresses`
+> (IRA/LoadSeg contiguous layout), and a `buildHunkExe` fixture builder —
+> built for `@seer-project/probe cnf` as its second consumer. What
+> remains: overlay/`HUNK_EXT` support and migrating the seven per-repo
+> copies below onto the package.
 
 **What it is.** Walk a `loadseg()`-able Amiga executable: `HUNK_HEADER`
 (0x3f3), per-hunk `HUNK_CODE`/`HUNK_DATA`/`HUNK_BSS`, skip
