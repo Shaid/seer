@@ -42,6 +42,8 @@ export {
 // SampledSound .instr / .ss parser
 export {
   parseInstr,
+  parse8svx,
+  isIff8svx,
   parseSs,
   parseSynthModulation,
   synthesizeWaveform,

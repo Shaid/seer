@@ -256,7 +256,7 @@ function isSampledSound(data: Uint8Array): boolean {
   return new TextDecoder().decode(data.subarray(0, 12)) === SAMPLED_SOUND_MAGIC;
 }
 
-function isIff8svx(data: Uint8Array): boolean {
+export function isIff8svx(data: Uint8Array): boolean {
   if (data.length < 12) return false;
   const fourCC = new TextDecoder().decode(data.subarray(0, 4));
   const formType = new TextDecoder().decode(data.subarray(8, 12));
@@ -384,7 +384,7 @@ function parseEmbedded(data: Uint8Array): InstrEmbedded {
   };
 }
 
-function parse8svx(data: Uint8Array): Instr8SVX {
+export function parse8svx(data: Uint8Array): Instr8SVX {
   // Slice to a tight buffer starting at byte 0 — `data` may be a view over a
   // larger backing buffer (e.g. a pooled Node Buffer), and parseIff/BinaryReader
   // read from the start of the ArrayBuffer they're given, ignoring byteOffset.
