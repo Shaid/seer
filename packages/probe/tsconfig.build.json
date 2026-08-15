@@ -1,0 +1,32 @@
+{
+  "extends": [
+    "./tsconfig.json",
+    "../tsconfig.build.base.json"
+  ],
+  "references": [
+    {
+      "path": "../core/tsconfig.build.json"
+    },
+    {
+      "path": "../gfx/tsconfig.build.json"
+    },
+    {
+      "path": "../amiga/tsconfig.build.json"
+    },
+    {
+      "path": "../iff/tsconfig.build.json"
+    },
+    {
+      "path": "../smus/tsconfig.build.json"
+    },
+    {
+      "path": "../tracker/tsconfig.build.json"
+    },
+    {
+      "path": "../audio-dsp/tsconfig.build.json"
+    },
+    {
+      "path": "../pipeline/tsconfig.build.json"
+    }
+  ]
+}

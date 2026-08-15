@@ -1,0 +1,71 @@
+{
+  "name": "@seer-project/probe",
+  "version": "0.1.0",
+  "description": "Agent-legible binary recon for 16-bit targets — exploratory map/gfx/stride/audio/cnf probes that emit hypotheses as PNGs, WAVs and JSON",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shaid/seer.git",
+    "directory": "packages/probe"
+  },
+  "keywords": [
+    "reverse-engineering",
+    "amiga",
+    "binary-analysis",
+    "recon",
+    "cli"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/__tests__",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "seer-probe": "./bin/seer-probe.mjs"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run lint && npm test",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "lint": "eslint src/ bin/"
+  },
+  "dependencies": {
+    "@seer-project/amiga": "^0.1.0",
+    "@seer-project/audio-dsp": "^0.1.0",
+    "@seer-project/core": "^0.1.0",
+    "@seer-project/gfx": "^0.1.0",
+    "@seer-project/iff": "^0.1.0",
+    "@seer-project/pipeline": "^0.1.0",
+    "@seer-project/smus": "^0.1.0",
+    "@seer-project/tracker": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.0"
+  },
+  "homepage": "https://seer.shaid.net",
+  "bugs": {
+    "url": "https://github.com/Shaid/seer/issues"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

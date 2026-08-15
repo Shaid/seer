@@ -19,6 +19,7 @@
     "format": "prettier --write 'packages/*/src/**/*.ts' 'src/**/*.ts' 'tools/**/*.ts'",
     "format:check": "prettier --check 'packages/*/src/**/*.ts' 'src/**/*.ts' 'tools/**/*.ts'",
     "hex-dump": "npm run build:packages && tsx packages/pipeline/src/hex-dump.ts",
+    "probe": "npm run build --workspace @seer-project/probe --workspaces=false && node packages/probe/bin/seer-probe.mjs",
     "extract-data": "npm run build:packages && tsx tools/extract-game-data.ts",
     "build-assets": "npm run build:packages && tsx tools/extract-game-data.ts --assets-only",
     "create": "npm run build:packages && node packages/create-seer-app/bin/create-seer-app.mjs",
