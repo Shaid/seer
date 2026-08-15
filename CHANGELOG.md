@@ -11,6 +11,27 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+
+- `@seer-project/probe` — `triage` no longer counts the scanner's
+  `hunk-wrapped` marker (context for `probe audio`'s output, not a media
+  container) as a container hit. On the TOSEC ADF corpus the marker made
+  up 81% of all "containers found", drowning the number that matters
+  while duplicating what the hunk flag already reports.
+- `@seer-project/probe` — the ZIP EOCD probe reads a ~1 KB tail instead
+  of 22 bytes. TOSEC torrentzips every archive, which appends a comment
+  that pushes the EOCD off the last 22 bytes, so the old fast path
+  missed on 100% of a real collection and each miss cost a 64 KB
+  fallback read (~1.8 GB of pure overhead across 29k archives).
+- `@seer-project/probe` — files extracted from ADF images are deduped by
+  content like every other descent path. A TOSEC game averages several
+  release variants whose disks differ (crack intros, patches) while most
+  files on them are identical; without this, per-game file counts
+  inflated by the variant multiplicity.
+- `@seer-project/probe` — reading more bytes than are on disk (archive
+  tails and local headers on top of payloads) is now reported as
+  overhead instead of a negative "avoided" percentage.
+
 ### Added
 
 - `@seer-project/gfx` — new package: Amiga/Atari-ST planar bitmap decoding

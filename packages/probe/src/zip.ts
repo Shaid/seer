@@ -78,24 +78,27 @@ function parseCentralDirectory(cd: Uint8Array, count: number): ZipEntry[] {
 export function listZipFromSource(src: ByteSource): ZipEntry[] | null {
   if (src.size < 22) return null;
 
-  // Fast path: an archive with no trailing comment (the overwhelming
-  // majority) puts the EOCD in its last 22 bytes, so listing a whole
-  // archive costs 22 bytes plus the central directory. Only fall back to
-  // the 64 KB comment scan when that check fails.
-  let eocd = src.read(src.size - 22, 22);
-  if (rd32(eocd, 0, 'le') !== EOCD_SIG) {
-    const tailLen = Math.min(src.size, MAX_EOCD_SEARCH);
-    const tail = src.read(src.size - tailLen, tailLen);
-    let found = -1;
+  // The EOCD sits at the end, behind a comment of up to 64 KB. A first
+  // probe of 22 bytes would only catch comment-less archives — and real
+  // collections are torrentzipped, which stamps a 22-byte
+  // "TORRENTZIPPED-xxxxxxxx" comment on EVERY archive, so that probe
+  // missed on 100% of a TOSEC corpus and each miss cost a 64 KB
+  // fallback read. A 1 KB first probe covers torrentzip and practically
+  // every human-written comment; the full 64 KB scan remains as the
+  // rare-case fallback.
+  const searchTail = (tail: Uint8Array): Uint8Array | null => {
     for (let i = tail.length - 22; i >= 0; i--) {
-      if (rd32(tail, i, 'le') === EOCD_SIG) {
-        found = i;
-        break;
-      }
+      if (rd32(tail, i, 'le') === EOCD_SIG) return tail.subarray(i, i + 22);
     }
-    if (found === -1) return null;
-    eocd = tail.subarray(found, found + 22);
+    return null;
+  };
+  const probeLen = Math.min(src.size, 1024);
+  let eocd = searchTail(src.read(src.size - probeLen, probeLen));
+  if (!eocd && src.size > probeLen) {
+    const tailLen = Math.min(src.size, MAX_EOCD_SEARCH);
+    eocd = searchTail(src.read(src.size - tailLen, tailLen));
   }
+  if (!eocd) return null;
 
   const count = rd16(eocd, 10, 'le');
   const cdSize = rd32(eocd, 12, 'le');

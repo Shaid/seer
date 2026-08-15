@@ -3,7 +3,10 @@ import { deflateRawSync } from 'node:zlib';
 import { crc32, isZipFile, listZip, readZipEntry } from '../zip.js';
 
 /** Minimal in-test ZIP builder (stored or deflate), central directory included. */
-export function buildZip(members: { name: string; data: Uint8Array; store?: boolean }[]): Uint8Array {
+export function buildZip(
+  members: { name: string; data: Uint8Array; store?: boolean }[],
+  comment = '',
+): Uint8Array {
   const parts: Uint8Array[] = [];
   const central: Uint8Array[] = [];
   let offset = 0;
@@ -33,9 +36,10 @@ export function buildZip(members: { name: string; data: Uint8Array; store?: bool
   }
 
   const cdSize = central.reduce((n, c) => n + c.length, 0);
+  const commentBytes = [...comment].map((c) => c.charCodeAt(0));
   const eocd = Uint8Array.from([
     0x50, 0x4b, 0x05, 0x06, ...u16(0), ...u16(0), ...u16(members.length), ...u16(members.length),
-    ...u32(cdSize), ...u32(offset), ...u16(0),
+    ...u32(cdSize), ...u32(offset), ...u16(commentBytes.length), ...commentBytes,
   ]);
   const total = offset + cdSize + eocd.length;
   const out = new Uint8Array(total);
@@ -78,6 +82,16 @@ describe('zip', () => {
 
   it('returns null for non-zip data', () => {
     expect(listZip(fileA)).toBeNull();
+  });
+
+  it('handles archives with trailing comments — TOSEC torrentzips every archive', () => {
+    const commented = buildZip([{ name: 'GameDisk.adf', data: fileA }], 'TORRENTZIPPED-F7D1EA4D');
+    const entries = listZip(commented)!;
+    expect(entries.map((e) => e.name)).toEqual(['GameDisk.adf']);
+    expect(readZipEntry(commented, entries[0])).toEqual(fileA);
+    // A long comment still resolves through the 64 KB fallback scan.
+    const longComment = buildZip([{ name: 'x.bin', data: fileB, store: true }], 'y'.repeat(5000));
+    expect(listZip(longComment)!.map((e) => e.name)).toEqual(['x.bin']);
   });
 });
 

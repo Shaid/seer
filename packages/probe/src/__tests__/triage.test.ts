@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { buildHunkExe } from '@seer-project/amiga';
 import { triageDirectory, triageFile, tosecTitle } from '../triage.js';
 import { buildZip } from './zip.test.js';
-import { randomBytes } from './helpers.js';
+import { buildTestAdf, randomBytes } from './helpers.js';
 
 describe('tosecTitle', () => {
   it('collapses release variants of one game onto its title', () => {
@@ -115,10 +115,11 @@ describe('triageDirectory', () => {
 
       const both = triageDirectory(dir);
       expect(both.duplicatesSkipped).toBe(1);
-      // The duplicate must cost its EOCD + central directory only — a
-      // few hundred bytes — not another 400 KB payload transfer.
+      // The duplicate must cost only its tail probe (~1 KB, sized to
+      // cover torrentzip-style comments) plus the central directory —
+      // not another 400 KB payload transfer.
       const marginal = both.bytesRead - alone.bytesRead;
-      expect(marginal).toBeLessThan(1024);
+      expect(marginal).toBeLessThan(2048);
       expect(both.bytesRead).toBeLessThan(both.totalBytes);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -144,6 +145,40 @@ describe('triageDirectory', () => {
     }
   });
 
+  it('dedupes identical files across disk variants — TOSEC release multiplicity', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'probe-triage-'));
+    try {
+      mkdirSync(join(dir, 'game'), { recursive: true });
+      const shared = randomBytes(1500, 41);
+      const introA = randomBytes(700, 42);
+      const introB = randomBytes(700, 43);
+      // Two "release variants": the disks differ (different crack
+      // intros) but the game file on them is identical.
+      writeFileSync(
+        join(dir, 'game', 'v1.adf'),
+        buildTestAdf([
+          { name: 'game.bin', content: shared },
+          { name: 'intro', content: introA },
+        ]),
+      );
+      writeFileSync(
+        join(dir, 'game', 'v2.adf'),
+        buildTestAdf([
+          { name: 'game.bin', content: shared },
+          { name: 'intro', content: introB },
+        ]),
+      );
+
+      const [g] = triageDirectory(dir).groups;
+      // 2 disks + game.bin once + both intros = 5; the second game.bin
+      // is skipped as a duplicate payload.
+      expect(g.duplicatesSkipped).toBe(1);
+      expect(g.files).toBe(5);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('surfaces container hits with corpus-relative paths', () => {
     const dir = mkdtempSync(join(tmpdir(), 'probe-triage-'));
     try {
@@ -161,8 +196,14 @@ describe('triageDirectory', () => {
 
       const [g] = triageDirectory(dir).groups;
       const kinds = g.containers.map((c) => c.kind);
-      expect(kinds).toContain('hunk-wrapped');
+      // The 'hunk-wrapped' marker is context for probe audio, not a
+      // media container — it must NOT count as a hit (it once made up
+      // 81% of a corpus's "containers found"). The executable is still
+      // reported, via the hunk flag.
+      expect(kinds).not.toContain('hunk-wrapped');
       expect(kinds).toContain('iff-8svx');
+      expect(g.containerHits).toBe(1);
+      expect(g.extensions.reduce((n, e) => n + e.hunk, 0)).toBe(1);
       expect(g.containers.every((c) => c.file === 'game/sfx.a')).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });

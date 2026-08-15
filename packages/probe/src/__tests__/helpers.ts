@@ -40,6 +40,50 @@ export function encodeRowInterleaved(
 }
 
 /**
+ * Minimal FFS ADF builder (root-level files only) for triage descent
+ * tests. Test-local, mirroring the amiga package's own test builder —
+ * the shipped ADF module is read-only by design.
+ */
+export function buildTestAdf(files: { name: string; content: Uint8Array }[]): Uint8Array {
+  const BLOCK = 512;
+  const HT = 72;
+  const img = new Uint8Array(901120);
+  const w32 = (off: number, v: number) => {
+    img[off] = (v >>> 24) & 0xff;
+    img[off + 1] = (v >>> 16) & 0xff;
+    img[off + 2] = (v >>> 8) & 0xff;
+    img[off + 3] = v & 0xff;
+  };
+  const writeName = (blockStart: number, name: string) => {
+    img[blockStart + 0x1b0] = name.length;
+    for (let i = 0; i < name.length; i++) img[blockStart + 0x1b1 + i] = name.charCodeAt(i);
+  };
+  img.set([0x44, 0x4f, 0x53, 1]); // 'DOS\1' = FFS
+  const root = 880;
+  w32(root * BLOCK, 2); // T_HEADER
+  w32(root * BLOCK + BLOCK - 4, 1); // ST_ROOT
+  writeName(root * BLOCK, 'TestDisk');
+
+  let next = 881;
+  files.forEach((f, slot) => {
+    const header = next++;
+    const nBlocks = Math.ceil(f.content.length / BLOCK);
+    w32(header * BLOCK, 2);
+    w32(header * BLOCK + 8, nBlocks); // high_seq
+    w32(header * BLOCK + BLOCK - 47 * 4, f.content.length); // byte_size
+    w32(header * BLOCK + BLOCK - 4, -3 >>> 0); // ST_FILE
+    writeName(header * BLOCK, f.name);
+    for (let i = 0; i < nBlocks; i++) {
+      const db = next++;
+      w32(header * BLOCK + 24 + (HT - 1 - i) * 4, db); // reverse order
+      img.set(f.content.subarray(i * BLOCK, (i + 1) * BLOCK), db * BLOCK);
+    }
+    w32(root * BLOCK + 24 + slot * 4, header); // hash slot
+  });
+  return img;
+}
+
+/**
  * A structured test image: overlapping filled rectangles using the full
  * 3-plane palette (real art picks its plane count to fit its palette, and
  * the sweep's indexUsage metric relies on that).

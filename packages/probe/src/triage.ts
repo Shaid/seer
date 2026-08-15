@@ -264,7 +264,20 @@ export function triageDirectory(root: string, opts: TriageOptions = {}): TriageR
         tally(group, displayPath, data.length, 'adf-dos-filesystem', false, true);
         for (const e of adfEntries) {
           if (e.type !== 'file' || e.size === 0 || e.size > maxBytes) continue;
-          recordBytes(group, `${displayPath}:${e.path}`, readAdfFile(data, e), depth + 1);
+          const bytes = readAdfFile(data, e);
+          // Dedupe disk contents like every other descent path. A TOSEC
+          // game averages ~7 release variants whose disks differ (crack
+          // intros, patches) while most files ON them are identical —
+          // without this, per-game file counts inflate by the variant
+          // multiplicity. Same size:crc32 namespace as plain files and
+          // zip members, so cross-container duplicates collapse too.
+          const key = `${bytes.length}:${crc32(bytes)}`;
+          if (seenPayloads.has(key)) {
+            group.dups++;
+            continue;
+          }
+          seenPayloads.add(key);
+          recordBytes(group, `${displayPath}:${e.path}`, bytes, depth + 1);
         }
         return;
       }
@@ -273,6 +286,13 @@ export function triageDirectory(root: string, opts: TriageOptions = {}): TriageR
     const info = triageFile(data);
     tally(group, displayPath, data.length, info.dominantClass, info.isHunk, info.isAdf);
     for (const hit of info.containers) {
+      // The scanner's 'hunk-wrapped' entry marks "this file is a HUNK
+      // executable being unwrapped" — context in `probe audio`'s output,
+      // but not a media container. Counting it here quadrupled the
+      // corpus-level "containers found" figure (81% of all hits on the
+      // TOSEC ADF set) while duplicating what the hunk flag already
+      // reports.
+      if (hit.kind === 'hunk-wrapped') continue;
       group.hits++;
       if (group.containers.length < MAX_CONTAINERS_PER_GROUP && storedContainers < MAX_CONTAINERS_TOTAL) {
         group.containers.push({ ...hit, file: displayPath });
@@ -518,12 +538,17 @@ export function runTriage(argv: string[]): number {
   const outDir = ensureOutDir(flags.out as string | undefined);
   const jsonPath = artifactPath(outDir, 'triage', root.replace(/\/+$/, ''), '.json');
   writeJson(jsonPath, report);
-  const saved = report.totalBytes > 0 ? (100 * (1 - report.bytesRead / report.totalBytes)).toFixed(1) : '0';
+  // Reading slightly MORE than is on disk is normal (archive tails and
+  // local headers are read in addition to payloads); phrase that as
+  // overhead rather than printing a nonsensical negative saving.
+  const ratio = report.totalBytes > 0 ? report.bytesRead / report.totalBytes : 1;
+  const saved =
+    ratio <= 1 ? `${(100 * (1 - ratio)).toFixed(1)}% avoided` : `${(100 * (ratio - 1)).toFixed(1)}% overhead`;
   console.log(
     `\n${report.files} disk files triaged, ${report.duplicatesSkipped} exact duplicates skipped` +
       `${report.sampledFiles ? `, ${report.sampledFiles} large files sampled` : ''}.`,
   );
-  console.log(`read ${mb(report.bytesRead)} of ${mb(report.totalBytes)} on disk (${saved}% avoided)`);
+  console.log(`read ${mb(report.bytesRead)} of ${mb(report.totalBytes)} on disk (${saved})`);
   console.log(`wrote ${jsonPath}`);
   return 0;
 }

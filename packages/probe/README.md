@@ -55,15 +55,26 @@ bytes transferred — not CPU — is the cost that matters:
 
 - **ZIP archives are read tail-first.** The central directory carries
   every member's CRC-32 and lives at the end of the file, so listing an
-  archive costs its last 22 bytes plus the directory. Members already
-  seen are skipped without ever transferring their payloads, and members
-  that are new are read by byte range. On a corpus holding three copies
-  of each dump this avoids **63% of all bytes** (ceiling: 67%), with
-  wall time flat as nominal size triples.
+  archive costs a ~1 KB tail probe plus the directory (the probe is
+  sized for real collections: TOSEC torrentzips every archive, which
+  appends a comment that pushes the EOCD off the last 22 bytes — a
+  22-byte probe missed 100% of the time there). Members already seen are
+  skipped without ever transferring their payloads, and new members are
+  read by byte range. On a corpus holding three copies of each dump this
+  avoids **63% of all bytes** (ceiling: 67%), with wall time flat as
+  nominal size triples.
 - **ADF images with a walkable AmigaDOS filesystem are descended into**,
-  each contained file triaged individually. RawDIC/trackloader images
-  stay opaque blobs, which is itself signal: a `DOS` bootblock whose
-  root block doesn't parse means a custom layout.
+  each contained file triaged individually and deduped by content — a
+  TOSEC game averages several release variants whose *disks* differ
+  (crack intros, patches) while most files on them are identical, so
+  without content dedupe the per-game file counts inflate by the variant
+  multiplicity. RawDIC/trackloader images stay opaque blobs, which is
+  itself signal: a `DOS` bootblock whose root block doesn't parse means
+  a custom layout.
+- **Container hits count media containers only.** HUNK executables are
+  reported via their own column/flag, not as "containers" — before this
+  distinction, executable markers made up 81% of a corpus's "containers
+  found" and drowned the number that matters.
 - **Files over `--full-read-mb` (default 8) are sampled**, not read
   whole: 1 MB from the head and 1 MB from the tail. Their class and
   container hits therefore come from a prefix, and their dedupe key is
