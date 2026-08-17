@@ -113,7 +113,7 @@ describe('scaffold', () => {
     const pkg = readFileSync(resolve(TMP, 'template-vars/package.json'), 'utf-8');
     expect(pkg).toContain('"name": "demo"');
     const main = readFileSync(resolve(TMP, 'template-vars/src/main.ts'), 'utf-8');
-    expect(main).toContain("from '@seer-project/engine-2d'");
+    expect(main).toContain("from './game-id.ts'");
   });
 
   it('creates viewer files when viewer option is true', () => {
@@ -123,11 +123,17 @@ describe('scaffold', () => {
     expect(existsSync(resolve(dir, 'tools/viewer/viewer.ts'))).toBe(true);
     expect(existsSync(resolve(dir, 'tools/viewer/viewer.css'))).toBe(true);
     expect(existsSync(resolve(dir, 'tools/viewer/shared.ts'))).toBe(true);
+    // The placeholder splash only links to the viewer when it's scaffolded.
+    const main = readFileSync(resolve(dir, 'src/main.ts'), 'utf-8');
+    expect(main).toContain('/tools/viewer/');
   });
 
   it('does not create viewer files when viewer is false', () => {
     run('no-viewer', { viewer: false });
     expect(existsSync(resolve(TMP, 'no-viewer/tools/viewer'))).toBe(false);
+    // The splash must not link to a viewer that wasn't scaffolded.
+    const main = readFileSync(resolve(TMP, 'no-viewer/src/main.ts'), 'utf-8');
+    expect(main).not.toContain('/tools/viewer/');
   });
 
   it('uses defaults when no options are provided', () => {

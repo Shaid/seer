@@ -76,6 +76,10 @@ export function scaffold(targetDir: string, options: ScaffoldOptions = {}): void
     game,
     platform,
     displayName,
+    // Truthy string, not a boolean — see WebsiteContext's `base` for why:
+    // render()'s data is Record<string, string>, and `<% if (it.viewer) %>`
+    // only needs falsy-vs-truthy, not an actual boolean.
+    viewer: viewer ? '1' : '',
     seerCore: seerSpec('core'),
     seerEngine2d: seerSpec('engine-2d'),
     seerPipeline: seerSpec('pipeline'),

@@ -68,10 +68,13 @@ placeholder values you must replace as soon as you know your actual target:
   interface, one loader function, parallel `fetch()`" convention. Replace
   the placeholder `AtlasMeta` fields with whatever your build-assets script
   actually produces.
-- **`src/main.ts`** — boots `Game` from `@seer-project/engine-2d` with placeholder world
-  dimensions. Replace `worldWidth`/`worldHeight` with your actual content
-  size once known, and adjust if you support multiple games/platforms via
-  URL params.
+- **`src/main.ts`** — renders a placeholder splash (game/platform identity
+  from `game-id.ts`, a link to the asset viewer) into `#game-container`, so
+  the scaffold shows something before you've written any gameplay. Replace
+  its contents with a `createGame({ container, ... })` call from
+  `@seer-project/engine-2d` once you have a real engine to boot — see that
+  package's `Game.ts` for the `onInit`/`onUpdate` shape, and delete the
+  `.splash` CSS block in `index.html` once you do.
 - **`vite.config.ts`'s `serveDataDir()` plugin** — only needed if some asset
   type (typically audio) is decoded at runtime rather than precompiled.
   Delete it if your pipeline precompiles everything.

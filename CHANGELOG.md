@@ -128,6 +128,19 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
   (previously internal to `parseInstr`), so consumers can decode a
   standalone IFF 8SVX file's VHDR header directly.
 
+### Changed
+
+- `create-seer-app` — the scaffolded `src/main.ts` now renders a
+  placeholder splash (game/platform identity read from `game-id.ts`, a
+  link to `/tools/viewer/`) into `#game-container` instead of booting an
+  empty `createGame()` with `// TODO` hooks. Every downstream project
+  still shows a blank black canvas at this stage — `docs/common-tooling-
+  candidates.md`'s own audit flagged `onInit`/`onUpdate` as `// TODO` in
+  five of six sibling repos, with only `middilgard` ever filling them in.
+  The viewer link only renders when `--viewer` was passed (`it.viewer` in
+  the template context); a scaffold without the viewer gets a note
+  pointing at the flag instead of a dead link.
+
 ## [0.1.0] — first public release
 
 First publication to npm. Thirteen packages, released together because their
