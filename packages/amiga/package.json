@@ -1,7 +1,7 @@
 {
   "name": "@seer-project/amiga",
   "version": "0.1.0",
-  "description": "AmigaOS binary-format parsing (HUNK executables/modules) — optional, install only if your target ships Amiga loadfiles",
+  "description": "AmigaOS binary-format parsing (HUNK executables/modules) and UAE-family (.uss) savestate reading — optional, install only if your target ships Amiga loadfiles or you're capturing emulator state",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -13,7 +13,9 @@
     "hunk",
     "executable",
     "68000",
-    "reverse-engineering"
+    "reverse-engineering",
+    "savestate",
+    "uae"
   ],
   "type": "module",
   "main": "./dist/index.js",
@@ -46,6 +48,7 @@
     "@seer-project/core": "^0.1.0"
   },
   "devDependencies": {
+    "@types/node": "^26.0.1",
     "typescript": "~6.0.2",
     "vitest": "^3.2.0"
   },

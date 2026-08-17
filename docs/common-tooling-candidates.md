@@ -691,6 +691,24 @@ read-only diagnostic tool, not a pipeline stage). Lower priority than §9
 because only two repos need it *today* — but it is the higher-leverage of the
 two for future RE work.
 
+**Update 2026-08-18 — shipped.** Landed in `@seer-project/amiga` as `uss.ts`:
+`scanChunks`, `findChunk`, `chunkPayload`, `inflateChunk`, `loadSavestate`,
+matching `kgb`'s 12-byte-header model (name+size+flags) rather than
+middilgard's 8-byte one, since `flags` genuinely belonging to the header is
+what lets `inflateChunk` work generically instead of special-casing chunk
+names by string. One real improvement over both originals: the file's own
+declared header-length field (offset 4) gives the first chunk's offset
+directly (rounded up to the next 4-byte boundary) — verified against a real
+WIME savestate — instead of either project's blind scan-from-byte-0/scan-a-
+fixed-window approach. `findVerbatimFiles`/`locate-files.ts` port not done
+this pass (middilgard didn't need it; still open if a future consumer does).
+Required adding `@types/node` to the package (Node-only functions —
+`loadSavestate`'s `readFileSync`, `inflateChunk`'s `zlib.inflateSync` — the
+rest of the module stays `Uint8Array`-in/out for browser consumers), same
+pattern `@seer-project/probe` already uses. middilgard's
+`tools/wime/parse-uss-savestate.ts` now imports from here instead of
+defining its own copy.
+
 ---
 
 ## 11. Musashi 68k emulation harness
@@ -1119,7 +1137,7 @@ Order matters: §2 unblocks §1, §3 and §8; §7 unblocks §13b.
 |---|---|---|---|
 | 3 | Asset paths + manifest merge + platform index | `@seer-project/pipeline` | Blocked on §2 and on picking one manifest model |
 | 8 | Test-harness conventions (`describeWithCorpus`, fixture builder, invariant assertions) | **new `@seer-project/testing`** | High leverage, but wants §1/§2's types first |
-| 10 | UAE `.uss` savestate reader | `@seer-project/amiga` | Reconcile the two chunk models first; two consumers today |
+| ~~10~~ | ~~UAE `.uss` savestate reader~~ | `@seer-project/amiga` | **Done 2026-08-18** — see §10's update note |
 | 13d | middilgard executes seer-migration Step 9 (`io.ts`) | — | Mechanical, but middilgard is mid-iteration |
 | 5 | `defineNarrowedConfig` factory | `@seer-project/pipeline` | Touches a documented decision (`architecture-overview.md` §5) |
 | 15 | Link-don't-copy framework docs; document `build/cache/` as a fifth zone; relocate `walker.md` | `docs/` + templates | Cheap, but no forcing function |
