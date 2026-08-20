@@ -34,6 +34,29 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- `@seer-project/mesh-viewer-ui` — new package: `MeshSettingsPanel`, a
+  generic settings-popover controller collecting a mesh viewer's render
+  mode, shading override, smooth/flat normals, subdivision, and texture
+  filtering + anisotropy into one togglable panel instead of a row of
+  individual toolbar controls — the shared UI layer siren's viewer
+  hand-rolled these around, generalized the same way
+  `@seer-project/audio-ui` unified the audio transport bar.
+- `@seer-project/engine-3d` — `mesh-shading.ts` (`applyMeshShading`, a
+  `'lit'\|'unlit'\|'normals'\|'depth'\|'toon'` shading override layered on
+  top of `render-modes.ts`'s render mode) and `mesh-polish.ts`
+  (`applyMeshPolish`/`subdivideGeometry`/`applySmoothNormals`, browser-side
+  geometry subdivision and smooth-normal averaging rebuilt from a captured
+  original on every change) — both extracted from siren's viewer so a
+  second consumer doesn't have to re-derive them.
+- `@seer-project/engine-3d` — `texture-filter.ts`: `applyTextureFilter`, a
+  new texture filtering control (`'nearest'\|'linear'\|'trilinear'` +
+  clamped anisotropy) applied to a glTF model's original materials so it
+  survives switching render modes/shading.
+- `@seer-project/engine-3d` — `MeshSession` gained
+  `setShading`/`setSmooth`/`setSubdivision`/`setTextureFilter`/
+  `getMaxAnisotropy`, composing the three modules above with
+  `setRenderMode` so a host's appearance state stays consistent without
+  reimplementing the render-mode/shading/geometry interplay itself.
 - `@seer-project/gfx` — new package: Amiga/Atari-ST planar bitmap decoding
   (`decodePlanar` across plane-major / row-interleaved / word-interleaved
   layouts with offset, row-padding and plane-stride support),

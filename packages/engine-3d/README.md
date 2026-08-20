@@ -170,6 +170,37 @@ table below.
 | `defaultRenderMode(model)` | The mode to start on — `'textured'` for glTF, the richest supported mode for polygon. |
 | `applyRenderMode(model, mode)` | Switches the visible representation, building/caching glTF's flat materials and points representation lazily. Falls back to `defaultRenderMode(model)` for an unsupported `mode` rather than rendering nothing. |
 
+### `mesh-shading.ts`
+
+A shading override layered on top of `render-modes.ts`'s render mode — one
+generated material per mesh for `'unlit'\|'normals'\|'depth'\|'toon'`,
+or just a `flatShading` toggle on the mesh's own real material for `'lit'`.
+No-op for a polygon model, and for `renderMode === 'wireframe'\|'points'`
+(already flat/unlit by construction).
+
+| Function | Description |
+| --- | --- |
+| `applyMeshShading(model, cache, opts)` | Applies `opts.shading`/`opts.smooth` (deferring to `opts.renderMode`), rebuilding `cache` from scratch each call. |
+| `clearGeneratedShadingMaterials(cache)` | Disposes everything in `cache` and empties it. |
+
+### `mesh-polish.ts`
+
+Browser-side geometry subdivision + smooth-normal averaging, rebuilt from a
+captured original on every change so repeated subdivision levels never
+compound. glTF-only (a polygon model has no per-mesh geometry to rebuild).
+
+| Function | Description |
+| --- | --- |
+| `captureOriginalGeometry(model)` / `disposeOriginalGeometry(cache)` | Clone-and-remember (and later dispose) each mesh's baseline geometry — call once per `setModel`. |
+| `applyMeshPolish(model, originalGeometry, opts)` | Rebuilds each mesh's geometry from `originalGeometry` at `opts.subdivision` intensity, smooth- or flat-normaled per `opts.smooth`. |
+| `subdivideGeometry(source, multiplier)` / `applySmoothNormals(geometry)` | The two underlying geometry transforms, exposed standalone for a host that wants just one of them. |
+
+### `texture-filter.ts`
+
+| Function | Description |
+| --- | --- |
+| `applyTextureFilter(model, options, maxAnisotropy?)` | Sets mag/min filter + mipmap generation + anisotropy on every texture referenced by `model`'s *original* materials (not just whichever material a render mode/shading override currently has assigned), so a filter choice survives switching render modes. `options.mode` is `'nearest'\|'linear'\|'trilinear'`; `options.anisotropy` is clamped to `maxAnisotropy` (read `session.getMaxAnisotropy()`, or `renderer.capabilities.getMaxAnisotropy()` directly). No-op for a polygon model. |
+
 ### `animation.ts`
 
 | Function | Description |
@@ -209,6 +240,9 @@ animation controller (if any).
 | `session.setModel(model, opts?)` | Replaces the session's contents, disposing whatever was shown before. `opts.fit` (default `true`) frames the camera; `opts.renderMode` overrides `defaultRenderMode(model)`. |
 | `session.addModel(model)` | Adds `model` alongside whatever's already shown, without disturbing it — for a host assembling several independently-built `Model3D`s into one scene. |
 | `session.setRenderMode(mode)` / `session.setColorMode(mode, resolver?)` | Switch modes on the active model. |
+| `session.setShading(mode)` / `session.setSmooth(bool)` | Switch shading override / smooth-vs-flat normals — see `mesh-shading.ts`. Both reset to `'lit'`/`false` on every `setModel`. |
+| `session.setSubdivision(multiplier)` | Rebuild geometry at a subdivision intensity — see `mesh-polish.ts`. Resets to `0` on every `setModel`. |
+| `session.setTextureFilter(options)` / `session.getMaxAnisotropy()` | Set filter/anisotropy on the active model's textures — see `texture-filter.ts`. Unlike shading/smooth/subdivision, this **persists across `setModel`** (a viewer-wide preference, not a per-model one). `getMaxAnisotropy()` reads `renderer.capabilities.getMaxAnisotropy()`. |
 | `session.fit()` | Re-frames the camera on everything currently in the viewport. |
 | `session.stats()` | Vertex/triangle counts for the current view. |
 | `session.dispose()` | Disposes every model ever added, the animation controller, and the viewport. Idempotent. |

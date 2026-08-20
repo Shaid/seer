@@ -1,0 +1,11 @@
+{
+  "extends": [
+    "./tsconfig.json",
+    "../tsconfig.build.base.json"
+  ],
+  "references": [
+    {
+      "path": "../engine-3d/tsconfig.build.json"
+    }
+  ]
+}

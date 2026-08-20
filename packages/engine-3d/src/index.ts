@@ -39,6 +39,21 @@ export type { ColorMode, ColorResolver, ColorResolverContext, HeightRange } from
 export { supportedRenderModes, defaultRenderMode, applyRenderMode } from './render-modes.js';
 export type { RenderMode } from './render-modes.js';
 
+export { applyMeshShading, clearGeneratedShadingMaterials } from './mesh-shading.js';
+export type { MeshShadingMode, GeneratedShadingMaterials } from './mesh-shading.js';
+
+export {
+  applyMeshPolish,
+  captureOriginalGeometry,
+  disposeOriginalGeometry,
+  applySmoothNormals,
+  subdivideGeometry,
+} from './mesh-polish.js';
+export type { OriginalGeometryCache } from './mesh-polish.js';
+
+export { applyTextureFilter } from './texture-filter.js';
+export type { TextureFilterMode, TextureFilterOptions } from './texture-filter.js';
+
 export { createAnimationController } from './animation.js';
 export type { AnimationController } from './animation.js';
 
