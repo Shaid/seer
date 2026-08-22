@@ -84,6 +84,7 @@ export class RenderSettingsPanel {
   private photoModeAvailable = true;
   private photoModePollTimer: ReturnType<typeof setInterval> | null = null;
   private recording = false;
+  private recordingAbort: AbortController | null = null;
 
   constructor(elements: RenderSettingsPanelElements, opts: RenderSettingsPanelOptions) {
     this.els = elements;
@@ -115,13 +116,18 @@ export class RenderSettingsPanel {
     };
   }
 
+  /** The panel has no other way to surface an async action's failure to the host — at minimum this must not be an unhandled rejection. */
+  private reportError(action: string, err: unknown): void {
+    console.error(`RenderSettingsPanel: ${action} failed`, err);
+  }
+
   private applyQuality(): void {
     if (!this.session) return;
     const quality = this.els.qualitySelect.value as RenderQuality;
-    if (quality !== 'photo') void this.session.setPhotoMode(false);
+    if (quality !== 'photo') void this.session.setPhotoMode(false).catch((err) => this.reportError('turning photo mode off', err));
     if (quality !== 'cinematic') this.session.setCinematic(false);
     if (quality === 'cinematic') this.session.setCinematic(this.currentCinematicOptions());
-    if (quality === 'photo') void this.session.setPhotoMode({});
+    if (quality === 'photo') void this.session.setPhotoMode({}).catch((err) => this.reportError('switching to photo mode', err));
     this.refresh();
   }
 
@@ -163,6 +169,10 @@ export class RenderSettingsPanel {
 
   private async runRecordTurntable(): Promise<void> {
     if (!this.session || this.recording) return;
+    // Defense in depth beyond the disabled button in refresh() — turntable
+    // recording is broken under the photo tier (see refresh()'s own
+    // comment), so refuse even if something reaches this method directly.
+    if (this.els.qualitySelect.value === 'photo') return;
     this.recording = true;
     this.els.recordTurntableBtn.disabled = true;
     const session = this.session;
@@ -176,18 +186,30 @@ export class RenderSettingsPanel {
         session.viewport.renderNow();
       },
     };
+    // Aborted from detach()/dispose() — without this, switching assets or
+    // tearing down the host mid-recording leaves recordClip()'s loop
+    // calling viewport.renderNow() on a session that's about to be (or
+    // already has been) disposed for the remainder of the clip.
+    const abort = new AbortController();
+    this.recordingAbort = abort;
     try {
       const result = await recordClip(source, {
         driver: { start() {}, stop() {} },
         fps,
         durationSeconds,
         watermark: { text: this.opts.watermarkText(session) },
+        signal: abort.signal,
       });
-      downloadClip(result, this.opts.fileName?.(session) ?? 'model');
+      // A signal-aborted recording still resolves (with whatever prefix of
+      // frames it managed) rather than rejecting — downloading that partial
+      // clip is only useful for a deliberate abort, not the teardown case
+      // this exists for, so skip it here specifically.
+      if (!abort.signal.aborted) downloadClip(result, this.opts.fileName?.(session) ?? 'model');
     } finally {
       turntable.dispose();
       this.recording = false;
       this.els.recordTurntableBtn.disabled = false;
+      if (this.recordingAbort === abort) this.recordingAbort = null;
     }
   }
 
@@ -202,8 +224,12 @@ export class RenderSettingsPanel {
     if (this.els.aoCheckbox) this.on(this.els.aoCheckbox, 'change', () => this.applyCinematicOptions());
     if (this.els.dofCheckbox) this.on(this.els.dofCheckbox, 'change', () => this.applyCinematicOptions());
 
-    this.on(this.els.screenshotBtn, 'click', () => void this.runScreenshot());
-    this.on(this.els.recordTurntableBtn, 'click', () => void this.runRecordTurntable());
+    this.on(this.els.screenshotBtn, 'click', () => {
+      void this.runScreenshot().catch((err) => this.reportError('capturing a screenshot', err));
+    });
+    this.on(this.els.recordTurntableBtn, 'click', () => {
+      void this.runRecordTurntable().catch((err) => this.reportError('recording a turntable clip', err));
+    });
   }
 
   /** Points the panel at `session` and shows the toolbar toggle button. Does not open the panel itself — mirrors `MeshSettingsPanel.attach()`. */
@@ -274,19 +300,39 @@ export class RenderSettingsPanel {
     if (this.els.photoModeRow) setHidden(this.els.photoModeRow, quality !== 'photo');
     if (quality === 'photo') this.refreshPhotoModeStatus();
     else this.stopPhotoModePoll();
+
+    // Turntable.step() moves the camera by writing controls.object.position
+    // directly, without firing the controls 'change' event (deliberately —
+    // see turntable.ts's own doc comment on why that's safe for
+    // renderNow()-driven capture) — but that means photo mode's
+    // updateCamera() reset hook (wired to that same event) never fires
+    // during a turntable recording, so the path tracer keeps accumulating
+    // over a moving camera instead of resetting each frame. Recording is
+    // broken under the photo tier, not merely slow; disable it there rather
+    // than let it produce a smeared clip. Only touched when NOT actively
+    // recording — runRecordTurntable()'s own try/finally owns the button's
+    // disabled state for that window, and a refresh() firing mid-recording
+    // (e.g. from an unrelated setModel()) must not re-enable it early.
+    if (!this.recording) {
+      const recordingBroken = quality === 'photo';
+      this.els.recordTurntableBtn.disabled = recordingBroken;
+      this.els.recordTurntableBtn.title = recordingBroken ? 'Turntable recording is not supported in photo mode' : '';
+    }
   }
 
-  /** Closes the panel, hides the toolbar toggle button, stops the photo-mode status poll, and releases the session reference. Does not touch the session itself. */
+  /** Closes the panel, hides the toolbar toggle button, stops the photo-mode status poll, aborts an in-flight turntable recording (if any — the session it renders through may be about to be disposed), and releases the session reference. Does not touch the session itself. */
   detach(): void {
     this.stopPhotoModePoll();
+    this.recordingAbort?.abort();
     this.session = null;
     this.closePanel();
     setHidden(this.els.toggleBtn, true);
   }
 
-  /** Tears down the controller itself — unbinds every listener bound in the constructor. */
+  /** Tears down the controller itself — unbinds every listener bound in the constructor, and aborts an in-flight turntable recording the same way `detach()` does. */
   dispose(): void {
     this.stopPhotoModePoll();
+    this.recordingAbort?.abort();
     this.session = null;
     for (const off of this.teardown) off();
     this.teardown = [];

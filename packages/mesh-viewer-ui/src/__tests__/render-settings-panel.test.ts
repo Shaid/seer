@@ -391,6 +391,100 @@ describe('RenderSettingsPanel — export buttons', () => {
     }).not.toThrow();
     void panel;
   });
+
+  it('disables the turntable button under the photo tier — recording is broken there (regression: turntable.step() writing position directly never fires the controls change event photo mode\'s reset relies on)', () => {
+    const panel = new RenderSettingsPanel(els, opts);
+    const session = makeFakeSession();
+    panel.attach(session);
+    expect(els.recordTurntableBtn.disabled).toBe(false);
+
+    els.qualitySelect.value = 'photo';
+    els.qualitySelect.dispatchEvent(new Event('change'));
+
+    expect(els.recordTurntableBtn.disabled).toBe(true);
+    expect(els.recordTurntableBtn.title).toMatch(/photo mode/i);
+  });
+
+  it('a click on the (disabled) turntable button while the photo tier is selected does not attempt to record', () => {
+    const panel = new RenderSettingsPanel(els, opts);
+    const session = makeFakeSession();
+    panel.attach(session);
+    els.qualitySelect.value = 'photo';
+    els.qualitySelect.dispatchEvent(new Event('change'));
+
+    els.recordTurntableBtn.click();
+
+    expect(createTurntableMock).not.toHaveBeenCalled();
+    expect(recordClipMock).not.toHaveBeenCalled();
+  });
+
+  it('re-enables the turntable button on switching back to flat/cinematic from photo', () => {
+    const panel = new RenderSettingsPanel(els, opts);
+    const session = makeFakeSession();
+    panel.attach(session);
+    els.qualitySelect.value = 'photo';
+    els.qualitySelect.dispatchEvent(new Event('change'));
+    expect(els.recordTurntableBtn.disabled).toBe(true);
+
+    els.qualitySelect.value = 'flat';
+    els.qualitySelect.dispatchEvent(new Event('change'));
+
+    expect(els.recordTurntableBtn.disabled).toBe(false);
+  });
+
+  it('a rejected screenshot capture is caught and reported, not left as an unhandled rejection', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    downloadScreenshotMock.mockRejectedValueOnce(new Error('toBlob failed'));
+    const panel = new RenderSettingsPanel(els, opts);
+    const session = makeFakeSession();
+    panel.attach(session);
+
+    els.screenshotBtn.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('capturing a screenshot'), expect.any(Error));
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('a rejected turntable recording is caught and reported, and still leaves the button re-enabled', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    recordClipMock.mockRejectedValueOnce(new Error('no supported mime type'));
+    const panel = new RenderSettingsPanel(els, opts);
+    const session = makeFakeSession();
+    panel.attach(session);
+
+    els.recordTurntableBtn.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('recording a turntable clip'), expect.any(Error));
+    expect(els.recordTurntableBtn.disabled).toBe(false);
+    expect(turntableMock.dispose).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('a rejected setPhotoMode({}) from selecting the photo tier is caught and reported, not left as an unhandled rejection', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const panel = new RenderSettingsPanel(els, opts);
+    const session = makeFakeSession();
+    (session.setPhotoMode as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+      throw new Error('three-gpu-pathtracer unavailable');
+    });
+    panel.attach(session);
+
+    els.qualitySelect.value = 'photo';
+    els.qualitySelect.dispatchEvent(new Event('change'));
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('switching to photo mode'), expect.any(Error));
+    consoleErrorSpy.mockRestore();
+  });
 });
 
 describe('RenderSettingsPanel — reduced panel (optional elements absent)', () => {
@@ -461,5 +555,56 @@ describe('RenderSettingsPanel — dispose()', () => {
     document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
     expect(els.panel.classList.contains('hidden')).toBe(false);
     vi.useRealTimers();
+  });
+
+  it('aborts an in-flight turntable recording (regression: otherwise the recordClip loop keeps calling renderNow() on a session that may be about to be disposed)', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    let resolveRecord!: (r: unknown) => void;
+    recordClipMock.mockImplementationOnce(
+      (_source, recordOpts) =>
+        new Promise((resolve) => {
+          capturedSignal = recordOpts.signal;
+          resolveRecord = resolve;
+        }),
+    );
+    const panel = new RenderSettingsPanel(els, opts);
+    const session = makeFakeSession();
+    panel.attach(session);
+
+    els.recordTurntableBtn.click();
+    await Promise.resolve();
+    expect(capturedSignal?.aborted).toBe(false);
+
+    panel.dispose();
+
+    expect(capturedSignal?.aborted).toBe(true);
+
+    // Even once the (aborted) recording eventually resolves with whatever
+    // partial clip it captured, a teardown-triggered abort must not
+    // download it.
+    resolveRecord({ blob: new Blob(['partial']), mimeType: 'video/webm', durationSeconds: 1 });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(downloadClipMock).not.toHaveBeenCalled();
+  });
+
+  it('detach() also aborts an in-flight turntable recording', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    recordClipMock.mockImplementationOnce(
+      (_source, recordOpts) =>
+        new Promise(() => {
+          capturedSignal = recordOpts.signal;
+        }),
+    );
+    const panel = new RenderSettingsPanel(els, opts);
+    const session = makeFakeSession();
+    panel.attach(session);
+
+    els.recordTurntableBtn.click();
+    await Promise.resolve();
+
+    panel.detach();
+
+    expect(capturedSignal?.aborted).toBe(true);
   });
 });
