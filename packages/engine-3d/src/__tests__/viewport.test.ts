@@ -938,3 +938,125 @@ describe('createViewport — setShadows()', () => {
     viewport.dispose();
   });
 });
+
+describe('createTurntable', () => {
+  it('start() enables autoRotate at a speed matching durationSeconds (default direction, cw)', async () => {
+    const { createTurntable } = await import('../turntable.js');
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false, cameraPosition: [0, 0, 5] });
+    const turntable = createTurntable(viewport, { durationSeconds: 6 });
+
+    turntable.start();
+
+    expect(viewport.controls.autoRotate).toBe(true);
+    // cw needs a positive autoRotateSpeed -- see turntable.ts's own doc comment on the sign flip.
+    expect(viewport.controls.autoRotateSpeed).toBeCloseTo(60 / 6, 10);
+    turntable.dispose();
+    viewport.dispose();
+  });
+
+  it("start() with direction 'ccw' uses a negative autoRotateSpeed", async () => {
+    const { createTurntable } = await import('../turntable.js');
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false, cameraPosition: [0, 0, 5] });
+    const turntable = createTurntable(viewport, { durationSeconds: 6, direction: 'ccw' });
+
+    turntable.start();
+
+    expect(viewport.controls.autoRotateSpeed).toBeCloseTo(-60 / 6, 10);
+    turntable.dispose();
+    viewport.dispose();
+  });
+
+  it('stop() disables autoRotate without moving the camera', async () => {
+    const { createTurntable } = await import('../turntable.js');
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false, cameraPosition: [0, 0, 5] });
+    const turntable = createTurntable(viewport, { durationSeconds: 6 });
+    const before = viewport.camera.position.clone();
+
+    turntable.start();
+    turntable.stop();
+
+    expect(viewport.controls.autoRotate).toBe(false);
+    expect(viewport.camera.position.equals(before)).toBe(true);
+    turntable.dispose();
+    viewport.dispose();
+  });
+
+  it('dispose() also disables autoRotate', async () => {
+    const { createTurntable } = await import('../turntable.js');
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false, cameraPosition: [0, 0, 5] });
+    const turntable = createTurntable(viewport, { durationSeconds: 6 });
+
+    turntable.start();
+    turntable.dispose();
+
+    expect(viewport.controls.autoRotate).toBe(false);
+    viewport.dispose();
+  });
+
+  it('step() moves the camera around the target at a constant radius, tracking elapsedSeconds', async () => {
+    const { createTurntable } = await import('../turntable.js');
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false, cameraPosition: [0, 0, 5] });
+    const radiusBefore = viewport.camera.position.distanceTo(viewport.controls.target);
+    const turntable = createTurntable(viewport, { durationSeconds: 8, loops: 1 });
+
+    turntable.step(1);
+    expect(turntable.elapsedSeconds).toBeCloseTo(1, 10);
+    turntable.step(1);
+    expect(turntable.elapsedSeconds).toBeCloseTo(2, 10);
+
+    const radiusAfter = viewport.camera.position.distanceTo(viewport.controls.target);
+    expect(radiusAfter).toBeCloseTo(radiusBefore, 5);
+    turntable.dispose();
+    viewport.dispose();
+  });
+
+  it('step() reaches a full rotation back to the start position after durationSeconds * loops', async () => {
+    const { createTurntable } = await import('../turntable.js');
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false, cameraPosition: [0, 0, 5] });
+    const start = viewport.camera.position.clone();
+    const turntable = createTurntable(viewport, { durationSeconds: 4, loops: 1 });
+
+    for (let i = 0; i < 4; i++) turntable.step(1);
+
+    expect(viewport.camera.position.x).toBeCloseTo(start.x, 4);
+    expect(viewport.camera.position.y).toBeCloseTo(start.y, 4);
+    expect(viewport.camera.position.z).toBeCloseTo(start.z, 4);
+    turntable.dispose();
+    viewport.dispose();
+  });
+
+  it('step() never touches controls.autoRotate, so it composes with a concurrent live render loop without racing', async () => {
+    const { createTurntable } = await import('../turntable.js');
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false, cameraPosition: [0, 0, 5] });
+    const turntable = createTurntable(viewport, { durationSeconds: 8 });
+
+    turntable.step(0.5);
+
+    expect(viewport.controls.autoRotate).toBe(false);
+    turntable.dispose();
+    viewport.dispose();
+  });
+
+  it('elevation is applied once, on the first camera-moving call, without being re-applied on every step', async () => {
+    const { createTurntable } = await import('../turntable.js');
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false, cameraPosition: [0, 0, 5] });
+    const elevation = Math.PI / 3;
+    const turntable = createTurntable(viewport, { durationSeconds: 8, elevation });
+
+    turntable.step(0);
+    const offset = viewport.camera.position.clone().sub(viewport.controls.target);
+    const spherical = new THREE.Spherical().setFromVector3(offset);
+
+    expect(spherical.phi).toBeCloseTo(elevation, 5);
+    turntable.dispose();
+    viewport.dispose();
+  });
+});

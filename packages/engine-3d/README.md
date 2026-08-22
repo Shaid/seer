@@ -197,6 +197,51 @@ mutual-exclusivity-with-`cinematic` race it introduces are actually
 handled — this module's own async factory has no opinion about what else
 might claim the render-tier slot while it's building.
 
+### `turntable.ts`
+
+Spins the camera around whatever it's currently framing. Not a render
+tier — `createTurntable(viewport, opts?)` returns a short-lived
+`Turntable` a consumer builds ad hoc (e.g. for the duration of a
+recording), not something `MeshSession` tracks.
+
+| Function | Description |
+| --- | --- |
+| `turntableAzimuth(elapsed, durationSeconds, loops, direction?, easing?)` | Pure core: the azimuth (radians) at `elapsed` seconds into a clip that completes one rotation every `durationSeconds`, `loops` times over. `loops: Infinity` spins forever at a constant rate; `easing: 'ease-in-out'` (only meaningful with a finite `loops`) shapes the whole multi-loop sequence's start/end, not each individual loop. |
+| `createTurntable(viewport, opts?)` | Builds a `Turntable` over `viewport.controls`. |
+
+`Turntable` exposes two independent, non-composable-together drive modes
+sharing the same pure azimuth core:
+
+- **`start()`/`stop()`** — live viewing. Enables `OrbitControls.autoRotate`
+  (speed derived from `durationSeconds`); the render loop's own per-frame
+  `controls.update()` call (`viewport.ts`'s `animate()`) does the actual
+  rotating for free, and a user drag naturally overrides it
+  (`OrbitControls`' own `state === _STATE.NONE` gate). Revision 1 of the
+  design proposed a frame hook writing `camera.position` directly instead —
+  frame hooks fire *before* `controls.update()` every frame
+  (`viewport.ts`), and `OrbitControls.update()` unconditionally recomputes
+  the camera from its own spherical state, discarding anything a hook wrote
+  microseconds earlier. `autoRotate` is the feature `OrbitControls` already
+  ships for exactly this.
+- **`step(deltaSeconds)`** — deterministic export. `viewport.renderNow()`
+  (unlike the live loop) never calls `controls.update()`, so nothing else
+  touches camera state between calls; `step()` tracks its own elapsed clock
+  and writes an absolute position from spherical coordinates every call,
+  which is safe here specifically because nothing re-derives or overwrites
+  it before the paired `renderNow()` capture runs. A frame-by-frame video
+  recorder (`@seer-project/canvas-export`'s `recordClip`, which has no
+  per-captured-frame hook of its own beyond `driver.start()`/`stop()`) calls
+  `turntable.step(1 / fps)` immediately before each `renderNow()` inside the
+  `CaptureSource.renderNow` it's given — the same pattern applies to
+  `AnimationController.update(1 / fps)` for exporting a skeletal clip
+  instead of (or alongside) a turntable spin. Building that `CaptureSource`/
+  driver pair from an attached `MeshSession` is `mesh-viewer-ui`'s job, not
+  this package's — see its `RenderSettingsPanel`.
+
+Don't call `start()` and then drive the same instance via `step()` (or vice
+versa) without an intervening `stop()` — both write camera state through
+different paths, and running both concurrently races.
+
 ### `viewport.ts`
 
 Generic scene/camera/renderer/controls/resize/render-loop bootstrap.

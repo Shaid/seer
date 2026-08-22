@@ -42,6 +42,9 @@ export type {
 export { createPhotoMode, isPhotoModeAvailable } from './photo-mode.js';
 export type { PhotoModeOptions, PhotoModeController, PhotoModePhase } from './photo-mode.js';
 
+export { turntableAzimuth, createTurntable } from './turntable.js';
+export type { Turntable, TurntableOptions, TurntableDirection, TurntableEasing } from './turntable.js';
+
 export { createViewport } from './viewport.js';
 export type {
   ViewportOptions,
