@@ -256,10 +256,20 @@ export class RenderSettingsPanel {
     this.els.shadowsCheckbox.title = shadowsUnsupported ? 'Shadows need a lit shading mode' : '';
 
     if (this.els.cinematicOptionsRow) setHidden(this.els.cinematicOptionsRow, quality !== 'cinematic');
+    // Only sync the sub-toggles FROM session state while cinematic is
+    // actually the active tier. These checkboxes represent "what to enable
+    // once cinematic is selected," not "what's on right now" -- syncing
+    // them from session.cinematic (which is `false` under flat/photo)
+    // whenever the tier isn't cinematic would force them all off on every
+    // attach()/refresh() before the user ever gets to choose, silently
+    // discarding both the host's HTML defaults and the user's own choices
+    // made while a different tier was selected.
     const cinematic = session.cinematic;
-    if (this.els.bloomCheckbox) this.els.bloomCheckbox.checked = cinematic !== false && cinematic.bloom !== false;
-    if (this.els.aoCheckbox) this.els.aoCheckbox.checked = cinematic !== false && cinematic.ao !== false;
-    if (this.els.dofCheckbox) this.els.dofCheckbox.checked = cinematic !== false && cinematic.dof !== false;
+    if (cinematic !== false) {
+      if (this.els.bloomCheckbox) this.els.bloomCheckbox.checked = cinematic.bloom !== false;
+      if (this.els.aoCheckbox) this.els.aoCheckbox.checked = cinematic.ao !== false;
+      if (this.els.dofCheckbox) this.els.dofCheckbox.checked = cinematic.dof !== false;
+    }
 
     if (this.els.photoModeRow) setHidden(this.els.photoModeRow, quality !== 'photo');
     if (quality === 'photo') this.refreshPhotoModeStatus();

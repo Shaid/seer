@@ -183,6 +183,38 @@ describe('RenderSettingsPanel — tier selector wiring', () => {
     );
   });
 
+  it('does NOT force bloom/AO/DOF checkboxes to unchecked on attach() just because the flat tier is active (regression: a host-authored checked default must survive attach())', () => {
+    els.bloomCheckbox.checked = true;
+    els.aoCheckbox.checked = true;
+    els.dofCheckbox.checked = true;
+    const panel = new RenderSettingsPanel(els, opts);
+    const session = makeFakeSession();
+
+    panel.attach(session);
+
+    expect(els.bloomCheckbox.checked).toBe(true);
+    expect(els.aoCheckbox.checked).toBe(true);
+    expect(els.dofCheckbox.checked).toBe(true);
+  });
+
+  it('the first switch to cinematic uses HTML-authored checked defaults, not force-cleared ones (regression)', () => {
+    els.bloomCheckbox.checked = true;
+    els.aoCheckbox.checked = true;
+    els.dofCheckbox.checked = true;
+    const panel = new RenderSettingsPanel(els, opts);
+    const session = makeFakeSession();
+    panel.attach(session);
+
+    els.qualitySelect.value = 'cinematic';
+    els.qualitySelect.dispatchEvent(new Event('change'));
+
+    expect(session.setCinematic).toHaveBeenCalledWith({
+      bloom: expect.any(Object),
+      ao: expect.any(Object),
+      dof: expect.any(Object),
+    });
+  });
+
   it('selecting photo calls setPhotoMode and turns cinematic off', async () => {
     const panel = new RenderSettingsPanel(els, opts);
     const session = makeFakeSession();
