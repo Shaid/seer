@@ -12,12 +12,8 @@ CRT-simulated sprite, so this is scoped the same way as
 > version if you need reproducible builds. Details:
 > <https://seer.shaid.net/start-here/project-status/>.
 
-> **Phase 5 of `2d-export-proposal.md`.** Only the `crt-shadow-mask` profile
-> has a real shader implementation right now, to prove the pipeline
-> end-to-end. `crt-aperture-grille`, `crt-slot-mask`, and `lcd-subpixel` are
-> declared in the `DisplayProfile` type and have preset defaults, but
-> `render()` currently treats them as `'none'` (a `console.warn` fires once
-> when you request one) — Phase 6 fills those in, alongside
+> **Phases 5-6 of `2d-export-proposal.md`.** All five `DisplayProfile`
+> values have a real shader implementation, including
 > curvature/glow/chromatic-aberration.
 
 ## Installation
