@@ -135,7 +135,10 @@ new MeshSettingsPanel(elements, {
 
 The panel opens on a `toggleBtn` click and closes on: a second click, a
 pointerdown anywhere outside `panel`/`toggleBtn`, or `Escape`. All of this is
-bound once in the constructor — a host never needs to wire it itself.
+bound once in the constructor — a host never needs to wire it itself. The
+toggle/outside-click/Escape logic itself is `@seer-project/canvas-export`'s
+`createPopover`, shared with that package's own future export controls —
+this package depends on the generic one, not the other way around.
 
 ## Testing
 

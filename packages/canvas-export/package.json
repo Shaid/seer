@@ -1,0 +1,58 @@
+{
+  "name": "@seer-project/canvas-export",
+  "version": "0.1.0",
+  "description": "Asset-agnostic canvas capture: watermarked screenshot export, deterministic video-clip recording, and a shared toggle-popover controller — works against any canvas-based viewer (3D or 2D), not just meshes",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shaid/seer.git",
+    "directory": "packages/canvas-export"
+  },
+  "keywords": [
+    "canvas",
+    "screenshot",
+    "video",
+    "export",
+    "viewer",
+    "reverse-engineering"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/__tests__",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run lint && npm test",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.0",
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.0"
+  },
+  "homepage": "https://seer.shaid.net",
+  "bugs": {
+    "url": "https://github.com/Shaid/seer/issues"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

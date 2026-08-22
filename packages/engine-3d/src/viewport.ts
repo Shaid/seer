@@ -126,7 +126,16 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
   );
   if (opts.cameraPosition) camera.position.set(...opts.cameraPosition);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  // preserveDrawingBuffer: a screenshot (@seer-project/canvas-export) reads
+  // this canvas's pixels some time after the last render() call, with no
+  // guaranteed-fresh render immediately before the read — without this,
+  // toBlob()/toDataURL() can capture an already-cleared or about-to-swap
+  // buffer instead of the last rendered frame. A `renderNow()` + explicit
+  // pre-capture render is the more precise fix (planned alongside the
+  // render-path seam), but costs real new API surface; this flag is the
+  // narrow, already-correct fix needed today. Revisit if it turns out to
+  // matter on real GPU hardware — see render-quality-proposal.md's Phase 0(b).
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   const devicePixelRatio = typeof window !== 'undefined' ? (window.devicePixelRatio ?? 1) : 1;
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(width, height);

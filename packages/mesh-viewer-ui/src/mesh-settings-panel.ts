@@ -1,3 +1,4 @@
+import { createPopover } from '@seer-project/canvas-export';
 import {
   supportedRenderModes,
   type MeshSession,
@@ -83,37 +84,15 @@ export class MeshSettingsPanel {
     this.teardown.push(() => target.removeEventListener(type, fn));
   }
 
-  private isOpen(): boolean {
-    return !this.els.panel.classList.contains('hidden');
-  }
-
-  private openPanel(): void {
-    setHidden(this.els.panel, false);
-  }
-
   private closePanel(): void {
     setHidden(this.els.panel, true);
   }
 
   private bindStaticControls(): void {
-    this.on(this.els.toggleBtn, 'click', (e) => {
-      e.stopPropagation();
-      if (this.isOpen()) this.closePanel();
-      else this.openPanel();
-    });
-
-    // Outside-click-to-close and Escape-to-close are bound once, globally —
-    // cheap no-ops whenever the panel is already closed, and this way
-    // there's nothing to add/remove on every open/close cycle.
-    this.on(document, 'pointerdown', (e) => {
-      if (!this.isOpen()) return;
-      const target = e.target as Node;
-      if (this.els.panel.contains(target) || this.els.toggleBtn.contains(target)) return;
-      this.closePanel();
-    });
-    this.on(document, 'keydown', (e) => {
-      if ((e as KeyboardEvent).key === 'Escape' && this.isOpen()) this.closePanel();
-    });
+    // Toggle-click / outside-click / Escape-to-close is shared chrome —
+    // see @seer-project/canvas-export's createPopover, extracted from this
+    // panel's own original implementation.
+    this.teardown.push(createPopover(this.els.toggleBtn, this.els.panel));
 
     this.on(this.els.renderModeSelect, 'change', () => {
       this.session?.setRenderMode(this.els.renderModeSelect.value as RenderMode);

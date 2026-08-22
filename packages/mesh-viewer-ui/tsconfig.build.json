@@ -5,6 +5,9 @@
   ],
   "references": [
     {
+      "path": "../canvas-export/tsconfig.build.json"
+    },
+    {
       "path": "../engine-3d/tsconfig.build.json"
     }
   ]

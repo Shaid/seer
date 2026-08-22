@@ -46,6 +46,7 @@
     "three": "^0.185.1"
   },
   "dependencies": {
+    "@seer-project/canvas-export": "^0.1.0",
     "@seer-project/engine-3d": "^0.1.0"
   },
   "devDependencies": {
