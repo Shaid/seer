@@ -114,6 +114,25 @@ The seam that makes `Viewport`'s draw call swappable across render tiers
 [`render-quality-proposal.md`](https://seer.shaid.net/guides/render-quality/))
 without touching the `onFrame`/frame-limiter contract.
 
+### `shadows.ts`
+
+Pure functions for shadow-map setup — no `RenderPath` of its own, since
+shadow-casting is a renderer/light/material concern orthogonal to the
+render-tier seam (shadows apply under both `flat` and `cinematic`).
+
+| Function | Description |
+| --- | --- |
+| `applyShadowSettings(renderer, enabled)` | Toggles `renderer.shadowMap.enabled`; sets `PCFSoftShadowMap` when enabling. |
+| `applyLightShadowSettings(light, opts?)` | Shadow-map resolution/bias/normalBias/radius on one light. |
+| `enableModelShadows(object, opts?)` | Sets `castShadow`/`receiveShadow` on every mesh under `object` — call whenever a model loads while shadows are on. |
+| `fitShadowCamera(light, box, opts?)` | Fits the light's orthographic shadow-camera frustum to `box`, replacing three.js's default `[-5,5,5,-5,0.5,500]` (which silently clips any model bigger than ~10 units) — also repoints `light.target` at the box center. |
+| `createShadowCatcher(box, opts?)` / `updateShadowCatcher(catcher, box, opts?)` | A `ShadowMaterial` plane (invisible except where a shadow falls) sized/positioned to sit just under `box`, offset below `box.min.y` to avoid z-fighting the `'auto'` grid, which sits exactly at `box.min.y`. |
+
+`Viewport.setShadows()` is the actual integration point — it wires all of
+the above together (renderer flag, key-light shadow settings, frustum
+fitting, catcher lifecycle, ambient-light dimming) against whatever the
+key light and last-reported scene bounds are.
+
 | Type | Description |
 | --- | --- |
 | `RenderPath` | `render(scene, camera, deltaSeconds)` plus optional `setSize`/`setCamera`/`invalidateSceneContents`/`dispose`. `null` installed on `Viewport` means today's plain `renderer.render(scene, camera)` — every existing consumer sees zero change until a host opts into a tier via `Viewport.setRenderPath()`. |
@@ -158,6 +177,17 @@ BVH, an accumulated path-traced image). `setSceneBounds(box)` replaces
 `setGridBounds` (kept as a deprecated forwarding alias) — same
 `'auto'`-grid-fitting behavior, renamed since it now also feeds
 shadow-frustum fitting.
+
+`setShadows(opts)` turns shadow-casting on/off — see `shadows.ts` above for
+the pure pieces it composes. Beyond "a shadow appears," enabling it also
+**dims ambient light to 40% of whatever the host configured** (the default
+rig's `AmbientLight(0x606060, 1.2)` against a `1.6`-intensity key would
+otherwise wash a shadow out almost to invisibility), a real, visible scene
+change restored exactly on disable. Only the key light casts — `false` on
+`lights.key` makes this a no-op. The shadow-camera frustum and
+shadow-catcher plane track whatever `setSceneBounds()` was last called
+with, so a host needs to keep calling it as models change (`MeshSession`
+does this automatically — see `session.ts` below).
 
 ### `camera-fit.ts`
 
@@ -284,9 +314,15 @@ animation controller (if any).
 | `session.setShading(mode)` / `session.setSmooth(bool)` | Switch shading override / smooth-vs-flat normals — see `mesh-shading.ts`. Both reset to `'lit'`/`false` on every `setModel`. |
 | `session.setSubdivision(multiplier)` | Rebuild geometry at a subdivision intensity — see `mesh-polish.ts`. Resets to `0` on every `setModel`. |
 | `session.setTextureFilter(options)` / `session.getMaxAnisotropy()` | Set filter/anisotropy on the active model's textures — see `texture-filter.ts`. Unlike shading/smooth/subdivision, this **persists across `setModel`** (a viewer-wide preference, not a per-model one). `getMaxAnisotropy()` reads `renderer.capabilities.getMaxAnisotropy()`. |
+| `session.setShadows(opts)` | Thin delegation to `viewport.setShadows()` — also **persists across `setModel`/`addModel`** like `textureFilter`, applying `enableModelShadows()` to whichever model is current and to every future one automatically. |
 | `session.fit()` | Re-frames the camera on everything currently in the viewport. |
 | `session.stats()` | Vertex/triangle counts for the current view. |
 | `session.dispose()` | Disposes every model ever added, the animation controller, and the viewport. Idempotent. |
+
+`setModel` reports the new model's bounds to the viewport (via
+`viewport.setSceneBounds()`) unconditionally, even when `opts.fit: false`
+— the hook that keeps the shadow-camera frustum and shadow-catcher plane
+fit to whatever's loaded regardless of whether the camera itself re-frames.
 
 ## Render & color mode applicability
 

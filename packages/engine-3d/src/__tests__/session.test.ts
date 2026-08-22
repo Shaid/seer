@@ -13,6 +13,7 @@ const { FakeWebGLRenderer } = vi.hoisted(() => {
     domElement: HTMLCanvasElement;
     outputColorSpace = '';
     capabilities = { getMaxAnisotropy: () => 8 };
+    shadowMap = { enabled: false, type: 0 };
     constructor() {
       this.domElement = document.createElement('canvas');
     }
@@ -122,5 +123,99 @@ describe('MeshSession — appearance state', () => {
       session.setTextureFilter({ mode: 'nearest' });
     }).not.toThrow();
     expect(session.shading).toBe('lit');
+  });
+});
+
+describe('MeshSession — shadows', () => {
+  it('defaults to off', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, lights: false, frameLimiter: false });
+    expect(session.shadows).toBe(false);
+  });
+
+  it('setShadows(true) updates session.shadows and applies castShadow/receiveShadow to the currently-loaded model', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model, mesh } = makeGltfModel();
+    session.setModel(model, { fit: false });
+
+    session.setShadows(true);
+
+    expect(session.shadows).toBe(true);
+    expect(mesh.castShadow).toBe(true);
+    expect(mesh.receiveShadow).toBe(true);
+  });
+
+  it('setShadows(false) resets castShadow/receiveShadow back off', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model, mesh } = makeGltfModel();
+    session.setModel(model, { fit: false });
+    session.setShadows(true);
+
+    session.setShadows(false);
+
+    expect(session.shadows).toBe(false);
+    expect(mesh.castShadow).toBe(false);
+    expect(mesh.receiveShadow).toBe(false);
+  });
+
+  it('a model loaded via setModel AFTER shadows are already on inherits shadow flags automatically', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setShadows(true);
+
+    const { model, mesh } = makeGltfModel();
+    session.setModel(model, { fit: false });
+
+    expect(mesh.castShadow).toBe(true);
+    expect(mesh.receiveShadow).toBe(true);
+  });
+
+  it('a model loaded via addModel AFTER shadows are already on inherits shadow flags automatically', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setShadows(true);
+
+    const { model, mesh } = makeGltfModel();
+    session.addModel(model);
+
+    expect(mesh.castShadow).toBe(true);
+    expect(mesh.receiveShadow).toBe(true);
+  });
+
+  it('a model loaded via addModel while shadows are off does NOT get shadow flags', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model, mesh } = makeGltfModel();
+    session.addModel(model);
+    expect(mesh.castShadow).toBe(false);
+  });
+
+  it('setShadows is safe to call before any model is set, and before/after are both reflected once one loads', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    expect(() => session.setShadows(true)).not.toThrow();
+    expect(session.shadows).toBe(true);
+
+    const { model, mesh } = makeGltfModel();
+    session.setModel(model, { fit: false });
+    expect(mesh.castShadow).toBe(true);
+  });
+
+  it('setModel reports scene bounds to the viewport even when fit is false — the shadow-catcher/frustum hook', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const setSceneBoundsSpy = vi.spyOn(session.viewport, 'setSceneBounds');
+
+    const { model } = makeGltfModel();
+    session.setModel(model, { fit: false });
+
+    expect(setSceneBoundsSpy).toHaveBeenCalledTimes(1);
+    const box = setSceneBoundsSpy.mock.calls[0]![0] as THREE.Box3;
+    expect(box.isEmpty()).toBe(false);
+  });
+
+  it('fit() also reports scene bounds, without a second, separate box computation from setModel', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model } = makeGltfModel();
+    session.setModel(model, { fit: false });
+
+    const setSceneBoundsSpy = vi.spyOn(session.viewport, 'setSceneBounds');
+    session.fit();
+
+    expect(setSceneBoundsSpy).toHaveBeenCalledTimes(1);
   });
 });

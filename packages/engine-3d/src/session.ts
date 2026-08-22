@@ -19,6 +19,8 @@ import type { ColorMode, ColorResolver } from './color-modes.js';
 import { fitCameraToObject } from './camera-fit.js';
 import { disposeObject3D } from './dispose.js';
 import { meshStats, type MeshStats } from './stats.js';
+import { enableModelShadows } from './shadows.js';
+import type { ShadowOptions } from './shadows.js';
 import type { Model3D } from './types.js';
 import * as THREE from 'three';
 
@@ -56,6 +58,8 @@ export interface MeshSession {
   readonly subdivision: number;
   /** Current texture filter. Persists across `setModel` calls — a viewer-wide preference, not a per-model one. */
   readonly textureFilter: TextureFilterOptions;
+  /** Whether shadow-casting is on. Persists across `setModel` calls — a viewer-wide preference, like `textureFilter`, not a per-model one (the *materials* that make shadows visible are per-model, so every `setModel`/`addModel` re-applies `castShadow`/`receiveShadow` to the new model's meshes whenever this is `true`). */
+  readonly shadows: boolean;
   readonly disposed: boolean;
   /**
    * Replaces the session's entire contents with `model`: disposes and
@@ -85,6 +89,16 @@ export interface MeshSession {
   setTextureFilter(options: TextureFilterOptions): void;
   /** The renderer's `getMaxAnisotropy()` — the ceiling a host's anisotropy control should clamp its own range to. */
   getMaxAnisotropy(): number;
+  /**
+   * Toggles shadow-casting — thin delegation to `viewport.setShadows()`
+   * (see its doc comment for what enabling this actually changes: a
+   * shadow map, the key light casting, a shadow-catcher plane, AND dimmed
+   * ambient light). Also applies `enableModelShadows()` to the currently
+   * loaded model immediately, and to every subsequently `setModel`/
+   * `addModel`-ed one automatically — a freshly-loaded mesh doesn't
+   * inherit `castShadow`/`receiveShadow` from anywhere else.
+   */
+  setShadows(opts: boolean | ShadowOptions): void;
   /** Recolors `model`'s polygon faces (a no-op for a glTF-sourced model — see `recolorPolygonModel`). No-op if no model is set. */
   setColorMode(mode: ColorMode, resolver?: ColorResolver): void;
   /** Re-frames the camera on everything currently in `viewport.root`. */
@@ -109,6 +123,7 @@ export function createMeshSession(
   let smooth = false;
   let subdivision = 0;
   let textureFilter: TextureFilterOptions = { ...DEFAULT_TEXTURE_FILTER };
+  let shadows = false;
   let disposed = false;
 
   const shadingCache: GeneratedShadingMaterials = new Map();
@@ -140,6 +155,13 @@ export function createMeshSession(
     animation?.update(delta);
   });
 
+  /** Recomputes the bounds of everything currently in `viewport.root` and reports them to the viewport — the single hook that keeps the auto-grid, and (when shadows are on) the shadow-camera frustum and shadow-catcher plane, fit to whatever's actually loaded. Called from both `setModel` (unconditionally, even when `fit: false`) and `fit()` — `setModel` doesn't route through `session.fit()` for this, so the box isn't computed twice when both need it. */
+  const updateSceneBounds = (): THREE.Box3 => {
+    const box = new THREE.Box3().setFromObject(viewport.root);
+    viewport.setSceneBounds(box);
+    return box;
+  };
+
   const session: MeshSession = {
     get viewport() {
       return viewport;
@@ -165,6 +187,9 @@ export function createMeshSession(
     get textureFilter() {
       return textureFilter;
     },
+    get shadows() {
+      return shadows;
+    },
     get disposed() {
       return disposed;
     },
@@ -186,6 +211,7 @@ export function createMeshSession(
       trackedModels.push(next);
       viewport.root.add(next.object);
       originalGeometry = captureOriginalGeometry(next);
+      if (shadows) enableModelShadows(next.object);
 
       renderMode = setOpts.renderMode ?? defaultRenderMode(next);
       refreshAppearance();
@@ -195,13 +221,15 @@ export function createMeshSession(
         animation = createAnimationController(next.object, next.animations);
       }
 
-      if (setOpts.fit ?? true) session.fit();
+      updateSceneBounds();
+      if (setOpts.fit ?? true) fitCameraToObject(viewport.camera, viewport.controls, viewport.root);
     },
 
     addModel(next) {
       if (disposed) return;
       trackedModels.push(next);
       viewport.root.add(next.object);
+      if (shadows) enableModelShadows(next.object);
     },
 
     setRenderMode(mode) {
@@ -243,11 +271,19 @@ export function createMeshSession(
       recolorPolygonModel(model, mode, resolver);
     },
 
+    setShadows(opts) {
+      shadows = opts !== false;
+      if (disposed) return;
+      viewport.setShadows(opts);
+      for (const tracked of trackedModels) {
+        enableModelShadows(tracked.object, { cast: shadows, receive: shadows });
+      }
+    },
+
     fit() {
       if (disposed) return;
-      const box = new THREE.Box3().setFromObject(viewport.root);
+      updateSceneBounds();
       fitCameraToObject(viewport.camera, viewport.controls, viewport.root);
-      viewport.setGridBounds(box);
     },
 
     stats() {

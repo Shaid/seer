@@ -11,6 +11,16 @@ export type { FrameLimiterOptions, FrameLimiter } from './frame-limiter.js';
 
 export type { RenderPath } from './render-path.js';
 
+export {
+  applyShadowSettings,
+  applyLightShadowSettings,
+  enableModelShadows,
+  fitShadowCamera,
+  createShadowCatcher,
+  updateShadowCatcher,
+} from './shadows.js';
+export type { ShadowOptions, ModelShadowOptions, FitShadowCameraOptions, ShadowCatcherOptions } from './shadows.js';
+
 export { createViewport } from './viewport.js';
 export type {
   ViewportOptions,

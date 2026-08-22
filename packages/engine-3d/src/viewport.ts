@@ -2,11 +2,30 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createFrameLimiter, type FrameLimiterOptions } from './frame-limiter.js';
 import type { RenderPath } from './render-path.js';
+import {
+  applyShadowSettings,
+  applyLightShadowSettings,
+  fitShadowCamera,
+  createShadowCatcher,
+  updateShadowCatcher,
+  type ShadowOptions,
+} from './shadows.js';
+
+export type { ShadowOptions } from './shadows.js';
 
 export interface LightConfig {
   color?: THREE.ColorRepresentation;
   intensity?: number;
   position?: [number, number, number];
+  /**
+   * Only meaningful on the `key` light — see `shadows.ts`'s
+   * `ShadowOptions` doc comment for why this field exists on all three
+   * light slots uniformly despite that. Sets the light's *initial*
+   * shadow-casting state and quality at construction; `Viewport.setShadows()`
+   * is the runtime toggle and takes precedence once called.
+   */
+  castShadow?: boolean;
+  shadow?: ShadowOptions;
 }
 
 /** All three default to flower's original lighting rig (`viewer.ts:1140-1146`) — set any of them to `false` to omit just that light, or `lights: false` on `ViewportOptions` to omit lighting entirely (a host that wants fully unlit/vertex-color-only rendering, e.g. hunter's polygon models). */
@@ -49,6 +68,15 @@ export interface ViewportOptions {
   frameLimiter?: FrameLimiterOptions | false;
   /** Called once per rendered frame (post frame-limiter) with the real elapsed seconds since the last rendered frame — `session.ts` wires an `AnimationController.update` here. */
   onFrame?: (deltaSeconds: number) => void;
+  /**
+   * Enables shadow-casting from the key light at construction — equivalent
+   * to calling `setShadows(...)` immediately after `createViewport()`.
+   * Default off (`undefined`/`false`), so an existing consumer sees zero
+   * behavior change until it opts in. See `Viewport.setShadows()`'s doc
+   * comment for what enabling this actually changes (it dims ambient
+   * light too, not just shadows appearing).
+   */
+  shadows?: boolean | ShadowOptions;
 }
 
 export interface Viewport {
@@ -108,7 +136,26 @@ export interface Viewport {
   renderNow(): void;
   /** Tells the installed `RenderPath` (if any) that scene contents changed underneath it — geometry rebuilt, materials swapped, model replaced — so it can rebuild whatever state it derived from the scene (a BVH, an accumulated image). No-op with no path installed, or one that doesn't implement it. */
   invalidateSceneContents(): void;
-  /** Regenerates an `'auto'`-configured grid to fit `box`. No-op if `grid` wasn't `'auto'`, or if `box` is empty. */
+  /**
+   * Toggles shadow-casting from the key light. `false` turns everything
+   * back off (shadow map, the key light's `castShadow`, the shadow-catcher
+   * plane, restored ambient intensity); `true` or a `ShadowOptions` object
+   * turns it on with default or overridden shadow-map quality respectively.
+   * No-op if there is no key light (`lights.key === false`).
+   *
+   * **Also dims ambient light while enabled** — the default rig's
+   * `AmbientLight(0x606060, 1.2)` against a `1.6`-intensity key would
+   * otherwise wash a shadow out almost to invisibility. This is a real,
+   * visible change to the scene beyond "a shadow appears," not just an
+   * implementation detail — restored exactly on `setShadows(false)`.
+   *
+   * Fits the shadow-camera frustum and (re)builds the shadow-catcher plane
+   * against whatever bounds `setSceneBounds()` was last called with; call
+   * `setSceneBounds()` again after loading a new model if shadows are
+   * already on, the same way the grid needs it.
+   */
+  setShadows(opts: boolean | ShadowOptions): void;
+  /** Regenerates an `'auto'`-configured grid to fit `box`, and — if shadows are currently enabled — refits the shadow-camera frustum and resizes/repositions the shadow-catcher plane to match. No-op for the grid half if `grid` wasn't `'auto'`; no-op for the shadow half if shadows aren't enabled or there's no key light. Both halves no-op on an empty `box`. */
   setSceneBounds(box: THREE.Box3): void;
   /** @deprecated Renamed to `setSceneBounds` (which now does more than the grid alone) — this remains as a forwarding alias for existing callers. */
   setGridBounds(box: THREE.Box3): void;
@@ -121,13 +168,15 @@ export interface Viewport {
 function addLights(
   scene: THREE.Scene,
   lights: ViewportOptions['lights'],
-): { keyLight: THREE.DirectionalLight | null } {
-  if (lights === false) return { keyLight: null };
+): { keyLight: THREE.DirectionalLight | null; ambientLight: THREE.AmbientLight | null } {
+  if (lights === false) return { keyLight: null, ambientLight: null };
   const cfg = lights ?? {};
 
+  let ambientLight: THREE.AmbientLight | null = null;
   if (cfg.ambient !== false) {
     const a = cfg.ambient ?? {};
-    scene.add(new THREE.AmbientLight(a.color ?? 0x606060, a.intensity ?? 1.2));
+    ambientLight = new THREE.AmbientLight(a.color ?? 0x606060, a.intensity ?? 1.2);
+    scene.add(ambientLight);
   }
   let keyLight: THREE.DirectionalLight | null = null;
   if (cfg.key !== false) {
@@ -135,6 +184,13 @@ function addLights(
     const light = new THREE.DirectionalLight(k.color ?? 0xffffff, k.intensity ?? 1.6);
     light.position.set(...(k.position ?? [3, 5, 4]));
     scene.add(light);
+    // The shadow camera looks from light.position toward light.target —
+    // added here, unconditionally, regardless of whether shadows end up
+    // enabled, so fitShadowCamera() always has somewhere in the actual
+    // scene graph to point (an unparented default target still works for
+    // matrix math, but keeping it a real scene child is the standard,
+    // least-surprising three.js shadow setup).
+    scene.add(light.target);
     keyLight = light;
   }
   if (cfg.fill !== false) {
@@ -143,7 +199,7 @@ function addLights(
     light.position.set(...(f.position ?? [-3, -1, -2]));
     scene.add(light);
   }
-  return { keyLight };
+  return { keyLight, ambientLight };
 }
 
 function buildGrid(cfg: GridConfig): THREE.GridHelper {
@@ -207,7 +263,15 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
   controls.enableDamping = true;
   controls.dampingFactor = opts.damping ?? 0.12;
 
-  const { keyLight } = addLights(scene, opts.lights);
+  const { keyLight, ambientLight } = addLights(scene, opts.lights);
+  // Captured once, at whatever intensity the host configured — setShadows()
+  // dims from this baseline and restores exactly back to it, rather than
+  // hardcoding a value that would clobber a host's own customization.
+  const baseAmbientIntensity = ambientLight?.intensity ?? 0;
+  // A shadow this strongly lit washes out almost to invisibility (the
+  // default rig's AmbientLight(0x606060, 1.2) against a 1.6-intensity key)
+  // — dimmed to 40% of whatever the host configured while shadows are on.
+  const SHADOW_AMBIENT_FACTOR = 0.4;
 
   const gridOption = opts.grid;
   let gridHelper: THREE.GridHelper | null = null;
@@ -216,16 +280,58 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
     scene.add(gridHelper);
   }
 
-  const updateSceneBounds = (box: THREE.Box3): void => {
-    if (gridOption !== 'auto' || box.isEmpty()) return;
-    const size = box.getSize(new THREE.Vector3());
-    const footprint = Math.max(size.x, size.z, 0.001);
-    const gridSize = footprint * 2;
-    const divisions = Math.max(4, Math.min(40, Math.round(gridSize / 10)) || 4);
-    if (gridHelper) scene.remove(gridHelper);
-    gridHelper = buildGrid({ size: gridSize, divisions, y: box.min.y });
-    scene.add(gridHelper);
+  let shadowsEnabled = false;
+  let shadowCatcher: THREE.Mesh | null = null;
+  let lastBounds: THREE.Box3 | null = null;
+
+  /** Fits the shadow-camera frustum and (re)builds the catcher plane to `box` — the shared tail end of both `updateSceneBounds()` (a new model changed the bounds) and `applyShadows(true)` (shadows just turned on, against whatever bounds are already known). No-op if shadows are off, there's no key light, or `box` is empty/unknown. */
+  const fitShadowsToBounds = (box: THREE.Box3 | null): void => {
+    if (!shadowsEnabled || !keyLight || !box || box.isEmpty()) return;
+    fitShadowCamera(keyLight, box);
+    if (shadowCatcher) {
+      updateShadowCatcher(shadowCatcher, box);
+    } else {
+      shadowCatcher = createShadowCatcher(box);
+      scene.add(shadowCatcher);
+    }
   };
+
+  const updateSceneBounds = (box: THREE.Box3): void => {
+    lastBounds = box;
+    if (gridOption === 'auto' && !box.isEmpty()) {
+      const size = box.getSize(new THREE.Vector3());
+      const footprint = Math.max(size.x, size.z, 0.001);
+      const gridSize = footprint * 2;
+      const divisions = Math.max(4, Math.min(40, Math.round(gridSize / 10)) || 4);
+      if (gridHelper) scene.remove(gridHelper);
+      gridHelper = buildGrid({ size: gridSize, divisions, y: box.min.y });
+      scene.add(gridHelper);
+    }
+    fitShadowsToBounds(box);
+  };
+
+  /** Shared by `ViewportOptions.shadows` (construction-time) and `Viewport.setShadows()` (runtime) — see that method's doc comment for the full behavior. */
+  const applyShadows = (next: boolean | ShadowOptions): void => {
+    const enabled = next !== false;
+    shadowsEnabled = enabled;
+    applyShadowSettings(renderer, enabled);
+    if (keyLight) {
+      keyLight.castShadow = enabled;
+      if (enabled) applyLightShadowSettings(keyLight, typeof next === 'object' ? next : {});
+    }
+    if (ambientLight) {
+      ambientLight.intensity = enabled ? baseAmbientIntensity * SHADOW_AMBIENT_FACTOR : baseAmbientIntensity;
+    }
+    if (enabled) {
+      fitShadowsToBounds(lastBounds);
+    } else if (shadowCatcher) {
+      scene.remove(shadowCatcher);
+      shadowCatcher.geometry.dispose();
+      (shadowCatcher.material as THREE.Material).dispose();
+      shadowCatcher = null;
+    }
+  };
+  if (opts.shadows) applyShadows(opts.shadows);
 
   const root = new THREE.Group();
   scene.add(root);
@@ -324,6 +430,7 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
     invalidateSceneContents() {
       renderPath?.invalidateSceneContents?.();
     },
+    setShadows: applyShadows,
     setSceneBounds: updateSceneBounds,
     setGridBounds: updateSceneBounds,
     resize,
@@ -331,6 +438,11 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
       running = false;
       cancelAnimationFrame(animId);
       resizeObserver?.disconnect();
+      if (shadowCatcher) {
+        shadowCatcher.geometry.dispose();
+        (shadowCatcher.material as THREE.Material).dispose();
+        shadowCatcher = null;
+      }
       renderPath?.dispose();
       renderPath = null;
       renderer.dispose();

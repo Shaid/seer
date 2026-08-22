@@ -19,6 +19,7 @@ const { FakeWebGLRenderer } = vi.hoisted(() => {
     setSizeCalls: Array<[number, number]> = [];
     disposeCalls = 0;
     renderCalls = 0;
+    shadowMap = { enabled: false, type: 0 };
     private pixelRatio = 1;
     constructor() {
       this.domElement = document.createElement('canvas');
@@ -709,6 +710,231 @@ describe('createViewport — keyLight', () => {
     const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
 
     expect(viewport.keyLight).toBeNull();
+    viewport.dispose();
+  });
+});
+
+function findAmbientLight(scene: InstanceType<typeof THREE.Scene>): InstanceType<typeof THREE.AmbientLight> | null {
+  for (const child of scene.children) {
+    if ((child as { isAmbientLight?: boolean }).isAmbientLight) return child as InstanceType<typeof THREE.AmbientLight>;
+  }
+  return null;
+}
+
+function findMesh(scene: InstanceType<typeof THREE.Scene>): InstanceType<typeof THREE.Mesh> | null {
+  for (const child of scene.children) {
+    if ((child as { isMesh?: boolean }).isMesh) return child as InstanceType<typeof THREE.Mesh>;
+  }
+  return null;
+}
+
+describe('createViewport — setShadows()', () => {
+  it('enables the renderer shadow map and the key light\'s castShadow', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+
+    viewport.setShadows(true);
+
+    expect(renderer.shadowMap.enabled).toBe(true);
+    expect(viewport.keyLight?.castShadow).toBe(true);
+    viewport.dispose();
+  });
+
+  it('disables both again on setShadows(false), restoring castShadow to false', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+
+    viewport.setShadows(true);
+    viewport.setShadows(false);
+
+    expect(renderer.shadowMap.enabled).toBe(false);
+    expect(viewport.keyLight?.castShadow).toBe(false);
+    viewport.dispose();
+  });
+
+  it('applies ShadowOptions to the key light when an object (not a bare boolean) is passed', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false });
+
+    viewport.setShadows({ mapSize: 512 });
+
+    expect(viewport.keyLight?.shadow.mapSize.x).toBe(512);
+    viewport.dispose();
+  });
+
+  it('is a safe no-op with no key light — does not throw, still toggles the renderer flag', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, {
+      frameLimiter: false,
+      grid: false,
+      lights: { key: false },
+    });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+
+    expect(() => viewport.setShadows(true)).not.toThrow();
+    expect(renderer.shadowMap.enabled).toBe(true);
+    viewport.dispose();
+  });
+
+  it('dims ambient light to 40% of its configured intensity while enabled, and restores exactly on disable', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, {
+      frameLimiter: false,
+      grid: false,
+      lights: { ambient: { intensity: 1.2 } },
+    });
+    const ambient = findAmbientLight(viewport.scene)!;
+    expect(ambient.intensity).toBeCloseTo(1.2);
+
+    viewport.setShadows(true);
+    expect(ambient.intensity).toBeCloseTo(1.2 * 0.4);
+
+    viewport.setShadows(false);
+    expect(ambient.intensity).toBeCloseTo(1.2);
+
+    viewport.dispose();
+  });
+
+  it('ViewportOptions.shadows applies at construction time, equivalent to calling setShadows() immediately after', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, {
+      frameLimiter: false,
+      grid: false,
+      shadows: true,
+    });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+
+    expect(renderer.shadowMap.enabled).toBe(true);
+    expect(viewport.keyLight?.castShadow).toBe(true);
+    viewport.dispose();
+  });
+
+  it('omitting ViewportOptions.shadows leaves shadows off — zero behavior change for an existing consumer', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+
+    expect(renderer.shadowMap.enabled).toBe(false);
+    expect(viewport.keyLight?.castShadow).toBe(false);
+    viewport.dispose();
+  });
+
+  it('no shadow-catcher plane exists until setSceneBounds() establishes real bounds', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false });
+
+    viewport.setShadows(true);
+    expect(findMesh(viewport.scene)).toBeNull();
+
+    viewport.dispose();
+  });
+
+  it('setShadows(true) immediately creates the catcher against bounds set BEFORE shadows were enabled', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false });
+    const box = new THREE.Box3(new THREE.Vector3(-2, 0, -2), new THREE.Vector3(2, 1, 2));
+
+    viewport.setSceneBounds(box);
+    expect(findMesh(viewport.scene)).toBeNull(); // not yet — shadows aren't on
+
+    viewport.setShadows(true);
+    expect(findMesh(viewport.scene)).not.toBeNull();
+
+    viewport.dispose();
+  });
+
+  it('setSceneBounds() after shadows are already on creates/updates the catcher and refits the shadow camera', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false });
+    viewport.setShadows(true);
+    const originalRight = viewport.keyLight!.shadow.camera.right;
+
+    const box = new THREE.Box3(new THREE.Vector3(-50, 0, -50), new THREE.Vector3(50, 10, 50));
+    viewport.setSceneBounds(box);
+
+    const mesh = findMesh(viewport.scene);
+    expect(mesh).not.toBeNull();
+    expect(viewport.keyLight!.shadow.camera.right).toBeGreaterThan(originalRight);
+
+    viewport.dispose();
+  });
+
+  it('setSceneBounds() with shadows OFF never creates a catcher', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false });
+    const box = new THREE.Box3(new THREE.Vector3(-2, 0, -2), new THREE.Vector3(2, 1, 2));
+
+    viewport.setSceneBounds(box);
+
+    expect(findMesh(viewport.scene)).toBeNull();
+    viewport.dispose();
+  });
+
+  it('setShadows(false) removes and disposes the catcher', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false });
+    const box = new THREE.Box3(new THREE.Vector3(-2, 0, -2), new THREE.Vector3(2, 1, 2));
+    viewport.setSceneBounds(box);
+    viewport.setShadows(true);
+    const catcher = findMesh(viewport.scene)!;
+    const disposeSpy = vi.spyOn(catcher.geometry, 'dispose');
+
+    viewport.setShadows(false);
+
+    expect(findMesh(viewport.scene)).toBeNull();
+    expect(disposeSpy).toHaveBeenCalled();
+    viewport.dispose();
+  });
+
+  it('re-enabling after a disable rebuilds a fresh catcher, not a disposed stale one', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false });
+    const box = new THREE.Box3(new THREE.Vector3(-2, 0, -2), new THREE.Vector3(2, 1, 2));
+    viewport.setSceneBounds(box);
+
+    viewport.setShadows(true);
+    const first = findMesh(viewport.scene);
+    viewport.setShadows(false);
+    viewport.setShadows(true);
+    const second = findMesh(viewport.scene);
+
+    expect(second).not.toBeNull();
+    expect(second).not.toBe(first);
+    viewport.dispose();
+  });
+
+  it('dispose() disposes an active shadow catcher', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false });
+    const box = new THREE.Box3(new THREE.Vector3(-2, 0, -2), new THREE.Vector3(2, 1, 2));
+    viewport.setSceneBounds(box);
+    viewport.setShadows(true);
+    const catcher = findMesh(viewport.scene)!;
+    const disposeSpy = vi.spyOn(catcher.geometry, 'dispose');
+
+    viewport.dispose();
+
+    expect(disposeSpy).toHaveBeenCalled();
+  });
+
+  it('the grid and the shadow catcher never sit at exactly the same y (no z-fighting)', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: 'auto' });
+    const box = new THREE.Box3(new THREE.Vector3(-2, 1, -2), new THREE.Vector3(2, 3, 2));
+
+    viewport.setShadows(true);
+    viewport.setSceneBounds(box);
+
+    const catcher = findMesh(viewport.scene)!;
+    const grid = viewport.scene.children.find(
+      (c) => c instanceof THREE.GridHelper,
+    ) as InstanceType<typeof THREE.GridHelper>;
+    expect(grid).toBeDefined();
+    expect(catcher.position.y).not.toBe(grid.position.y);
+    expect(catcher.position.y).toBeLessThan(grid.position.y);
+
     viewport.dispose();
   });
 });
