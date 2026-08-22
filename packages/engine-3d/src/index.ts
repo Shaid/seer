@@ -39,6 +39,9 @@ export type {
   AntialiasStrategy,
 } from './postprocessing.js';
 
+export { createPhotoMode, isPhotoModeAvailable } from './photo-mode.js';
+export type { PhotoModeOptions, PhotoModeController, PhotoModePhase } from './photo-mode.js';
+
 export { createViewport } from './viewport.js';
 export type {
   ViewportOptions,

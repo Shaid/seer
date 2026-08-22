@@ -41,6 +41,49 @@ vi.mock('three', async (importOriginal) => {
   return { ...actual, WebGLRenderer: FakeWebGLRenderer };
 });
 
+/**
+ * A fully-controllable fake `createPhotoMode` — real photo-mode
+ * construction needs `three-gpu-pathtracer`'s WebGLPathTracer, which needs
+ * far more of a real WebGL context than is worth faking here (that's what
+ * the browser verification is for). What genuinely deserves a unit test is
+ * session.ts's own race-condition handling around the fact that
+ * `setPhotoMode()` is async and every other render-tier setter isn't —
+ * exercising that only needs full control over *when* the mocked promise
+ * resolves, not what a real path tracer does.
+ */
+const { photoModeMock } = vi.hoisted(() => {
+  const pending: Array<{ resolve: (c: unknown) => void; reject: (e: unknown) => void }> = [];
+  const createPhotoMode = vi.fn(() => {
+    return new Promise((resolve, reject) => {
+      pending.push({ resolve, reject });
+    });
+  });
+  return { photoModeMock: { pending, createPhotoMode } };
+});
+
+vi.mock('../photo-mode.js', () => ({
+  createPhotoMode: photoModeMock.createPhotoMode,
+  isPhotoModeAvailable: vi.fn(async () => true),
+}));
+
+function makeFakePhotoController(phase: 'tracing' | 'converged' = 'tracing', samples = 1) {
+  return {
+    phase,
+    samples,
+    render: vi.fn(),
+    setCamera: vi.fn(),
+    setOptions: vi.fn(),
+    // A real PhotoModeController's dispose() is idempotent (photo-mode.ts's
+    // own guard) — production code relies on that: viewport.setRenderPath()
+    // disposing the outgoing path and session.ts's own explicit dispose()
+    // call can legitimately both reach the same controller in one
+    // operation. The mock still records every call (it genuinely is
+    // called more than once) — tests assert "was disposed", not "called
+    // exactly once", to match what idempotent actually means.
+    dispose: vi.fn(),
+  };
+}
+
 const { createMeshSession } = await import('../session.js');
 
 function makeContainer(): HTMLElement {
@@ -67,6 +110,8 @@ function makeGltfModel(): { model: Model3D; mesh: THREE.Mesh } {
 beforeEach(() => {
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  photoModeMock.pending.length = 0;
+  photoModeMock.createPhotoMode.mockClear();
 });
 
 afterEach(() => {
@@ -343,5 +388,195 @@ describe('MeshSession — cinematic', () => {
     const renderer = session.viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
     expect(renderer.toneMapping).toBe(THREE.NoToneMapping);
     expect(renderer.toneMappingExposure).toBe(1);
+  });
+});
+
+describe('MeshSession — photoMode', () => {
+  it('defaults to off, with no loading state and no render path installed', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    expect(session.photoMode).toBe('off');
+    expect(session.viewport.renderPath).toBeNull();
+  });
+
+  it('reports "loading" synchronously, before the async construction resolves', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    void session.setPhotoMode({});
+    expect(session.photoMode).toBe('loading');
+    expect(photoModeMock.createPhotoMode).toHaveBeenCalledOnce();
+  });
+
+  it('installs the controller and reports its phase once construction resolves', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const promise = session.setPhotoMode({});
+    const controller = makeFakePhotoController('tracing', 2);
+    photoModeMock.pending[0]!.resolve(controller);
+    await promise;
+
+    expect(session.photoMode).toBe('tracing');
+    expect(session.viewport.renderPath).toBe(controller);
+  });
+
+  it('reports "converged" once the controller itself reports it', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const promise = session.setPhotoMode({});
+    const controller = makeFakePhotoController('converged', 64);
+    photoModeMock.pending[0]!.resolve(controller);
+    await promise;
+
+    expect(session.photoMode).toBe('converged');
+  });
+
+  it('setPhotoMode(false) disposes the active controller and restores flat', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const promise = session.setPhotoMode({});
+    const controller = makeFakePhotoController();
+    photoModeMock.pending[0]!.resolve(controller);
+    await promise;
+
+    await session.setPhotoMode(false);
+
+    // Called twice, correctly: once via viewport.setRenderPath(null)'s own
+    // outgoing-path disposal, once via setPhotoMode(false)'s own explicit
+    // call — safe only because the real controller's dispose() is
+    // idempotent (see makeFakePhotoController's comment).
+    expect(controller.dispose).toHaveBeenCalled();
+    expect(session.photoMode).toBe('off');
+    expect(session.viewport.renderPath).toBeNull();
+  });
+
+  it('setPhotoMode(false) is a safe no-op when nothing was ever enabled', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    await expect(session.setPhotoMode(false)).resolves.toBeUndefined();
+    expect(session.photoMode).toBe('off');
+  });
+
+  it('a newer setPhotoMode(false) while a call is still in flight discards the resolved controller rather than installing it', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const firstPromise = session.setPhotoMode({});
+    await session.setPhotoMode(false); // supersedes the in-flight call
+
+    const controller = makeFakePhotoController();
+    photoModeMock.pending[0]!.resolve(controller);
+    await firstPromise;
+
+    expect(controller.dispose).toHaveBeenCalledOnce();
+    expect(session.photoMode).toBe('off');
+    expect(session.viewport.renderPath).toBeNull();
+  });
+
+  it('a newer setPhotoMode(opts) while a call is still in flight discards the FIRST resolved controller, keeping the second', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const firstPromise = session.setPhotoMode({ targetSamples: 10 });
+    const secondPromise = session.setPhotoMode({ targetSamples: 99 });
+
+    const firstController = makeFakePhotoController();
+    const secondController = makeFakePhotoController();
+    photoModeMock.pending[0]!.resolve(firstController);
+    photoModeMock.pending[1]!.resolve(secondController);
+    await Promise.all([firstPromise, secondPromise]);
+
+    expect(firstController.dispose).toHaveBeenCalledOnce();
+    expect(secondController.dispose).not.toHaveBeenCalled();
+    expect(session.viewport.renderPath).toBe(secondController);
+  });
+
+  it('setCinematic() claiming the render-tier slot while setPhotoMode() is in flight discards the photo-mode controller once it resolves', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const photoPromise = session.setPhotoMode({});
+
+    session.setCinematic({ bloom: {} }); // synchronous — wins immediately
+    const cinematicPathInstalled = session.viewport.renderPath;
+
+    const controller = makeFakePhotoController();
+    photoModeMock.pending[0]!.resolve(controller);
+    await photoPromise;
+
+    expect(controller.dispose).toHaveBeenCalledOnce();
+    expect(session.viewport.renderPath).toBe(cinematicPathInstalled);
+    expect(session.cinematic).toEqual({ bloom: {} });
+    session.dispose();
+  });
+
+  it('setPhotoMode() resolving AFTER installation clears session.cinematic — no stale "still active" report', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setCinematic({ bloom: {} });
+
+    const promise = session.setPhotoMode({});
+    const controller = makeFakePhotoController();
+    photoModeMock.pending[0]!.resolve(controller);
+    await promise;
+
+    expect(session.cinematic).toBe(false);
+    expect(session.photoMode).toBe('tracing');
+  });
+
+  it('setCinematic() taking over clears a stale session.photoMode report, and does not double-dispose', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const promise = session.setPhotoMode({});
+    const controller = makeFakePhotoController();
+    photoModeMock.pending[0]!.resolve(controller);
+    await promise;
+
+    session.setCinematic({ ao: {} });
+
+    expect(controller.dispose).toHaveBeenCalledOnce(); // via viewport.setRenderPath's own outgoing-path disposal
+    expect(session.photoMode).toBe('off');
+
+    // setPhotoMode(false) afterward must not try to dispose the
+    // already-disposed, no-longer-tracked controller again.
+    await session.setPhotoMode(false);
+    expect(controller.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('setCinematic(false) does not tear down an active photo-mode controller', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const promise = session.setPhotoMode({});
+    const controller = makeFakePhotoController();
+    photoModeMock.pending[0]!.resolve(controller);
+    await promise;
+
+    session.setCinematic(false); // cinematic was never active — must be a no-op here
+
+    expect(controller.dispose).not.toHaveBeenCalled();
+    expect(session.photoMode).toBe('tracing');
+    expect(session.viewport.renderPath).toBe(controller);
+  });
+
+  it('a rejected construction clears loading state and propagates the error', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const promise = session.setPhotoMode({});
+    photoModeMock.pending[0]!.reject(new Error('three-gpu-pathtracer unavailable'));
+
+    await expect(promise).rejects.toThrow('three-gpu-pathtracer unavailable');
+    expect(session.photoMode).toBe('off');
+  });
+
+  it('session.dispose() while a construction is still in flight discards the resolved controller instead of leaking it', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const promise = session.setPhotoMode({});
+    session.dispose();
+
+    const controller = makeFakePhotoController();
+    photoModeMock.pending[0]!.resolve(controller);
+    await promise;
+
+    expect(controller.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('session.dispose() disposes an active photo-mode controller', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const promise = session.setPhotoMode({});
+    const controller = makeFakePhotoController();
+    photoModeMock.pending[0]!.resolve(controller);
+    await promise;
+
+    session.dispose();
+
+    // Called twice, correctly: once via session.dispose()'s own explicit
+    // call (ahead of viewport.dispose(), per the doc's ordering
+    // requirement), once via viewport.dispose()'s transitive
+    // renderPath?.dispose() — safe only because the real controller's
+    // dispose() is idempotent.
+    expect(controller.dispose).toHaveBeenCalled();
   });
 });

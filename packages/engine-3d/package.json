@@ -43,11 +43,20 @@
     "lint": "eslint src/"
   },
   "peerDependencies": {
-    "three": "^0.185.1"
+    "three": "^0.185.1",
+    "three-gpu-pathtracer": "^0.0.24",
+    "three-mesh-bvh": "^0.9.0",
+    "xatlas-web": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "three-gpu-pathtracer": { "optional": true },
+    "three-mesh-bvh": { "optional": true },
+    "xatlas-web": { "optional": true }
   },
   "devDependencies": {
     "jsdom": "^25.0.0",
     "three": "^0.185.1",
+    "three-gpu-pathtracer": "^0.0.24",
     "typescript": "~6.0.2",
     "vitest": "^3.2.0"
   },

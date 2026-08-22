@@ -155,6 +155,48 @@ ACES tone mapping).
 exported mainly for testing and for a host that wants to manage a
 `CinematicPath` itself outside a `MeshSession`.
 
+### `photo-mode.ts` + `pathtracer-shim.ts`
+
+The `photo` tier — a progressive path-traced render via
+[`three-gpu-pathtracer`](https://www.npmjs.com/package/three-gpu-pathtracer),
+an **optional peer dependency** (with `three-mesh-bvh`/`xatlas-web`, its own
+peers) declared in `peerDependenciesMeta` as optional — a host that never
+calls `setPhotoMode`/`createPhotoMode` never needs to install it.
+
+| Function | Description |
+| --- | --- |
+| `isPhotoModeAvailable()` | Whether `three-gpu-pathtracer` is installed and importable — a host uses this to hide the photo-mode UI row rather than surfacing a raw import failure. |
+| `createPhotoMode(viewport, opts?)` | **Async**, unlike every other render-tier constructor here — the package is lazy-loaded and building its BVH over the current scene both take real time. Swaps in a `PhysicalCamera` (for true depth-of-field/aperture; `extends PerspectiveCamera`, so `Viewport.setCamera()` accepts it) matching the outgoing camera's framing, restored on `dispose()`. |
+
+**Needs no state machine.** `WebGLPathTracer`'s own `rasterizeScene`/
+`renderDelay`/`minSamples`/`fadeDuration` already implement "shows the
+rasterized image while the camera moves, crossfades into the traced one
+once it settles" — `PhotoModeController.render()` is just one call to
+`renderSample()` (`WebGLPathTracer.renderToCanvas`, on by default,
+composites its own output directly). Wiring `viewport.controls`' `change`
+event to the library's own `updateCamera()` (which internally calls its own
+`reset()`) is the entire "instantly reverts to real-time the moment the
+camera moves" requirement. `PhotoModeController.phase` (`'tracing'` /
+`'converged'`) is derived live from `pathTracer.samples` vs.
+`PhotoModeOptions.targetSamples` — a UI-facing threshold distinct from the
+library's own `minSamples` (the minimum before the traced image starts
+fading in at all).
+
+`pathtracer-shim.ts` is the only file mentioning `three-gpu-pathtracer` by
+name — hand-declared `PathTracerLike`/`PhysicalCameraLike` types, never
+`import type`-ed from the real package (cheap hygiene, not a measured-risk
+mitigation — Phase 0's probe found zero real damage from that package's
+ambient `MeshStandardMaterial` augmentation in this codebase), and a
+**literal** `await import('three-gpu-pathtracer')` — a computed specifier
+doesn't survive Vite's import analysis at runtime, only a literal one gets
+code-split.
+
+`MeshSession.setPhotoMode()` is the actual integration point (see
+`session.ts` below), and the one place the async-ness and the
+mutual-exclusivity-with-`cinematic` race it introduces are actually
+handled — this module's own async factory has no opinion about what else
+might claim the render-tier slot while it's building.
+
 ### `viewport.ts`
 
 Generic scene/camera/renderer/controls/resize/render-loop bootstrap.
@@ -334,6 +376,7 @@ animation controller (if any).
 | `session.setTextureFilter(options)` / `session.getMaxAnisotropy()` | Set filter/anisotropy on the active model's textures — see `texture-filter.ts`. Unlike shading/smooth/subdivision, this **persists across `setModel`** (a viewer-wide preference, not a per-model one). `getMaxAnisotropy()` reads `renderer.capabilities.getMaxAnisotropy()`. |
 | `session.setShadows(opts)` | Thin delegation to `viewport.setShadows()` — also **persists across `setModel`/`addModel`** like `textureFilter`, applying `enableModelShadows()` to whichever model is current and to every future one automatically. |
 | `session.setCinematic(opts)` | Switches the `cinematic` render tier on/off, or updates it in place — thin delegation to `viewport.setRenderPath()`. **Persists across `setModel`** like `shadows`/`textureFilter` (viewport-scoped, not per-model). A same-shape update (only numeric option values changed) reuses the existing `EffectComposer` chain via `CinematicPath.setOptions()`; a shape change (an effect toggled, the antialias strategy changed) disposes it and builds a fresh one — see `postprocessing.ts` above. Installing `cinematic` implicitly replaces whichever other render tier was active; `Viewport`'s single `renderPath` slot is what enforces that, not `session.ts`. |
+| `session.setPhotoMode(opts)` | Switches the `photo` render tier on/off — **the only async setter here** (returns `Promise<void>`; `three-gpu-pathtracer` is lazy-loaded, see `photo-mode.ts` above). `session.photoMode` reports `'loading'` for the duration. Safe to call again — including with `false` — before a previous call resolves; the superseded call's result is discarded rather than clobbering whatever's active by the time it finishes, and the same applies if `setCinematic()` claims the slot while a `setPhotoMode()` call is still in flight (both directions keep `session.cinematic`/`session.photoMode` from reporting stale "still active" state for a controller that was actually disposed out from under them). |
 | `session.fit()` | Re-frames the camera on everything currently in the viewport. |
 | `session.stats()` | Vertex/triangle counts for the current view. |
 | `session.dispose()` | Disposes every model ever added, the animation controller, and the viewport. Idempotent. |

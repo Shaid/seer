@@ -23,6 +23,8 @@ import { enableModelShadows } from './shadows.js';
 import type { ShadowOptions } from './shadows.js';
 import { createCinematicPath, cinematicPlansEqual, planCinematicPasses, applyToneMapping } from './postprocessing.js';
 import type { CinematicOptions, CinematicPath } from './postprocessing.js';
+import { createPhotoMode } from './photo-mode.js';
+import type { PhotoModeOptions, PhotoModeController, PhotoModePhase } from './photo-mode.js';
 import type { Model3D } from './types.js';
 import * as THREE from 'three';
 
@@ -64,6 +66,8 @@ export interface MeshSession {
   readonly shadows: boolean;
   /** `false`, or the options the `cinematic` render tier is currently active with. Persists across `setModel` calls — viewport-scoped, like `shadows`, not a per-model property. */
   readonly cinematic: false | CinematicOptions;
+  /** `'off'` / `'loading'` (constructing — `three-gpu-pathtracer` is lazy-loaded) / `'tracing'` / `'converged'`. See `setPhotoMode()`. */
+  readonly photoMode: PhotoModePhase;
   readonly disposed: boolean;
   /**
    * Replaces the session's entire contents with `model`: disposes and
@@ -120,6 +124,19 @@ export interface MeshSession {
    * one; see `postprocessing.ts`'s `cinematicPlansEqual`.
    */
   setCinematic(opts: false | CinematicOptions): void;
+  /**
+   * Switches the `photo` render tier on/off — like `setCinematic`, thin
+   * delegation to `viewport.setRenderPath()`, mutually exclusive with it
+   * for the same reason. **Async**, unlike every other setter here:
+   * `three-gpu-pathtracer` is lazy-loaded and building its BVH over the
+   * current scene takes real time, so `session.photoMode` reports
+   * `'loading'` for the duration. Safe to call again (including with
+   * `false`) before a previous call resolves — the superseded call's
+   * result is discarded rather than clobbering whatever's active by the
+   * time it finishes; the same applies if `setCinematic()` claims the
+   * render-tier slot while a `setPhotoMode()` call is still in flight.
+   */
+  setPhotoMode(opts: false | PhotoModeOptions): Promise<void>;
   /** Recolors `model`'s polygon faces (a no-op for a glTF-sourced model — see `recolorPolygonModel`). No-op if no model is set. */
   setColorMode(mode: ColorMode, resolver?: ColorResolver): void;
   /** Re-frames the camera on everything currently in `viewport.root`. */
@@ -147,6 +164,9 @@ export function createMeshSession(
   let shadows = false;
   let cinematic: false | CinematicOptions = false;
   let cinematicPath: CinematicPath | null = null;
+  let photoModeController: PhotoModeController | null = null;
+  let photoModeLoading = false;
+  let photoModeGeneration = 0;
   let disposed = false;
 
   const shadingCache: GeneratedShadingMaterials = new Map();
@@ -215,6 +235,10 @@ export function createMeshSession(
     },
     get cinematic() {
       return cinematic;
+    },
+    get photoMode() {
+      if (photoModeController) return photoModeController.phase;
+      return photoModeLoading ? 'loading' : 'off';
     },
     get disposed() {
       return disposed;
@@ -311,21 +335,27 @@ export function createMeshSession(
 
       if (opts === false) {
         cinematic = false;
+        // Only clear the slot if cinematic is actually the thing holding
+        // it — a photo-mode controller could be active instead, and
+        // unconditionally clearing here would tear that down too.
+        if (cinematicPath && viewport.renderPath === cinematicPath) {
+          viewport.setRenderPath(null);
+          // CinematicPath.dispose() deliberately doesn't reset
+          // renderer.toneMapping itself (see its doc comment — resetting
+          // there would race with a replacement path's own
+          // applyToneMapping() call when swapping between two cinematic
+          // configurations). Going back to flat has no replacement path
+          // to set it, so this is the one place that has to.
+          applyToneMapping(viewport.renderer, false);
+        }
         cinematicPath = null;
-        if (viewport.renderPath) viewport.setRenderPath(null);
-        // CinematicPath.dispose() deliberately doesn't reset renderer.toneMapping
-        // itself (see its doc comment — resetting there would race with a
-        // replacement path's own applyToneMapping() call when swapping between
-        // two cinematic configurations). Going back to flat has no replacement
-        // path to set it, so this is the one place that has to.
-        applyToneMapping(viewport.renderer, false);
         return;
       }
 
       // Reuse the live composer chain when only numeric option values
       // changed and it's still actually installed (nothing else — a
-      // future photo mode — stole the RenderPath slot out from under it
-      // since the last call).
+      // photo-mode controller taking over via setPhotoMode() — stole the
+      // RenderPath slot out from under it since the last call).
       if (
         cinematicPath &&
         cinematic !== false &&
@@ -341,6 +371,54 @@ export function createMeshSession(
       viewport.setRenderPath(path);
       cinematicPath = path;
       cinematic = opts;
+      // Cinematic now owns the render-tier slot — a stale reference here
+      // would otherwise make session.photoMode keep reporting a phase for
+      // a controller viewport.setRenderPath() just disposed.
+      photoModeController = null;
+      photoModeLoading = false;
+    },
+
+    setPhotoMode(opts) {
+      if (disposed) return Promise.resolve();
+      const generation = ++photoModeGeneration;
+
+      if (opts === false) {
+        photoModeLoading = false;
+        if (photoModeController) {
+          if (viewport.renderPath === photoModeController) viewport.setRenderPath(null);
+          photoModeController.dispose();
+          photoModeController = null;
+        }
+        return Promise.resolve();
+      }
+
+      // Captured before awaiting so the continuation can tell whether
+      // something else (setCinematic(), or a newer setPhotoMode() call)
+      // claimed the render-tier slot while construction was in flight.
+      const pathBeforeAwait = viewport.renderPath;
+      photoModeLoading = true;
+
+      return createPhotoMode(viewport, opts).then(
+        (controller) => {
+          const superseded = disposed || generation !== photoModeGeneration || viewport.renderPath !== pathBeforeAwait;
+          if (superseded) {
+            controller.dispose();
+            if (!disposed && generation === photoModeGeneration) photoModeLoading = false;
+            return;
+          }
+          photoModeLoading = false;
+          photoModeController = controller;
+          viewport.setRenderPath(controller);
+          // Photo mode now owns the render-tier slot — same staleness
+          // reasoning as setCinematic() clearing photoModeController.
+          cinematic = false;
+          cinematicPath = null;
+        },
+        (err) => {
+          if (generation === photoModeGeneration) photoModeLoading = false;
+          throw err;
+        },
+      );
     },
 
     fit() {
@@ -363,6 +441,12 @@ export function createMeshSession(
       disposeOriginalGeometry(originalGeometry);
       model = null;
       renderMode = null;
+      // Explicit, ahead of viewport.dispose() — PhotoModeController.dispose()
+      // is idempotent, so this is safe even though viewport.dispose() would
+      // also reach it transitively (via renderPath?.dispose()) whenever
+      // photoModeController is in fact the installed path.
+      photoModeController?.dispose();
+      photoModeController = null;
       viewport.dispose();
     },
   };
