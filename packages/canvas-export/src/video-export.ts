@@ -201,3 +201,25 @@ export async function recordClip(
     durationSeconds: totalFrames / fps,
   };
 }
+
+/**
+ * Triggers a browser download of a `recordClip()` result, named `filename`
+ * — the video counterpart to `screenshot.ts`'s `downloadScreenshot`. The
+ * extension is derived from `result.mimeType` (`.mp4` for an mp4 mime
+ * type, `.webm` otherwise) and appended only if `filename` doesn't already
+ * end with it, so a caller can pass either a bare name or one it already
+ * built with the right extension. Revokes the object URL after a timeout
+ * long enough for the download to have started in every browser this
+ * project supports, same as `downloadScreenshot`.
+ */
+export function downloadClip(result: RecordClipResult, filename: string): void {
+  const ext = result.mimeType.includes('mp4') ? 'mp4' : 'webm';
+  const url = URL.createObjectURL(result.blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.endsWith(`.${ext}`) ? filename : `${filename}.${ext}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}

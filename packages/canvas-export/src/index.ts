@@ -7,7 +7,7 @@ export {
   downloadScreenshot,
 } from './screenshot.js';
 export type { WatermarkOptions, CaptureOptions } from './screenshot.js';
-export { pickVideoMimeType, createCaptureSurface, recordClip } from './video-export.js';
+export { pickVideoMimeType, createCaptureSurface, recordClip, downloadClip } from './video-export.js';
 export type {
   CaptureSurface,
   RecordClipDriver,

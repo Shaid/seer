@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createCaptureSurface, pickVideoMimeType, recordClip } from '../video-export.js';
+import { createCaptureSurface, downloadClip, pickVideoMimeType, recordClip } from '../video-export.js';
 import type { CaptureSource } from '../capture-source.js';
-import type { RecordClipDriver } from '../video-export.js';
+import type { RecordClipDriver, RecordClipResult } from '../video-export.js';
 
 describe('pickVideoMimeType', () => {
   it('returns null when nothing is supported', () => {
@@ -291,5 +291,90 @@ describe('recordClip', () => {
       mimeType: 'video/webm;codecs=vp8',
     });
     expect(result.mimeType).toBe('video/webm;codecs=vp8');
+  });
+});
+
+describe('downloadClip', () => {
+  function makeResult(mimeType: string): RecordClipResult {
+    return { blob: new Blob(['fake-clip-bytes'], { type: mimeType }), mimeType, durationSeconds: 2 };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('appends a .webm extension for a webm mime type', () => {
+    let downloadedName = '';
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        Object.defineProperty(el, 'download', {
+          get: () => downloadedName,
+          set: (v: string) => {
+            downloadedName = v;
+          },
+        });
+        (el as HTMLAnchorElement).click = () => {};
+      }
+      return el;
+    });
+    vi.stubGlobal('URL', { ...URL, createObjectURL: () => 'blob:fake-url', revokeObjectURL: () => {} });
+
+    downloadClip(makeResult('video/webm;codecs=vp9'), 'my-turntable');
+    expect(downloadedName).toBe('my-turntable.webm');
+  });
+
+  it('appends a .mp4 extension for an mp4 mime type', () => {
+    let downloadedName = '';
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        Object.defineProperty(el, 'download', {
+          get: () => downloadedName,
+          set: (v: string) => {
+            downloadedName = v;
+          },
+        });
+        (el as HTMLAnchorElement).click = () => {};
+      }
+      return el;
+    });
+    vi.stubGlobal('URL', { ...URL, createObjectURL: () => 'blob:fake-url', revokeObjectURL: () => {} });
+
+    downloadClip(makeResult('video/mp4'), 'my-turntable');
+    expect(downloadedName).toBe('my-turntable.mp4');
+  });
+
+  it('does not double up an existing matching extension', () => {
+    let downloadedName = '';
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        Object.defineProperty(el, 'download', {
+          get: () => downloadedName,
+          set: (v: string) => {
+            downloadedName = v;
+          },
+        });
+        (el as HTMLAnchorElement).click = () => {};
+      }
+      return el;
+    });
+    vi.stubGlobal('URL', { ...URL, createObjectURL: () => 'blob:fake-url', revokeObjectURL: () => {} });
+
+    downloadClip(makeResult('video/webm;codecs=vp9'), 'my-turntable.webm');
+    expect(downloadedName).toBe('my-turntable.webm');
+  });
+
+  it('clicks the created anchor', () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    vi.stubGlobal('URL', { ...URL, createObjectURL: () => 'blob:fake-url', revokeObjectURL: () => {} });
+
+    downloadClip(makeResult('video/webm;codecs=vp9'), 'my-turntable');
+    expect(clickSpy).toHaveBeenCalledOnce();
   });
 });

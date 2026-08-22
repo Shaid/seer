@@ -140,6 +140,97 @@ toggle/outside-click/Escape logic itself is `@seer-project/canvas-export`'s
 `createPopover`, shared with that package's own future export controls —
 this package depends on the generic one, not the other way around.
 
+## `RenderSettingsPanel` — cinematic rendering, photo mode, and export
+
+A second, independent popover controller for the render-quality tiers
+`@seer-project/engine-3d` adds on top of the plain `flat` renderer —
+shadows, cinematic postprocessing (bloom/AO/DOF), progressive path-traced
+photo mode — plus the two export actions (screenshot, turntable video).
+Same host-owns-the-markup / `attach`/`refresh`/`detach`/`dispose` contract
+as `MeshSettingsPanel`, built against its own toolbar toggle so the two
+panels can be opened independently:
+
+```html
+<button id="render-settings-toggle" type="button">🎬 Render</button>
+<div id="render-settings-panel" class="hidden">
+  <label>Quality <select id="render-quality">
+    <option value="flat">Flat</option>
+    <option value="cinematic">Cinematic</option>
+    <option value="photo">Photo</option>
+  </select></label>
+  <label><input id="render-shadows" type="checkbox" /> Shadows</label>
+  <div id="render-cinematic-options" class="hidden">
+    <label><input id="render-bloom" type="checkbox" /> Bloom</label>
+    <label><input id="render-ao" type="checkbox" /> Ambient occlusion</label>
+    <label><input id="render-dof" type="checkbox" /> Depth of field</label>
+  </div>
+  <div id="render-photo-status" class="hidden">
+    <span id="render-photo-status-text"></span>
+  </div>
+  <button id="render-screenshot" type="button">📷 Screenshot</button>
+  <button id="render-record-turntable" type="button">⏺ Record turntable</button>
+</div>
+```
+
+`qualitySelect`'s `<option>` values must be exactly
+`'flat'\|'cinematic'\|'photo'`. `cinematicOptionsRow`/`photoModeRow` are
+whatever wrapper element holds each tier's sub-controls — `refresh()`
+toggles their `hidden` class, it doesn't create or remove elements.
+
+```ts
+import { RenderSettingsPanel } from '@seer-project/mesh-viewer-ui';
+
+const renderPanel = new RenderSettingsPanel(
+  {
+    toggleBtn: document.getElementById('render-settings-toggle') as HTMLButtonElement,
+    panel: document.getElementById('render-settings-panel')!,
+    qualitySelect: document.getElementById('render-quality') as HTMLSelectElement,
+    shadowsCheckbox: document.getElementById('render-shadows') as HTMLInputElement,
+    cinematicOptionsRow: document.getElementById('render-cinematic-options')!,
+    bloomCheckbox: document.getElementById('render-bloom') as HTMLInputElement,
+    aoCheckbox: document.getElementById('render-ao') as HTMLInputElement,
+    dofCheckbox: document.getElementById('render-dof') as HTMLInputElement,
+    photoModeRow: document.getElementById('render-photo-status')!,
+    photoModeStatus: document.getElementById('render-photo-status-text')!,
+    screenshotBtn: document.getElementById('render-screenshot') as HTMLButtonElement,
+    recordTurntableBtn: document.getElementById('render-record-turntable') as HTMLButtonElement,
+  },
+  {
+    // Only the host knows asset/game/platform names.
+    watermarkText: (session) => `${assetName} — ${gameName} (${platformName}) — a seer project`,
+    fileName: (session) => assetName,
+    turntable: { durationSeconds: 4, fps: 30 },
+  },
+);
+
+renderPanel.attach(session); // after session.setModel() resolves, same timing as MeshSettingsPanel
+```
+
+The **export buttons contain no capture/encoding logic** — they build a
+`@seer-project/canvas-export` `CaptureSource`/watermark/recording driver
+from the attached session and call straight into `downloadScreenshot`/
+`recordClip`+`downloadClip`. The turntable recording is deterministic and
+decoupled from wall-clock time (`recordClip` captures explicit frames, not
+a real-time stream) — see `@seer-project/engine-3d`'s `turntable.ts` docs
+for how `Turntable.step()` composes with it.
+
+Photo mode is an **optional feature**: `three-gpu-pathtracer` is an
+optional peer dependency of `engine-3d`, and the `photo` `<option>` is
+disabled (with a tooltip) whenever it isn't installed, or whenever the
+session's current render mode is `'wireframe'`/`'points'` (nothing for a
+path tracer to shade). The shadows checkbox is similarly disabled (with a
+tooltip) under any shading mode that swaps in a material insensitive to
+lighting (`'unlit'`/`'normals'`/`'depth'`) or under `'wireframe'`/`'points'`
+render modes — toggling it there would be a real no-op, not just a
+confusing one.
+
+Elements past the required fields are optional the same way
+`MeshSettingsPanel`'s are — a host can ship a reduced panel (e.g. no
+bloom/AO/DOF sub-toggles, no photo-mode status text) by never wiring those
+elements up in its own markup and simply not including them in the
+`RenderSettingsPanelElements` object, as long as the required ones are
+present.
+
 ## Testing
 
 ```bash
