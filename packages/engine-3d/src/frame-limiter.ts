@@ -55,6 +55,19 @@ export interface FrameLimiter {
    * Feeds the rolling sample that drives the target/fallback transition.
    */
   recordWork(ms: number): void;
+  /**
+   * Marks "now" as the last-render time without asserting a render
+   * happened. For a caller that bypasses `shouldRender()`'s gate entirely
+   * for a stretch (a `Viewport.requestEveryFrame()` lease, e.g. video-clip
+   * export) — `lastFrameTime` goes stale for the whole stretch since
+   * `shouldRender()` was never called to update it, so the first
+   * `shouldRender()` call after the lease ends would otherwise see a huge
+   * elapsed gap and return `true` immediately (an unwanted one-off
+   * un-throttled frame). Call this once when the lease ends instead, so
+   * the limiter resumes exactly as if it had been ticking normally
+   * throughout.
+   */
+  resetClock(): void;
 }
 
 const DEFAULT_TARGET_FPS = 60;
@@ -102,6 +115,9 @@ export function createFrameLimiter(opts: FrameLimiterOptions = {}): FrameLimiter
       }
       sampledWorkMs = 0;
       sampledFrames = 0;
+    },
+    resetClock(): void {
+      lastFrameTime = now();
     },
   };
 }

@@ -9,6 +9,8 @@ export type {
 export { createFrameLimiter } from './frame-limiter.js';
 export type { FrameLimiterOptions, FrameLimiter } from './frame-limiter.js';
 
+export type { RenderPath } from './render-path.js';
+
 export { createViewport } from './viewport.js';
 export type {
   ViewportOptions,

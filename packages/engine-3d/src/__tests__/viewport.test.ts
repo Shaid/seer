@@ -19,10 +19,16 @@ const { FakeWebGLRenderer } = vi.hoisted(() => {
     setSizeCalls: Array<[number, number]> = [];
     disposeCalls = 0;
     renderCalls = 0;
+    private pixelRatio = 1;
     constructor() {
       this.domElement = document.createElement('canvas');
     }
-    setPixelRatio(): void {}
+    setPixelRatio(r: number): void {
+      this.pixelRatio = r;
+    }
+    getPixelRatio(): number {
+      return this.pixelRatio;
+    }
     setSize(w: number, h: number): void {
       this.setSizeCalls.push([w, h]);
     }
@@ -42,6 +48,50 @@ vi.mock('three', async (importOriginal) => {
 });
 
 const { createViewport } = await import('../viewport.js');
+const THREE = await import('three');
+type RenderPath = import('../render-path.js').RenderPath;
+
+/** Records every call it receives — used to test the render-path seam without constructing a real EffectComposer/path-tracer. */
+function makeFakeRenderPath() {
+  const renderCalls: Array<{ delta: number }> = [];
+  const setSizeCalls: Array<[number, number, number]> = [];
+  const setCameraCalls: THREE.PerspectiveCamera[] = [];
+  let invalidateCalls = 0;
+  let disposeCalls = 0;
+  const path: RenderPath & {
+    renderCalls: typeof renderCalls;
+    setSizeCalls: typeof setSizeCalls;
+    setCameraCalls: typeof setCameraCalls;
+    invalidateCalls: number;
+    disposeCalls: number;
+  } = {
+    renderCalls,
+    setSizeCalls,
+    setCameraCalls,
+    get invalidateCalls() {
+      return invalidateCalls;
+    },
+    get disposeCalls() {
+      return disposeCalls;
+    },
+    render(_scene, _camera, delta) {
+      renderCalls.push({ delta });
+    },
+    setSize(w, h, pr) {
+      setSizeCalls.push([w, h, pr]);
+    },
+    setCamera(cam) {
+      setCameraCalls.push(cam);
+    },
+    invalidateSceneContents() {
+      invalidateCalls++;
+    },
+    dispose() {
+      disposeCalls++;
+    },
+  };
+  return path;
+}
 
 function makeContainer(width: number, height: number): HTMLElement {
   const el = document.createElement('div');
@@ -189,5 +239,476 @@ describe('createViewport — dispose()', () => {
     viewportA.dispose();
     expect(raf.cancelAnimationFrame).toHaveBeenCalledWith(idA);
     expect(raf.cancelAnimationFrame).not.toHaveBeenCalledWith(idB);
+  });
+});
+
+/** Fires whichever rAF id was most recently scheduled — since `animate()` always reschedules itself before returning, calling this repeatedly steps through consecutive frames. */
+function fireLatest(): void {
+  const results = raf.requestAnimationFrame.mock.results;
+  const id = results[results.length - 1]!.value as number;
+  raf.fire(id);
+}
+
+describe('createViewport — render-path seam', () => {
+  it('with no path installed, renders via renderer.render() directly (today\'s behavior, unchanged)', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+
+    fireLatest();
+    expect(renderer.renderCalls).toBe(1);
+
+    viewport.dispose();
+  });
+
+  it('setRenderPath() installs a path and the render loop dispatches to it instead of renderer.render()', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+    const path = makeFakeRenderPath();
+
+    viewport.setRenderPath(path);
+    expect(viewport.renderPath).toBe(path);
+    fireLatest();
+
+    expect(path.renderCalls.length).toBe(1);
+    expect(renderer.renderCalls).toBe(0);
+
+    viewport.dispose();
+  });
+
+  it('setRenderPath() disposes the outgoing path when installing a different one', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const first = makeFakeRenderPath();
+    const second = makeFakeRenderPath();
+
+    viewport.setRenderPath(first);
+    viewport.setRenderPath(second);
+
+    expect(first.disposeCalls).toBe(1);
+    expect(second.disposeCalls).toBe(0);
+
+    viewport.dispose();
+  });
+
+  it('re-installing the SAME path instance is a no-op, not a dispose-and-reinstall', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const path = makeFakeRenderPath();
+
+    viewport.setRenderPath(path);
+    viewport.setRenderPath(path);
+
+    expect(path.disposeCalls).toBe(0);
+
+    viewport.dispose();
+  });
+
+  it('setRenderPath(null) restores the plain renderer.render() path and disposes the outgoing one', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+    const path = makeFakeRenderPath();
+
+    viewport.setRenderPath(path);
+    viewport.setRenderPath(null);
+    expect(path.disposeCalls).toBe(1);
+    expect(viewport.renderPath).toBeNull();
+
+    fireLatest();
+    expect(renderer.renderCalls).toBe(1);
+    expect(path.renderCalls.length).toBe(0);
+
+    viewport.dispose();
+  });
+
+  it('dispose() disposes the currently-installed render path', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const path = makeFakeRenderPath();
+    viewport.setRenderPath(path);
+
+    viewport.dispose();
+    expect(path.disposeCalls).toBe(1);
+  });
+
+  it('resize() forwards the new size and current pixel ratio to the installed path, after the renderer/camera are already resized', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+    renderer.setPixelRatio(2);
+    const path = makeFakeRenderPath();
+    viewport.setRenderPath(path);
+
+    Object.defineProperty(container, 'clientWidth', { value: 800, configurable: true });
+    Object.defineProperty(container, 'clientHeight', { value: 600, configurable: true });
+    viewport.resize();
+
+    expect(path.setSizeCalls).toEqual([[800, 600, 2]]);
+    expect(viewport.camera.aspect).toBeCloseTo(800 / 600, 5);
+
+    viewport.dispose();
+  });
+
+  it('invalidateSceneContents() forwards to the installed path, and is a safe no-op with none installed', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+
+    expect(() => viewport.invalidateSceneContents()).not.toThrow();
+
+    const path = makeFakeRenderPath();
+    viewport.setRenderPath(path);
+    viewport.invalidateSceneContents();
+    expect(path.invalidateCalls).toBe(1);
+
+    viewport.dispose();
+  });
+});
+
+describe('createViewport — addFrameHook', () => {
+  it('runs every rendered frame, after onFrame, in subscription order', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const calls: string[] = [];
+    viewport.setOnFrame(() => calls.push('onFrame'));
+    viewport.addFrameHook(() => calls.push('hookA'));
+    viewport.addFrameHook(() => calls.push('hookB'));
+
+    fireLatest();
+
+    expect(calls).toEqual(['onFrame', 'hookA', 'hookB']);
+    viewport.dispose();
+  });
+
+  it('the returned unsubscribe removes only that hook', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const calls: string[] = [];
+    const unsubA = viewport.addFrameHook(() => calls.push('hookA'));
+    viewport.addFrameHook(() => calls.push('hookB'));
+
+    unsubA();
+    fireLatest();
+
+    expect(calls).toEqual(['hookB']);
+    viewport.dispose();
+  });
+
+  it('receives the same deltaSeconds the frame was rendered with', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const path = makeFakeRenderPath();
+    viewport.setRenderPath(path);
+    let received = -1;
+    viewport.addFrameHook((delta) => {
+      received = delta;
+    });
+
+    fireLatest();
+
+    expect(received).toBe(path.renderCalls[0]!.delta);
+    viewport.dispose();
+  });
+});
+
+describe('createViewport — renderNow()', () => {
+  it('draws immediately through the installed render path, with delta 0 (not advancing any animation)', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const path = makeFakeRenderPath();
+    viewport.setRenderPath(path);
+
+    viewport.renderNow();
+
+    expect(path.renderCalls).toEqual([{ delta: 0 }]);
+    viewport.dispose();
+  });
+
+  it('draws via renderer.render() directly with no path installed', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+
+    viewport.renderNow();
+
+    expect(renderer.renderCalls).toBe(1);
+    viewport.dispose();
+  });
+
+  it('does not call onFrame or any frame hook', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const onFrame = vi.fn();
+    const hook = vi.fn();
+    viewport.setOnFrame(onFrame);
+    viewport.addFrameHook(hook);
+
+    viewport.renderNow();
+
+    expect(onFrame).not.toHaveBeenCalled();
+    expect(hook).not.toHaveBeenCalled();
+    viewport.dispose();
+  });
+
+  it('does not call controls.update()', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const updateSpy = vi.spyOn(viewport.controls, 'update');
+
+    viewport.renderNow();
+
+    expect(updateSpy).not.toHaveBeenCalled();
+    viewport.dispose();
+  });
+});
+
+describe('createViewport — requestEveryFrame lease', () => {
+  it('a held lease bypasses the frame limiter — ticks that would otherwise be gated still render', () => {
+    const container = makeContainer(400, 300);
+    // A very slow target (1fps) so, absent a lease, consecutive ticks with
+    // no wall-clock advancement between them are gated after the first.
+    const viewport = createViewport(container, {
+      frameLimiter: { targetFps: 1 },
+      grid: false,
+      lights: false,
+    });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+
+    fireLatest(); // first tick always renders — nothing to compare it against yet
+    const rendersBeforeLease = renderer.renderCalls;
+
+    const release = viewport.requestEveryFrame();
+    fireLatest();
+    fireLatest();
+    fireLatest();
+    expect(renderer.renderCalls).toBe(rendersBeforeLease + 3);
+
+    release();
+    viewport.dispose();
+  });
+
+  it('release() is idempotent — calling it twice does not under-count an outstanding nested lease', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, {
+      frameLimiter: { targetFps: 1 },
+      grid: false,
+      lights: false,
+    });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+
+    const releaseA = viewport.requestEveryFrame();
+    const releaseB = viewport.requestEveryFrame();
+    releaseA();
+    releaseA(); // double-release must not decrement past what A actually held
+
+    fireLatest(); // still leased by B — must still bypass the gate
+    fireLatest();
+    expect(renderer.renderCalls).toBe(2);
+
+    releaseB();
+    viewport.dispose();
+  });
+
+  it("a lease's own render cost does not corrupt the limiter's adaptive rate for frames after it ends", () => {
+    // Drives performance.now() (which viewport.ts's animate() reads to time
+    // recordWork) and the limiter's own gate clock off the SAME fake clock,
+    // so a scenario can be constructed where a corrupted average would be
+    // observable through render counts alone.
+    let fakeNowMs = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => fakeNowMs);
+
+    // Round-number FPS targets, not 60/30 — 1000/60 is a repeating binary
+    // fraction, and accumulating it via `+=` over many probe ticks below
+    // hits occasional floating-point boundary misses in `shouldRender()`'s
+    // plain `<` comparison (a pre-existing characteristic of that
+    // comparison, unrelated to what this test is actually checking). 100
+    // and 50 divide `1000` exactly, so every accumulated timestamp is
+    // exact and the probe below is fully deterministic.
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, {
+      frameLimiter: { now: () => fakeNowMs, targetFps: 100, fallbackFps: 50, sampleFrames: 5 },
+      grid: false,
+      lights: false,
+    });
+    const path = makeFakeRenderPath();
+    const originalRender = path.render.bind(path);
+    // Each render "costs" 20ms of wall-clock time while this flag is on —
+    // heavy enough to blow the 100fps budget many times over if it were
+    // fed into recordWork.
+    let expensive = false;
+    path.render = (scene, camera, delta) => {
+      originalRender(scene, camera, delta);
+      if (expensive) fakeNowMs += 20;
+    };
+    viewport.setRenderPath(path);
+
+    const release = viewport.requestEveryFrame();
+    expensive = true;
+    // >= sampleFrames leased renders, each individually over budget — if
+    // these wrongly fed recordWork, 5 samples would be enough to trip the
+    // drop threshold.
+    for (let i = 0; i < 5; i++) fireLatest();
+    expensive = false;
+    release();
+
+    // Now feed real, cheap, evenly-spaced ticks. If the limiter is still at
+    // its 100fps target (uncorrupted), advancing the clock by exactly one
+    // 100fps interval per tick renders every single tick. If it had been
+    // corrupted to the 50fps fallback, roughly half of these would be
+    // gated instead.
+    const rendersBeforeProbe = path.renderCalls.length;
+    const probeTicks = 20;
+    for (let i = 0; i < probeTicks; i++) {
+      fakeNowMs += 10;
+      fireLatest();
+    }
+    expect(path.renderCalls.length - rendersBeforeProbe).toBe(probeTicks);
+
+    viewport.dispose();
+    vi.restoreAllMocks();
+  });
+
+  it("release() resets the limiter's clock so the very next real tick is not treated as an unwanted immediate catch-up render", () => {
+    let fakeNowMs = 0;
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, {
+      frameLimiter: { now: () => fakeNowMs, targetFps: 60 },
+      grid: false,
+      lights: false,
+    });
+    const renderer = viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+
+    fireLatest(); // establish a baseline last-render time
+    const release = viewport.requestEveryFrame();
+
+    // Time passes with no shouldRender() calls at all while leased —
+    // lastFrameTime would otherwise go stale by this whole stretch.
+    fakeNowMs += 5000;
+    fireLatest(); // a leased render — bypasses the gate, doesn't touch lastFrameTime
+    release();
+
+    // Immediately after release, with no further time elapsed: had the
+    // clock not been reset, the stale gap from before the lease would make
+    // this tick fire regardless. With the reset, it must NOT fire yet.
+    const rendersAfterRelease = renderer.renderCalls;
+    fireLatest();
+    expect(renderer.renderCalls).toBe(rendersAfterRelease);
+
+    // A full interval (plus a hair of margin, so this doesn't ride the
+    // exact boundary of a repeating binary fraction) later, it fires
+    // normally again.
+    fakeNowMs += 1000 / 60 + 1;
+    fireLatest();
+    expect(renderer.renderCalls).toBe(rendersAfterRelease + 1);
+
+    viewport.dispose();
+  });
+});
+
+describe('createViewport — setCamera()', () => {
+  it('repoints controls.object to the new camera', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const next = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+
+    viewport.setCamera(next);
+
+    expect(viewport.camera).toBe(next);
+    expect(viewport.controls.object).toBe(next);
+    viewport.dispose();
+  });
+
+  it('the render loop uses the new camera on the very next frame', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const path = makeFakeRenderPath();
+    viewport.setRenderPath(path);
+    const next = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+    const setCameraSpy = vi.fn(path.setCamera);
+    path.setCamera = setCameraSpy;
+
+    viewport.setCamera(next);
+
+    expect(setCameraSpy).toHaveBeenCalledWith(next);
+    viewport.dispose();
+  });
+
+  it('resize() after a camera swap updates the NEW camera, not the old one', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const original = viewport.camera;
+    const next = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+    viewport.setCamera(next);
+
+    Object.defineProperty(container, 'clientWidth', { value: 200, configurable: true });
+    Object.defineProperty(container, 'clientHeight', { value: 100, configurable: true });
+    viewport.resize();
+
+    expect(next.aspect).toBeCloseTo(2, 5);
+    expect(original.aspect).not.toBeCloseTo(2, 5);
+    viewport.dispose();
+  });
+});
+
+describe('createViewport — setSceneBounds() / setGridBounds() alias', () => {
+  it('setGridBounds is a forwarding alias for setSceneBounds — same grid-fitting behavior', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: 'auto', lights: false });
+    const box = new THREE.Box3(
+      new THREE.Vector3(-2, 0, -2),
+      new THREE.Vector3(2, 1, 2),
+    );
+
+    expect(() => viewport.setGridBounds(box)).not.toThrow();
+    // Both names must be present and callable — the alias doesn't replace
+    // the canonical name.
+    expect(typeof viewport.setSceneBounds).toBe('function');
+    expect(typeof viewport.setGridBounds).toBe('function');
+
+    viewport.dispose();
+  });
+
+  it('is a no-op when grid was not "auto"', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const box = new THREE.Box3(new THREE.Vector3(-1, 0, -1), new THREE.Vector3(1, 1, 1));
+
+    expect(() => viewport.setSceneBounds(box)).not.toThrow();
+    expect(() => viewport.setGridBounds(box)).not.toThrow();
+
+    viewport.dispose();
+  });
+});
+
+describe('createViewport — keyLight', () => {
+  it('exposes the key DirectionalLight when lights are enabled', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false });
+
+    expect(viewport.keyLight).not.toBeNull();
+    expect(viewport.keyLight?.isDirectionalLight).toBe(true);
+
+    viewport.dispose();
+  });
+
+  it('is null when the key light is disabled', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, {
+      frameLimiter: false,
+      grid: false,
+      lights: { key: false },
+    });
+
+    expect(viewport.keyLight).toBeNull();
+    viewport.dispose();
+  });
+
+  it('is null when lighting is disabled entirely', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+
+    expect(viewport.keyLight).toBeNull();
+    viewport.dispose();
   });
 });

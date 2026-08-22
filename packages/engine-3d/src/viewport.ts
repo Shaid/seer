@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createFrameLimiter, type FrameLimiterOptions } from './frame-limiter.js';
+import type { RenderPath } from './render-path.js';
 
 export interface LightConfig {
   color?: THREE.ColorRepresentation;
@@ -52,34 +53,89 @@ export interface ViewportOptions {
 
 export interface Viewport {
   scene: THREE.Scene;
-  camera: THREE.PerspectiveCamera;
+  /**
+   * The active camera. A getter, not a plain field — `setCamera()` can
+   * swap it (for a future photo-mode `PhysicalCamera`), and every reader
+   * needs to see the current one, not whatever was live at the time it
+   * first read `viewport.camera`. A host that ever *assigned* to this
+   * directly (`viewport.camera = x`) needs to switch to `setCamera(x)`.
+   */
+  readonly camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
   controls: OrbitControls;
   /** Every model a host adds goes under here, never directly under `scene` — keeps lights/grid/camera untouched by whatever `disposeObject3D`/`.clear()` a host does when switching models. */
   root: THREE.Group;
   container: HTMLElement;
+  /** The key `DirectionalLight`, or `null` if `lights.key` was `false` — `addLights()` otherwise drops the reference entirely. Needed by shadow-frustum fitting (`@seer-project/engine-3d`'s `shadows.ts`); read-only, since replacing it isn't a supported operation (recreate the viewport instead). */
+  readonly keyLight: THREE.DirectionalLight | null;
+  /** Swaps the active render tier — `null` restores today's plain `renderer.render(scene, camera)`. Disposes whatever *different* path was previously installed (installing the same instance again is a no-op, not a dispose-and-reinstall). */
+  setRenderPath(path: RenderPath | null): void;
+  /** The currently installed render path, or `null` for the default flat renderer. */
+  readonly renderPath: RenderPath | null;
+  /** Swaps the active camera — repoints `controls.object` and notifies the installed `RenderPath` (if any) so both stay in sync with `viewport.camera`. */
+  setCamera(camera: THREE.PerspectiveCamera): void;
   setOnFrame(fn: ((deltaSeconds: number) => void) | undefined): void;
+  /**
+   * Additional per-frame callbacks, alongside `setOnFrame`'s single slot
+   * (which the animation mixer already claims). Runs every rendered frame,
+   * after `onFrame`, in subscription order. Returns an unsubscribe.
+   */
+  addFrameHook(fn: (deltaSeconds: number) => void): () => void;
+  /**
+   * Bypasses the frame-rate limiter (if any) for as long as at least one
+   * lease is outstanding — every rAF tick renders, and none of them feed
+   * the limiter's adaptive sampling (a lease-covered frame's cost, e.g. a
+   * progressive path-tracer sample, says nothing about steady-state
+   * real-time render cost and would otherwise corrupt the fallback-FPS
+   * heuristic). Refcounted: nest freely, the limiter only resumes once
+   * every lease has been released. Returns the release function — call it
+   * exactly once.
+   */
+  requestEveryFrame(): () => void;
+  /**
+   * Draws one frame synchronously, right now, outside the render loop's own
+   * cadence — for a caller that needs to be certain the canvas holds a
+   * freshly-rendered frame before reading its pixels (a screenshot; a
+   * frame-stepped video capture). Deliberately minimal: does NOT call
+   * `onFrame`/the frame hooks (a capture shouldn't advance the animation
+   * mixer or any other per-frame state as a side effect of being read) and
+   * does NOT feed the frame limiter (a synchronous full-quality draw
+   * shouldn't poison its cost average). Also does NOT call
+   * `controls.update()` — this draws whatever camera/damping state is
+   * already current, rather than advancing it; a caller that needs damping
+   * to settle first should call `controls.update()` itself before this.
+   */
+  renderNow(): void;
+  /** Tells the installed `RenderPath` (if any) that scene contents changed underneath it — geometry rebuilt, materials swapped, model replaced — so it can rebuild whatever state it derived from the scene (a BVH, an accumulated image). No-op with no path installed, or one that doesn't implement it. */
+  invalidateSceneContents(): void;
   /** Regenerates an `'auto'`-configured grid to fit `box`. No-op if `grid` wasn't `'auto'`, or if `box` is empty. */
+  setSceneBounds(box: THREE.Box3): void;
+  /** @deprecated Renamed to `setSceneBounds` (which now does more than the grid alone) — this remains as a forwarding alias for existing callers. */
   setGridBounds(box: THREE.Box3): void;
-  /** Re-reads `container`'s current size and applies it to the renderer/camera. Called automatically on a `ResizeObserver` tick (when the host environment has one); exposed directly too, since jsdom (this package's own test environment) doesn't implement `ResizeObserver`. */
+  /** Re-reads `container`'s current size and applies it to the renderer/camera, then to the installed `RenderPath` (if any). Called automatically on a `ResizeObserver` tick (when the host environment has one); exposed directly too, since jsdom (this package's own test environment) doesn't implement `ResizeObserver`. */
   resize(): void;
-  /** Cancels the render loop's *own* pending frame (fixing flower's original bug, which only ever tracked the first `requestAnimationFrame` id — see `viewer.ts:1115`'s doc comment on the old `createThreeViewport`), disconnects the resize observer, and disposes the renderer. Does not touch anything under `root` — call `disposeObject3D(viewport.root)` first if a model is still loaded. */
+  /** Cancels the render loop's *own* pending frame (fixing flower's original bug, which only ever tracked the first `requestAnimationFrame` id — see `viewer.ts:1115`'s doc comment on the old `createThreeViewport`), disconnects the resize observer, disposes the installed `RenderPath` (if any), and disposes the renderer. Does not touch anything under `root` — call `disposeObject3D(viewport.root)` first if a model is still loaded. */
   dispose(): void;
 }
 
-function addLights(scene: THREE.Scene, lights: ViewportOptions['lights']): void {
-  if (lights === false) return;
+function addLights(
+  scene: THREE.Scene,
+  lights: ViewportOptions['lights'],
+): { keyLight: THREE.DirectionalLight | null } {
+  if (lights === false) return { keyLight: null };
   const cfg = lights ?? {};
 
   if (cfg.ambient !== false) {
     const a = cfg.ambient ?? {};
     scene.add(new THREE.AmbientLight(a.color ?? 0x606060, a.intensity ?? 1.2));
   }
+  let keyLight: THREE.DirectionalLight | null = null;
   if (cfg.key !== false) {
     const k = cfg.key ?? {};
     const light = new THREE.DirectionalLight(k.color ?? 0xffffff, k.intensity ?? 1.6);
     light.position.set(...(k.position ?? [3, 5, 4]));
     scene.add(light);
+    keyLight = light;
   }
   if (cfg.fill !== false) {
     const f = cfg.fill ?? {};
@@ -87,6 +143,7 @@ function addLights(scene: THREE.Scene, lights: ViewportOptions['lights']): void 
     light.position.set(...(f.position ?? [-3, -1, -2]));
     scene.add(light);
   }
+  return { keyLight };
 }
 
 function buildGrid(cfg: GridConfig): THREE.GridHelper {
@@ -118,7 +175,10 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(opts.background ?? 0x161616);
 
-  const camera = new THREE.PerspectiveCamera(
+  // Mutable, not const: `setCamera()` swaps this (for a future photo-mode
+  // `PhysicalCamera`) — every closure below reads the live binding, not a
+  // snapshot, so a swap takes effect everywhere on the very next frame.
+  let camera = new THREE.PerspectiveCamera(
     opts.fov ?? 45,
     width / height,
     opts.near ?? 0.01,
@@ -147,7 +207,7 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
   controls.enableDamping = true;
   controls.dampingFactor = opts.damping ?? 0.12;
 
-  addLights(scene, opts.lights);
+  const { keyLight } = addLights(scene, opts.lights);
 
   const gridOption = opts.grid;
   let gridHelper: THREE.GridHelper | null = null;
@@ -156,6 +216,17 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
     scene.add(gridHelper);
   }
 
+  const updateSceneBounds = (box: THREE.Box3): void => {
+    if (gridOption !== 'auto' || box.isEmpty()) return;
+    const size = box.getSize(new THREE.Vector3());
+    const footprint = Math.max(size.x, size.z, 0.001);
+    const gridSize = footprint * 2;
+    const divisions = Math.max(4, Math.min(40, Math.round(gridSize / 10)) || 4);
+    if (gridHelper) scene.remove(gridHelper);
+    gridHelper = buildGrid({ size: gridSize, divisions, y: box.min.y });
+    scene.add(gridHelper);
+  };
+
   const root = new THREE.Group();
   scene.add(root);
 
@@ -163,20 +234,35 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
   const limiter = opts.frameLimiter === false ? null : createFrameLimiter(opts.frameLimiter ?? {});
 
   let onFrame: ((deltaSeconds: number) => void) | undefined = opts.onFrame;
+  const frameHooks = new Set<(deltaSeconds: number) => void>();
+  let renderPath: RenderPath | null = null;
+  let leaseCount = 0;
   let running = true;
   let animId = 0;
+
+  /** Dispatches to the installed `RenderPath`, or today's plain render call. Shared by the render loop and `renderNow()`. */
+  const draw = (delta: number): void => {
+    if (renderPath) renderPath.render(scene, camera, delta);
+    else renderer.render(scene, camera);
+  };
 
   const animate = () => {
     if (!running) return;
     animId = requestAnimationFrame(animate);
-    if (limiter && !limiter.shouldRender()) return;
+
+    // A lease bypasses the limiter's gate entirely — every tick renders —
+    // and its cost is deliberately excluded from `recordWork`'s sample
+    // (see `requestEveryFrame()`'s doc comment on `Viewport`).
+    const leased = leaseCount > 0;
+    if (!leased && limiter && !limiter.shouldRender()) return;
 
     const delta = clock.getDelta();
     const workStart = performance.now();
     onFrame?.(delta);
+    for (const hook of frameHooks) hook(delta);
     controls.update();
-    renderer.render(scene, camera);
-    limiter?.recordWork(performance.now() - workStart);
+    draw(delta);
+    if (!leased) limiter?.recordWork(performance.now() - workStart);
   };
   animId = requestAnimationFrame(animate);
 
@@ -186,6 +272,7 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
     renderer.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    renderPath?.setSize?.(w, h, renderer.getPixelRatio());
   };
 
   const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
@@ -193,29 +280,59 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
 
   const viewport: Viewport = {
     scene,
-    camera,
+    get camera() {
+      return camera;
+    },
     renderer,
     controls,
     root,
     container,
+    keyLight,
+    get renderPath() {
+      return renderPath;
+    },
+    setRenderPath(path) {
+      if (path === renderPath) return;
+      renderPath?.dispose();
+      renderPath = path;
+    },
+    setCamera(next) {
+      camera = next;
+      controls.object = next;
+      renderPath?.setCamera?.(next);
+    },
     setOnFrame(fn) {
       onFrame = fn;
     },
-    setGridBounds(box) {
-      if (gridOption !== 'auto' || box.isEmpty()) return;
-      const size = box.getSize(new THREE.Vector3());
-      const footprint = Math.max(size.x, size.z, 0.001);
-      const gridSize = footprint * 2;
-      const divisions = Math.max(4, Math.min(40, Math.round(gridSize / 10)) || 4);
-      if (gridHelper) scene.remove(gridHelper);
-      gridHelper = buildGrid({ size: gridSize, divisions, y: box.min.y });
-      scene.add(gridHelper);
+    addFrameHook(fn) {
+      frameHooks.add(fn);
+      return () => frameHooks.delete(fn);
     },
+    requestEveryFrame() {
+      leaseCount++;
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        leaseCount--;
+        if (leaseCount === 0) limiter?.resetClock();
+      };
+    },
+    renderNow() {
+      draw(0);
+    },
+    invalidateSceneContents() {
+      renderPath?.invalidateSceneContents?.();
+    },
+    setSceneBounds: updateSceneBounds,
+    setGridBounds: updateSceneBounds,
     resize,
     dispose() {
       running = false;
       cancelAnimationFrame(animId);
       resizeObserver?.disconnect();
+      renderPath?.dispose();
+      renderPath = null;
       renderer.dispose();
       renderer.domElement.remove();
     },

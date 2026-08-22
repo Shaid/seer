@@ -101,7 +101,22 @@ default), with a hysteresis-banded fallback (30 by default) under load.
 | `createFrameLimiter(opts?)` | Builds a `FrameLimiter`. `opts.now` injects a clock — real code omits it (`performance.now()`), tests supply a fake one. |
 
 `FrameLimiter.shouldRender()` — call once per host tick; `.recordWork(ms)` —
-report how long the frame actually took, feeding the adaptive threshold.
+report how long the frame actually took, feeding the adaptive threshold;
+`.resetClock()` — marks "now" as the last-render time without asserting a
+render happened, for a caller (`Viewport.requestEveryFrame()`) that bypassed
+`shouldRender()`'s gate for a stretch and doesn't want the next real call to
+see a stale gap and fire an unwanted immediate catch-up render.
+
+### `render-path.ts`
+
+The seam that makes `Viewport`'s draw call swappable across render tiers
+(`flat` / `cinematic` / `photo` — see
+[`render-quality-proposal.md`](https://seer.shaid.net/guides/render-quality/))
+without touching the `onFrame`/frame-limiter contract.
+
+| Type | Description |
+| --- | --- |
+| `RenderPath` | `render(scene, camera, deltaSeconds)` plus optional `setSize`/`setCamera`/`invalidateSceneContents`/`dispose`. `null` installed on `Viewport` means today's plain `renderer.render(scene, camera)` — every existing consumer sees zero change until a host opts into a tier via `Viewport.setRenderPath()`. |
 
 ### `viewport.ts`
 
@@ -117,6 +132,32 @@ fields rather than hardcoded — that parameterization is what lets one
 implementation cover both flower's and hunter's original viewports.
 `Viewport.dispose()` cancels its own *currently pending* frame (not just the
 first one ever scheduled — a real bug in the original code this replaces).
+
+`Viewport.camera` is a getter, not a plain field — `setCamera()` can swap
+the active camera (for a future photo-mode `PhysicalCamera`), repointing
+`controls.object` and notifying the installed `RenderPath` in the same
+call. `setRenderPath(path | null)` installs/removes a render tier, disposing
+whatever different path was previously installed (installing the same
+instance again is a no-op). `addFrameHook(fn)` adds an additional per-frame
+callback alongside the single `setOnFrame` slot the animation mixer already
+claims — hooks run after `onFrame`, in subscription order.
+`requestEveryFrame()` returns a refcounted lease-release function: while any
+lease is outstanding, every render-loop tick renders regardless of the
+frame limiter's gate, and none of those frames feed the limiter's adaptive
+sampling (a lease-covered frame's cost — e.g. one path-tracer sample — says
+nothing about steady-state real-time cost and would otherwise corrupt the
+fallback-fps heuristic). `renderNow()` draws one frame synchronously,
+outside the render loop's own cadence, for a caller that needs the canvas
+freshly drawn before reading its pixels (a screenshot; a frame-stepped video
+capture) — deliberately calls neither `onFrame`/the frame hooks nor
+`controls.update()`, and doesn't feed the frame limiter.
+`invalidateSceneContents()` tells the installed `RenderPath` that scene
+contents changed underneath it (geometry rebuilt, materials swapped, model
+replaced) so it can rebuild whatever state it derived from the scene (a
+BVH, an accumulated path-traced image). `setSceneBounds(box)` replaces
+`setGridBounds` (kept as a deprecated forwarding alias) — same
+`'auto'`-grid-fitting behavior, renamed since it now also feeds
+shadow-frustum fitting.
 
 ### `camera-fit.ts`
 

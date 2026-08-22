@@ -137,4 +137,23 @@ describe('createFrameLimiter', () => {
     clock.advance(1000 / 60);
     expect(limiter.shouldRender()).toBe(true);
   });
+
+  it('resetClock() marks "now" as the last-render time without requiring a render', () => {
+    const clock = fakeClock();
+    const limiter = createFrameLimiter({ now: clock.now, targetFps: 60 });
+
+    // Simulate a long stretch where shouldRender() was never called (a
+    // Viewport.requestEveryFrame() lease bypassing the gate entirely) —
+    // lastFrameTime would otherwise be badly stale by the time gating
+    // resumes.
+    clock.advance(5000);
+    limiter.resetClock();
+
+    // Immediately after reset, no time has elapsed since the reset point —
+    // must NOT fire an unwanted immediate "catch-up" render.
+    expect(limiter.shouldRender()).toBe(false);
+
+    clock.advance(1000 / 60);
+    expect(limiter.shouldRender()).toBe(true);
+  });
 });
