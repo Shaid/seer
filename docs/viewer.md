@@ -389,6 +389,20 @@ for a mesh.
   is the same in-flight-load guard shape (`if (session.disposed) return;`
   after an `await`) both `flower` and `hunter` already used before this
   package existed.
+- **Two settings popovers, not a row of toolbar controls.**
+  `@seer-project/mesh-viewer-ui`'s `MeshSettingsPanel` (render mode/shading/
+  smooth/subdivide/texture-filter/reset-camera) and `RenderSettingsPanel`
+  (render-quality tier — flat/cinematic/photo — shadows, cinematic's bloom/
+  AO/DOF, photo-mode progress, and the screenshot/turntable export buttons)
+  are two independent, sibling toolbar popovers, each with the same
+  `attach(session)`/`refresh()`/`detach()`/`dispose()` contract driven off
+  the same `MeshSession`. siren, flower, and chimera all wire both the same
+  way — see `mesh-viewer-ui`'s own README for the full element/options
+  contract and an integration example, and
+  [`render-quality-proposal.md`](render-quality-proposal.md) for the design
+  behind shadows/cinematic/photo mode/export themselves (implemented and
+  independently reviewed — see that doc's own status line for what shipped
+  and what's still a known gap).
 
 **Scaffold-template support is intentionally not implemented yet.** Only the
 manifest *shape* (the five fields above) lives in

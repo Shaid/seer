@@ -1,11 +1,22 @@
 # Cinematic rendering, photo mode, and export — proposal
 
-**Status: proposed — not yet implemented. Revision 2, post-review.** This
-is the plan for adding shadow-casting, real-time postprocessing, a
+**Status: implemented (Phases 0–10 complete), independently reviewed.**
+This was the plan for adding shadow-casting, real-time postprocessing, a
 progressive path-traced photo mode, and asset-agnostic screenshot/clip
 export to `@seer-project/engine-3d` + a new `@seer-project/canvas-export`
 package + `@seer-project/mesh-viewer-ui`, then rolling it out to siren,
-flower, and chimera the same way the settings-panel work was. Companion:
+flower, and chimera the same way the settings-panel work was — all of
+which shipped. A post-implementation review found six real bugs (scene-
+content invalidation never wired up, `recordClip`'s frame pacing, a camera
+desync across certain render-tier transitions, a tone-mapping leak, a
+DPR>1 buffer-sizing bug, and a supersession race) plus several smaller
+issues; all were fixed in follow-up commits — see each package's own git
+history for specifics. One known residual gap: chaining `setPhotoMode()`
+calls (re-entering photo mode while it's already active) can leave the
+flat tier's camera as a stray `PhysicalCamera` rather than the session's
+original one — documented in `photo-mode.ts`'s own comment; the view
+itself stays correct, only the camera *object identity* is affected.
+Companion:
 [`docs/2d-export-proposal.md`](2d-export-proposal.md) covers the 2D
 sprite-viewer equivalent (export reuse, grading, retro display shaders) —
 see [`docs/viewer.md`](viewer.md) and each package's own README for what
