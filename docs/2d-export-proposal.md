@@ -1,9 +1,20 @@
 # 2D sprite viewer: export, grading, and retro display shaders — proposal
 
-**Status: proposed — not yet implemented. Revision 2, post-review.**
+**Status: implemented (Phases 1–6 complete), pending independent review.**
 Companion to [`docs/render-quality-proposal.md`](render-quality-proposal.md)
 (the 3D mesh-viewer "photo mode" work) — this is the 2D-sprite-viewer
-equivalent, scoped to what actually carries over from that plan.
+equivalent, scoped to what actually carries over from that plan. All six
+phases shipped to siren, flower, and chimera: screenshot/video export, the
+persistent-canvas refactor, colour grading, and the new
+`@seer-project/retro-display` package (all five `DisplayProfile` values,
+including curvature/glow/chromatic-aberration) behind a consolidated 🎨
+Display panel. One data-driven caveat carried through every phase's commit
+message: siren has zero exercisable 2D sprite assets across all three of
+its games, so its shader/frame-advance/recording/grading/retro-display
+paths were verified via temporary debug hooks synthesizing test data
+(always reverted before commit, confirmed via `grep`) rather than against
+real production assets — chimera and flower both have real texture data
+and were verified against it directly.
 
 > **Revision 2** follows the same design review that produced revision 2 of
 > the 3D proposal. The headline correction: **revision 1's "zero new export
