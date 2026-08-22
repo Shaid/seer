@@ -114,6 +114,10 @@ The seam that makes `Viewport`'s draw call swappable across render tiers
 [`render-quality-proposal.md`](https://seer.shaid.net/guides/render-quality/))
 without touching the `onFrame`/frame-limiter contract.
 
+| Type | Description |
+| --- | --- |
+| `RenderPath` | `render(scene, camera, deltaSeconds)` plus optional `setSize`/`setCamera`/`invalidateSceneContents`/`dispose`. `null` installed on `Viewport` means today's plain `renderer.render(scene, camera)` — every existing consumer sees zero change until a host opts into a tier via `Viewport.setRenderPath()`. |
+
 ### `shadows.ts`
 
 Pure functions for shadow-map setup — no `RenderPath` of its own, since
@@ -133,9 +137,23 @@ the above together (renderer flag, key-light shadow settings, frustum
 fitting, catcher lifecycle, ambient-light dimming) against whatever the
 key light and last-reported scene bounds are.
 
-| Type | Description |
+### `postprocessing.ts`
+
+The `cinematic` tier — a `RenderPath` implementation wrapping a real
+`EffectComposer`/pass chain (bloom, ambient occlusion, depth of field,
+ACES tone mapping).
+
+| Function | Description |
 | --- | --- |
-| `RenderPath` | `render(scene, camera, deltaSeconds)` plus optional `setSize`/`setCamera`/`invalidateSceneContents`/`dispose`. `null` installed on `Viewport` means today's plain `renderer.render(scene, camera)` — every existing consumer sees zero change until a host opts into a tier via `Viewport.setRenderPath()`. |
+| `planCinematicPasses(opts)` | Pure — the pass composition/ordering a given `CinematicOptions` produces, as data (`render → gtao → bokeh → bloom → output → fxaa`; DOF before bloom, FXAA strictly after `OutputPass` per its own doc comment). No `EffectComposer` involved — fully unit-testable. |
+| `cinematicPlansEqual(a, b)` | Pure — `true` when two plans have the same pass shape (numeric option values never appear in a plan, so they're correctly invisible here); `false` on any composition/order change. Drives the reuse-existing-chain-vs-rebuild decision `CinematicPath.setOptions()` needs. |
+| `createCinematicPath(renderer, scene, camera, opts)` | Builds the real chain per `planCinematicPasses(opts)`. `antialias` (default `'msaa'`) picks how the composer's own antialiasing loss is fixed — `EffectComposer`'s offscreen targets don't inherit the renderer's own AA — via a real multisampled `WebGLRenderTarget` (`samples: 4`, sharp edges, the default) or an `FXAAPass` (softer, smears pixel-art-derived geometry, an explicit opt-in fallback). AO's pixel-ratio cost clamp is applied via `EffectComposer.setPixelRatio()`, not the renderer's — clamping the renderer's own pixel ratio would also halve screenshot resolution. |
+| `applyToneMapping(renderer, opts)` | ACES filmic + exposure, or restores `NoToneMapping`. A renderer-level property `OutputPass` reads — opt-in like every other cinematic effect here, not implied by the tier alone. |
+
+`MeshSession.setCinematic()` is the actual integration point (see
+`session.ts` below) — `createCinematicPath` and `cinematicPlansEqual` are
+exported mainly for testing and for a host that wants to manage a
+`CinematicPath` itself outside a `MeshSession`.
 
 ### `viewport.ts`
 
@@ -315,6 +333,7 @@ animation controller (if any).
 | `session.setSubdivision(multiplier)` | Rebuild geometry at a subdivision intensity — see `mesh-polish.ts`. Resets to `0` on every `setModel`. |
 | `session.setTextureFilter(options)` / `session.getMaxAnisotropy()` | Set filter/anisotropy on the active model's textures — see `texture-filter.ts`. Unlike shading/smooth/subdivision, this **persists across `setModel`** (a viewer-wide preference, not a per-model one). `getMaxAnisotropy()` reads `renderer.capabilities.getMaxAnisotropy()`. |
 | `session.setShadows(opts)` | Thin delegation to `viewport.setShadows()` — also **persists across `setModel`/`addModel`** like `textureFilter`, applying `enableModelShadows()` to whichever model is current and to every future one automatically. |
+| `session.setCinematic(opts)` | Switches the `cinematic` render tier on/off, or updates it in place — thin delegation to `viewport.setRenderPath()`. **Persists across `setModel`** like `shadows`/`textureFilter` (viewport-scoped, not per-model). A same-shape update (only numeric option values changed) reuses the existing `EffectComposer` chain via `CinematicPath.setOptions()`; a shape change (an effect toggled, the antialias strategy changed) disposes it and builds a fresh one — see `postprocessing.ts` above. Installing `cinematic` implicitly replaces whichever other render tier was active; `Viewport`'s single `renderPath` slot is what enforces that, not `session.ts`. |
 | `session.fit()` | Re-frames the camera on everything currently in the viewport. |
 | `session.stats()` | Vertex/triangle counts for the current view. |
 | `session.dispose()` | Disposes every model ever added, the animation controller, and the viewport. Idempotent. |

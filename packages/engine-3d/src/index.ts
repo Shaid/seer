@@ -21,6 +21,24 @@ export {
 } from './shadows.js';
 export type { ShadowOptions, ModelShadowOptions, FitShadowCameraOptions, ShadowCatcherOptions } from './shadows.js';
 
+export {
+  planCinematicPasses,
+  cinematicPlansEqual,
+  createCinematicPath,
+  applyToneMapping,
+} from './postprocessing.js';
+export type {
+  CinematicOptions,
+  CinematicPath,
+  CinematicPassKind,
+  CinematicPassPlan,
+  BloomOptions,
+  AOOptions,
+  DOFOptions,
+  ToneMappingOptions,
+  AntialiasStrategy,
+} from './postprocessing.js';
+
 export { createViewport } from './viewport.js';
 export type {
   ViewportOptions,

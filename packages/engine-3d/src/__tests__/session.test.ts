@@ -14,10 +14,21 @@ const { FakeWebGLRenderer } = vi.hoisted(() => {
     outputColorSpace = '';
     capabilities = { getMaxAnisotropy: () => 8 };
     shadowMap = { enabled: false, type: 0 };
+    toneMapping = 0;
+    toneMappingExposure = 1;
+    private pixelRatio = 1;
     constructor() {
       this.domElement = document.createElement('canvas');
     }
-    setPixelRatio(): void {}
+    setPixelRatio(r: number): void {
+      this.pixelRatio = r;
+    }
+    getPixelRatio(): number {
+      return this.pixelRatio;
+    }
+    getSize(target: THREE.Vector2): THREE.Vector2 {
+      return target.set(400, 300);
+    }
     setSize(): void {}
     render(): void {}
     dispose(): void {}
@@ -217,5 +228,120 @@ describe('MeshSession — shadows', () => {
     session.fit();
 
     expect(setSceneBoundsSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('MeshSession — cinematic', () => {
+  it('defaults to off, with no render path installed', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    expect(session.cinematic).toBe(false);
+    expect(session.viewport.renderPath).toBeNull();
+  });
+
+  it('setCinematic(opts) installs a real EffectComposer-backed render path and updates session.cinematic', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setCinematic({ bloom: {} });
+    expect(session.cinematic).toEqual({ bloom: {} });
+    expect(session.viewport.renderPath).not.toBeNull();
+    session.dispose();
+  });
+
+  it('setCinematic(false) restores the plain flat renderer and resets session.cinematic', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setCinematic({ bloom: {} });
+    session.setCinematic(false);
+    expect(session.cinematic).toBe(false);
+    expect(session.viewport.renderPath).toBeNull();
+    session.dispose();
+  });
+
+  it('a same-shape update (numeric option change only) reuses the existing path instance', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setCinematic({ bloom: { strength: 0.2 } });
+    const first = session.viewport.renderPath;
+
+    session.setCinematic({ bloom: { strength: 0.9 } });
+
+    expect(session.viewport.renderPath).toBe(first);
+    expect(session.cinematic).toEqual({ bloom: { strength: 0.9 } });
+    session.dispose();
+  });
+
+  it('a shape-changing update (an effect toggled on) disposes the old path and installs a new one', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setCinematic({ bloom: {} });
+    const first = session.viewport.renderPath!;
+    const disposeSpy = vi.spyOn(first, 'dispose');
+
+    session.setCinematic({ bloom: {}, ao: {} });
+
+    expect(disposeSpy).toHaveBeenCalledOnce();
+    expect(session.viewport.renderPath).not.toBe(first);
+    expect(session.viewport.renderPath).not.toBeNull();
+    session.dispose();
+  });
+
+  it('persists across setModel — a viewport-scoped preference, not a per-model one like shading', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setCinematic({ bloom: {} });
+    const path = session.viewport.renderPath;
+
+    const { model } = makeGltfModel();
+    session.setModel(model, { fit: false });
+
+    expect(session.cinematic).toEqual({ bloom: {} });
+    expect(session.viewport.renderPath).toBe(path);
+    session.dispose();
+  });
+
+  it('is a safe no-op to call setCinematic(false) when nothing was ever enabled', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    expect(() => session.setCinematic(false)).not.toThrow();
+    expect(session.viewport.renderPath).toBeNull();
+  });
+
+  it('setCinematic is a no-op after dispose()', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.dispose();
+    expect(() => session.setCinematic({ bloom: {} })).not.toThrow();
+    expect(session.cinematic).toBe(false);
+  });
+
+  it('constructing with every effect enabled at once does not throw (full pass chain)', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    expect(() =>
+      session.setCinematic({ bloom: {}, ao: {}, dof: {}, toneMapping: {}, antialias: 'fxaa' }),
+    ).not.toThrow();
+    session.dispose();
+  });
+
+  it('a shape-changing transition that enables tone mapping is not silently undone by the outgoing path\'s own dispose() (regression: dispose-ordering race)', () => {
+    // Bug this guards: CinematicPath.dispose() used to unconditionally reset
+    // renderer.toneMapping to NoToneMapping. Viewport.setRenderPath() disposes
+    // the OUTGOING path only *after* the incoming one is already constructed —
+    // so a transition from one shape (no tone mapping) to a different shape
+    // (tone mapping enabled) had the new path's applyToneMapping() call
+    // silently wiped out by the old path's dispose() running last. Caught via
+    // a real browser screenshot showing zero visible change despite exposure: 3.
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setCinematic({ bloom: {} }); // shape A, tone mapping off
+
+    session.setCinematic({ toneMapping: { exposure: 3 } }); // shape B — a real rebuild, not a reuse
+
+    const renderer = session.viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+    expect(renderer.toneMapping).toBe(THREE.ACESFilmicToneMapping);
+    expect(renderer.toneMappingExposure).toBe(3);
+    session.dispose();
+  });
+
+  it('setCinematic(false) restores NoToneMapping when leaving a tone-mapped cinematic config', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setCinematic({ toneMapping: { exposure: 2 } });
+
+    session.setCinematic(false);
+
+    const renderer = session.viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+    expect(renderer.toneMapping).toBe(THREE.NoToneMapping);
+    expect(renderer.toneMappingExposure).toBe(1);
   });
 });

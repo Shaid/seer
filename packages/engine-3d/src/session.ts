@@ -21,6 +21,8 @@ import { disposeObject3D } from './dispose.js';
 import { meshStats, type MeshStats } from './stats.js';
 import { enableModelShadows } from './shadows.js';
 import type { ShadowOptions } from './shadows.js';
+import { createCinematicPath, cinematicPlansEqual, planCinematicPasses, applyToneMapping } from './postprocessing.js';
+import type { CinematicOptions, CinematicPath } from './postprocessing.js';
 import type { Model3D } from './types.js';
 import * as THREE from 'three';
 
@@ -60,6 +62,8 @@ export interface MeshSession {
   readonly textureFilter: TextureFilterOptions;
   /** Whether shadow-casting is on. Persists across `setModel` calls — a viewer-wide preference, like `textureFilter`, not a per-model one (the *materials* that make shadows visible are per-model, so every `setModel`/`addModel` re-applies `castShadow`/`receiveShadow` to the new model's meshes whenever this is `true`). */
   readonly shadows: boolean;
+  /** `false`, or the options the `cinematic` render tier is currently active with. Persists across `setModel` calls — viewport-scoped, like `shadows`, not a per-model property. */
+  readonly cinematic: false | CinematicOptions;
   readonly disposed: boolean;
   /**
    * Replaces the session's entire contents with `model`: disposes and
@@ -99,6 +103,23 @@ export interface MeshSession {
    * inherit `castShadow`/`receiveShadow` from anywhere else.
    */
   setShadows(opts: boolean | ShadowOptions): void;
+  /**
+   * Switches the `cinematic` render tier on/off, or updates its options
+   * while already on — thin delegation to `viewport.setRenderPath()`.
+   * `false` restores the plain `flat` renderer. Installing `cinematic`
+   * implicitly replaces whichever other render tier (e.g. a future `photo`
+   * mode) was previously installed — mutual exclusivity is enforced by
+   * `Viewport`'s single `renderPath` slot, not re-implemented here.
+   *
+   * Changing only numeric option values (bloom strength, AO radius, ...)
+   * while the pass composition stays the same updates the existing
+   * `EffectComposer` chain's uniforms in place, via `CinematicPath.setOptions()`
+   * — three.js has no supported way to insert/remove a pass from a live
+   * composer, so a shape change (an effect toggled on/off, the antialias
+   * strategy changed) instead disposes the old chain and builds a fresh
+   * one; see `postprocessing.ts`'s `cinematicPlansEqual`.
+   */
+  setCinematic(opts: false | CinematicOptions): void;
   /** Recolors `model`'s polygon faces (a no-op for a glTF-sourced model — see `recolorPolygonModel`). No-op if no model is set. */
   setColorMode(mode: ColorMode, resolver?: ColorResolver): void;
   /** Re-frames the camera on everything currently in `viewport.root`. */
@@ -124,6 +145,8 @@ export function createMeshSession(
   let subdivision = 0;
   let textureFilter: TextureFilterOptions = { ...DEFAULT_TEXTURE_FILTER };
   let shadows = false;
+  let cinematic: false | CinematicOptions = false;
+  let cinematicPath: CinematicPath | null = null;
   let disposed = false;
 
   const shadingCache: GeneratedShadingMaterials = new Map();
@@ -189,6 +212,9 @@ export function createMeshSession(
     },
     get shadows() {
       return shadows;
+    },
+    get cinematic() {
+      return cinematic;
     },
     get disposed() {
       return disposed;
@@ -278,6 +304,43 @@ export function createMeshSession(
       for (const tracked of trackedModels) {
         enableModelShadows(tracked.object, { cast: shadows, receive: shadows });
       }
+    },
+
+    setCinematic(opts) {
+      if (disposed) return;
+
+      if (opts === false) {
+        cinematic = false;
+        cinematicPath = null;
+        if (viewport.renderPath) viewport.setRenderPath(null);
+        // CinematicPath.dispose() deliberately doesn't reset renderer.toneMapping
+        // itself (see its doc comment — resetting there would race with a
+        // replacement path's own applyToneMapping() call when swapping between
+        // two cinematic configurations). Going back to flat has no replacement
+        // path to set it, so this is the one place that has to.
+        applyToneMapping(viewport.renderer, false);
+        return;
+      }
+
+      // Reuse the live composer chain when only numeric option values
+      // changed and it's still actually installed (nothing else — a
+      // future photo mode — stole the RenderPath slot out from under it
+      // since the last call).
+      if (
+        cinematicPath &&
+        cinematic !== false &&
+        viewport.renderPath === cinematicPath &&
+        cinematicPlansEqual(planCinematicPasses(cinematic), planCinematicPasses(opts))
+      ) {
+        cinematicPath.setOptions(opts);
+        cinematic = opts;
+        return;
+      }
+
+      const path = createCinematicPath(viewport.renderer, viewport.scene, viewport.camera, opts);
+      viewport.setRenderPath(path);
+      cinematicPath = path;
+      cinematic = opts;
     },
 
     fit() {
