@@ -119,13 +119,25 @@ export interface RecordClipResult {
 
 /**
  * Records `durationSeconds` of `source` as a video clip, one explicit frame
- * at a time — NOT a real-time `captureStream(fps)` capture. The output
- * canvas (via `createCaptureSurface`) is put into on-demand mode
- * (`captureStream(0)`) and each frame is committed with an explicit
- * `track.requestFrame()` call, so the exported clip's frame pacing is
- * exactly `1/fps` seconds apart regardless of how fast or slow the host
- * machine actually renders each frame — a slow machine takes longer to
- * produce the clip, but the clip itself comes out identical.
+ * at a time via on-demand `captureStream(0)` + `track.requestFrame()`.
+ *
+ * **Frames are timestamped at real wall-clock commit time** — the Media
+ * Capture from DOM Elements spec gives `requestFrame()` no way to assign a
+ * synthetic `1/fps` timestamp, and `MediaRecorder` encodes from whatever
+ * timestamps the track actually reports. A tight commit loop with no
+ * pacing (an earlier revision of this function) would therefore encode a
+ * *sped-up* clip on any machine fast enough to render every frame in a
+ * handful of milliseconds — the common case, not the exceptional one. This
+ * function instead explicitly paces each frame's commit to
+ * `frame * (1000 / fps)` ms of real time since the recording started,
+ * sleeping the remainder of the budget when rendering finishes early. On a
+ * machine slow enough that rendering alone exceeds the per-frame budget,
+ * frames commit back-to-back as fast as they can (as before) — the pacing
+ * can only slow a fast machine down to real time, not speed a slow one up,
+ * so a sufficiently slow host still produces a longer-than-requested clip.
+ * That asymmetry is inherent to timestamping via wall-clock `captureStream`
+ * rather than an explicit-timestamp encoder (e.g. WebCodecs `VideoEncoder`
+ * + a muxer); pacing fixes the common case without that larger rewrite.
  *
  * This is a VIDEO-ONLY capture with no audio track. `driver` starts/stops
  * the animation; it is not a substitute for a real-time,
@@ -177,15 +189,24 @@ export async function recordClip(
   opts.driver.start();
   recorder.start();
 
+  const frameDurationMs = 1000 / fps;
+  const startTime = performance.now();
+  let committedFrames = 0;
+
   try {
     for (let frame = 0; frame < totalFrames; frame++) {
       if (opts.signal?.aborted) break;
+      // Pace this frame's commit to real wall-clock time, per the doc
+      // comment above — a no-op wait (0ms) on a machine slow enough that
+      // rendering alone already blew the budget.
+      const waitMs = startTime + frame * frameDurationMs - performance.now();
+      if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
       surface.render();
       track.requestFrame();
+      committedFrames++;
       opts.onProgress?.((frame + 1) / totalFrames);
       // Cooperative yield so the encoder can drain this frame before the
-      // next is queued — not a frame-timing delay (on-demand mode has no
-      // real-time pacing requirement at all, which is the entire point).
+      // next is queued, on top of whatever pacing wait already happened.
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
   } finally {
@@ -198,7 +219,9 @@ export async function recordClip(
   return {
     blob: new Blob(chunks, { type: mimeType }),
     mimeType,
-    durationSeconds: totalFrames / fps,
+    // Reflects frames actually committed, not the request — an aborted
+    // recording produced a shorter clip than `totalFrames / fps`.
+    durationSeconds: committedFrames / fps,
   };
 }
 

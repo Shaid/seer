@@ -191,8 +191,10 @@ describe('recordClip', () => {
   it('commits exactly durationSeconds * fps frames via requestFrame()', async () => {
     const { track } = setUpRecordingGlobals(calls);
     const source: CaptureSource = { canvas: makeCanvas() };
-    await recordClip(source, { driver: makeDriver(calls), durationSeconds: 1, fps: 24 });
-    expect(track.requestFrame).toHaveBeenCalledTimes(24);
+    // Short and low-fps so the real wall-clock pacing this now does (see
+    // recordClip's own doc comment) doesn't make this test itself slow.
+    await recordClip(source, { driver: makeDriver(calls), durationSeconds: 0.08, fps: 24 });
+    expect(track.requestFrame).toHaveBeenCalledTimes(Math.round(0.08 * 24));
   });
 
   it('rounds duration*fps to at least 1 frame', async () => {
@@ -226,7 +228,7 @@ describe('recordClip', () => {
 
     await recordClip(source, {
       driver: makeDriver(calls),
-      durationSeconds: 10,
+      durationSeconds: 2,
       fps: 10,
       signal: controller.signal,
       onProgress: (f) => {
@@ -234,9 +236,47 @@ describe('recordClip', () => {
       },
     });
 
-    expect(track.requestFrame.mock.calls.length).toBeLessThan(100);
+    expect(track.requestFrame.mock.calls.length).toBeLessThan(20);
     expect(calls).toContain('driver.stop');
     expect(calls).toContain('recorder.stop');
+  });
+
+  it('reports the actual committed frame count in the result, not the requested one, when aborted early', async () => {
+    setUpRecordingGlobals(calls);
+    const source: CaptureSource = { canvas: makeCanvas() };
+    const controller = new AbortController();
+
+    const result = await recordClip(source, {
+      driver: makeDriver(calls),
+      durationSeconds: 2,
+      fps: 10,
+      signal: controller.signal,
+      onProgress: (f) => {
+        if (f >= 0.3) controller.abort();
+      },
+    });
+
+    // 20 requested frames; aborted around frame 6 (30%) -- the result must
+    // reflect what was actually committed, not `durationSeconds * fps`.
+    expect(result.durationSeconds).toBeLessThan(2);
+    expect(result.durationSeconds).toBeGreaterThan(0);
+  });
+
+  it('paces frame commits to real wall-clock time so a fast render does not produce a sped-up clip (regression)', async () => {
+    const { track } = setUpRecordingGlobals(calls);
+    const source: CaptureSource = { canvas: makeCanvas() };
+    const start = Date.now();
+    await recordClip(source, { driver: makeDriver(calls), durationSeconds: 0.15, fps: 20 });
+    const elapsedMs = Date.now() - start;
+
+    // 3 frames (indices 0,1,2) at 20fps: frame 0 commits immediately, frame
+    // 2 (the last) is paced to 2 * 50ms = 100ms of real time since the
+    // recording started, even though each frame's own render/encode work
+    // here is near-instant -- a tight loop with no pacing would finish in a
+    // few milliseconds instead. Some slack below the exact 100ms target for
+    // setTimeout jitter.
+    expect(track.requestFrame).toHaveBeenCalledTimes(3);
+    expect(elapsedMs).toBeGreaterThanOrEqual(90);
   });
 
   it('returns a blob assembled from every dataavailable chunk, with the negotiated mime type', async () => {
