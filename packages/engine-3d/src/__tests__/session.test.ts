@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Model3D, ModelRepresentations } from '../types.js';
+import type { RenderPath } from '../render-path.js';
 
 const { FakeWebGLRenderer } = vi.hoisted(() => {
   class FakeWebGLRenderer {
@@ -73,6 +74,7 @@ function makeFakePhotoController(phase: 'tracing' | 'converged' = 'tracing', sam
     render: vi.fn(),
     setCamera: vi.fn(),
     setOptions: vi.fn(),
+    invalidateSceneContents: vi.fn(),
     // A real PhotoModeController's dispose() is idempotent (photo-mode.ts's
     // own guard) — production code relies on that: viewport.setRenderPath()
     // disposing the outgoing path and session.ts's own explicit dispose()
@@ -81,6 +83,15 @@ function makeFakePhotoController(phase: 'tracing' | 'converged' = 'tracing', sam
     // called more than once) — tests assert "was disposed", not "called
     // exactly once", to match what idempotent actually means.
     dispose: vi.fn(),
+  };
+}
+
+/** A minimal fake `RenderPath`, installed directly via `session.viewport.setRenderPath()` (bypassing setCinematic()/setPhotoMode(), which build real paths) — for tests that only need to observe whether `invalidateSceneContents()` gets called, not exercise a real render tier. */
+function makeFakeRenderPath(): RenderPath & { invalidateSceneContents: () => void } {
+  return {
+    render: vi.fn(),
+    dispose: vi.fn(),
+    invalidateSceneContents: vi.fn(),
   };
 }
 
@@ -578,5 +589,121 @@ describe('MeshSession — photoMode', () => {
     // renderPath?.dispose() — safe only because the real controller's
     // dispose() is idempotent.
     expect(controller.dispose).toHaveBeenCalled();
+  });
+
+  it('a photo-mode takeover resets tone mapping left behind by cinematic (regression: leaks into flat afterward otherwise)', async () => {
+    // Bug this guards: CinematicPath.dispose() deliberately leaves
+    // renderer.toneMapping alone (see the dispose-ordering regression test
+    // above) on the theory that the replacement path always sets its own
+    // desired value -- true for another cinematic config, but
+    // PhotoModeController never touches tone mapping at all. Without this
+    // reset, cinematic -> photo -> flat would leave ACES + the old exposure
+    // stuck on the renderer through the whole photo session and into flat.
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setCinematic({ toneMapping: { exposure: 3 } });
+    const renderer = session.viewport.renderer as unknown as InstanceType<typeof FakeWebGLRenderer>;
+    expect(renderer.toneMapping).toBe(THREE.ACESFilmicToneMapping);
+
+    const promise = session.setPhotoMode({});
+    const controller = makeFakePhotoController();
+    photoModeMock.pending[0]!.resolve(controller);
+    await promise;
+
+    expect(renderer.toneMapping).toBe(THREE.NoToneMapping);
+    expect(renderer.toneMappingExposure).toBe(1);
+  });
+
+  it('setCinematic() bumps photoModeGeneration too, so an in-flight setPhotoMode() can\'t install after cinematic churn leaves renderPath back where it started (regression: ABA race)', async () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    // renderPath is null before this call, and (after the churn below) null
+    // again by the time it resolves -- without a generation bump in
+    // setCinematic(), the `viewport.renderPath !== pathBeforeAwait` check
+    // alone can't tell the two apart.
+    const promise = session.setPhotoMode({});
+
+    session.setCinematic({});
+    session.setCinematic(false);
+
+    const controller = makeFakePhotoController();
+    photoModeMock.pending[0]!.resolve(controller);
+    await promise;
+
+    expect(session.viewport.renderPath).toBeNull();
+    expect(session.photoMode).toBe('off');
+    expect(controller.dispose).toHaveBeenCalled();
+  });
+});
+
+describe('MeshSession — scene-content invalidation', () => {
+  it('setModel() invalidates the installed render path\'s scene contents', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const path = makeFakeRenderPath();
+    session.viewport.setRenderPath(path);
+    (path.invalidateSceneContents as ReturnType<typeof vi.fn>).mockClear();
+
+    session.setModel(makeGltfModel().model);
+
+    expect(path.invalidateSceneContents).toHaveBeenCalled();
+  });
+
+  it('addModel() invalidates the installed render path\'s scene contents', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setModel(makeGltfModel().model);
+    const path = makeFakeRenderPath();
+    session.viewport.setRenderPath(path);
+
+    session.addModel(makeGltfModel().model);
+
+    expect(path.invalidateSceneContents).toHaveBeenCalled();
+  });
+
+  it('setRenderMode()/setShading() (both route through refreshAppearance) invalidate the installed render path', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setModel(makeGltfModel().model);
+    const path = makeFakeRenderPath();
+    session.viewport.setRenderPath(path);
+    (path.invalidateSceneContents as ReturnType<typeof vi.fn>).mockClear();
+
+    session.setRenderMode('wireframe');
+    expect(path.invalidateSceneContents).toHaveBeenCalledTimes(1);
+
+    session.setShading('unlit');
+    expect(path.invalidateSceneContents).toHaveBeenCalledTimes(2);
+  });
+
+  it('setSmooth()/setSubdivision() (both route through refreshPolish -> refreshAppearance) invalidate the installed render path exactly once each, not twice', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setModel(makeGltfModel().model);
+    const path = makeFakeRenderPath();
+    session.viewport.setRenderPath(path);
+    (path.invalidateSceneContents as ReturnType<typeof vi.fn>).mockClear();
+
+    session.setSmooth(true);
+    expect(path.invalidateSceneContents).toHaveBeenCalledTimes(1);
+
+    session.setSubdivision(2);
+    expect(path.invalidateSceneContents).toHaveBeenCalledTimes(2);
+  });
+
+  it('setColorMode() invalidates the installed render path\'s scene contents', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    session.setModel(makeGltfModel().model);
+    const path = makeFakeRenderPath();
+    session.viewport.setRenderPath(path);
+    (path.invalidateSceneContents as ReturnType<typeof vi.fn>).mockClear();
+
+    session.setColorMode('height');
+
+    expect(path.invalidateSceneContents).toHaveBeenCalled();
+  });
+
+  it('does not throw with no render path installed (flat tier — invalidateSceneContents is a safe no-op)', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    expect(() => {
+      session.setModel(makeGltfModel().model);
+      session.addModel(makeGltfModel().model);
+      session.setSmooth(true);
+      session.setColorMode('height');
+    }).not.toThrow();
   });
 });

@@ -365,6 +365,44 @@ describe('createViewport — render-path seam', () => {
 
     viewport.dispose();
   });
+
+  it('setRenderPath() tells the incoming path what the current camera is (regression: a frozen view when the outgoing path\'s own dispose() swaps the camera)', () => {
+    // A real PhotoModeController.dispose() calls viewport.setCamera() as a
+    // side effect, restoring the pre-photo-mode camera -- but that
+    // viewport.setCamera() call notifies whichever path is installed AT
+    // THAT MOMENT (still the outgoing one; setRenderPath() hasn't
+    // reassigned `renderPath` yet), never the incoming path, which may
+    // have been constructed against a camera that's since been swapped out
+    // from under it. Simulated here without a real PhotoModeController:
+    // the outgoing fake's own dispose() calls viewport.setCamera().
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const restoredCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+    const outgoing = makeFakeRenderPath();
+    outgoing.dispose = () => {
+      viewport.setCamera(restoredCamera);
+    };
+    viewport.setRenderPath(outgoing);
+    const incoming = makeFakeRenderPath();
+
+    viewport.setRenderPath(incoming);
+
+    expect(incoming.setCameraCalls).toEqual([restoredCamera]);
+    viewport.dispose();
+  });
+
+  it('setRenderPath() still notifies the incoming path of the (unchanged) camera even when the outgoing path\'s dispose() does nothing camera-related', () => {
+    const container = makeContainer(400, 300);
+    const viewport = createViewport(container, { frameLimiter: false, grid: false, lights: false });
+    const outgoing = makeFakeRenderPath();
+    viewport.setRenderPath(outgoing);
+    const incoming = makeFakeRenderPath();
+
+    viewport.setRenderPath(incoming);
+
+    expect(incoming.setCameraCalls).toEqual([viewport.camera]);
+    viewport.dispose();
+  });
 });
 
 describe('createViewport — addFrameHook', () => {

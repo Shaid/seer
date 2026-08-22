@@ -180,11 +180,12 @@ export function createMeshSession(
     trackedModels.length = 0;
   };
 
-  /** Reapplies render mode + shading together — the pair `render-modes.ts`/`mesh-shading.ts` must stay in sync on (shading defers to render mode for wireframe/points). Does not touch geometry. */
+  /** Reapplies render mode + shading together — the pair `render-modes.ts`/`mesh-shading.ts` must stay in sync on (shading defers to render mode for wireframe/points). Does not touch geometry. Invalidates any render-tier state built over the model's materials (a path tracer's BVH/material data) — covers `setRenderMode`/`setShading`/`setModel` directly, and `refreshPolish` transitively (it always calls this after rebuilding geometry), so neither of those needs its own separate call. */
   const refreshAppearance = () => {
     if (disposed || !model) return;
     applyRenderMode(model, renderMode!);
     applyMeshShading(model, shadingCache, { shading, smooth, renderMode: renderMode! });
+    viewport.invalidateSceneContents();
   };
 
   /** Rebuilds geometry from `originalGeometry` at the current subdivision/smooth settings, then refreshes appearance — mirrors what a render-mode-only change does, but geometry changes need the rebuild first. */
@@ -280,6 +281,7 @@ export function createMeshSession(
       trackedModels.push(next);
       viewport.root.add(next.object);
       if (shadows) enableModelShadows(next.object);
+      viewport.invalidateSceneContents();
     },
 
     setRenderMode(mode) {
@@ -319,6 +321,7 @@ export function createMeshSession(
     setColorMode(mode, resolver) {
       if (disposed || !model) return;
       recolorPolygonModel(model, mode, resolver);
+      viewport.invalidateSceneContents();
     },
 
     setShadows(opts) {
@@ -332,6 +335,16 @@ export function createMeshSession(
 
     setCinematic(opts) {
       if (disposed) return;
+      // Bumped on every call (not just a photoModeController-clearing one)
+      // so an in-flight setPhotoMode() can never mistake this session's
+      // intent for "still current" via an ABA on viewport.renderPath alone
+      // — e.g. setPhotoMode({}) (renderPath null while pending) racing
+      // against setCinematic(opts) then setCinematic(false), which leaves
+      // renderPath null again by the time the photo controller resolves.
+      // Without this, the pathBeforeAwait/renderPath comparison in
+      // setPhotoMode() below would see "unchanged" and let a stale
+      // controller install anyway.
+      photoModeGeneration++;
 
       if (opts === false) {
         cinematic = false;
@@ -413,6 +426,15 @@ export function createMeshSession(
           // reasoning as setCinematic() clearing photoModeController.
           cinematic = false;
           cinematicPath = null;
+          // A second "nothing replaces it" exit from cinematic, alongside
+          // setCinematic(false) — CinematicPath.dispose() deliberately
+          // leaves renderer.toneMapping alone (see its doc comment), and
+          // PhotoModeController never sets one either (its rasterized
+          // fallback goes through renderer.render() too, so a stale ACES
+          // setting here would leak into that fallback image, then into the
+          // flat tier if setPhotoMode(false) follows without cinematic ever
+          // being re-selected in between).
+          applyToneMapping(viewport.renderer, false);
         },
         (err) => {
           if (generation === photoModeGeneration) photoModeLoading = false;

@@ -401,6 +401,19 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
       if (path === renderPath) return;
       renderPath?.dispose();
       renderPath = path;
+      // The outgoing path's dispose() can change `camera` as a side effect
+      // (PhotoModeController.dispose() restores the pre-photo-mode camera
+      // via viewport.setCamera()) — that notification lands on the OLD
+      // path (still installed at the moment dispose() runs it), never the
+      // new one, which may have been constructed against a camera that's
+      // since been swapped out from under it (e.g. Photo -> Cinematic:
+      // createCinematicPath() reads viewport.camera before this call,
+      // which at that point is still photo mode's PhysicalCamera). Telling
+      // the incoming path what the camera actually is right now — whatever
+      // it ended up being after the outgoing path's own teardown — keeps
+      // every render tier pointed at the same live camera the controls
+      // actually drive, instead of a frozen, abandoned one.
+      renderPath?.setCamera?.(camera);
     },
     setCamera(next) {
       camera = next;

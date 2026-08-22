@@ -1,3 +1,4 @@
+import type * as THREE from 'three';
 import type { RenderPath } from './render-path.js';
 import type { Viewport } from './viewport.js';
 import { importPathTracer, isPhotoModeAvailable, type PathTracerLike } from './pathtracer-shim.js';
@@ -78,6 +79,21 @@ export async function createPhotoMode(
   applyPhotoModeOptions(pathTracer, opts);
   let targetSamples = opts.targetSamples ?? 64;
 
+  // Known residual gap: if photo mode is already active when this runs
+  // (setPhotoMode() called again while `phase` is 'tracing'/'converged'),
+  // `original` captures the PREVIOUS controller's own `physicalCamera`,
+  // not the true pre-photo-mode camera — this function has no way to tell
+  // "the current camera" apart from "a stray PhysicalCamera some earlier
+  // photo session installed" from viewport.camera alone. Viewport's own
+  // setRenderPath() -> setCamera() relay (see its doc comment) still keeps
+  // whichever camera the controls actually drive in sync with whatever
+  // renders, so the view itself won't freeze or desync across the swap —
+  // but the camera object the session eventually settles back on for the
+  // flat tier may end up being one of these intermediate PhysicalCameras
+  // rather than the session's original THREE.PerspectiveCamera. A full fix
+  // needs a session-level "true original camera" reference independent of
+  // any one controller's own closure, threaded in rather than read off
+  // viewport.camera here.
   const original = viewport.camera;
   const physicalCamera = new PhysicalCamera(original.fov, original.aspect, original.near, original.far);
   physicalCamera.position.copy(original.position);
@@ -101,6 +117,10 @@ export async function createPhotoMode(
   viewport.controls.addEventListener('change', onControlsChange);
 
   let disposed = false;
+  // Tracks whichever camera the path tracer is actually pointed at right
+  // now, so invalidateSceneContents() below can rebuild against the right
+  // one — starts as `physicalCamera`, but `setCamera()` can repoint it.
+  let currentCamera: THREE.PerspectiveCamera = physicalCamera;
 
   const controller: PhotoModeController = {
     get phase() {
@@ -113,11 +133,21 @@ export async function createPhotoMode(
       pathTracer.renderSample();
     },
     setCamera(next) {
+      currentCamera = next;
       pathTracer.setCamera(next);
     },
     setOptions(next) {
       applyPhotoModeOptions(pathTracer, next);
       targetSamples = next.targetSamples ?? targetSamples;
+    },
+    // Scene geometry/materials changed underneath the path tracer's BVH —
+    // rebuild it the same way construction did. WebGLPathTracer.setScene()
+    // (real library source, confirmed by reading it) internally resets
+    // accumulated samples too (each of updateCamera/updateMaterials/
+    // updateEnvironment/updateLights calls its own reset()), so a fresh
+    // accumulation correctly starts over the new contents.
+    invalidateSceneContents() {
+      pathTracer.setScene(viewport.scene, currentCamera);
     },
     dispose() {
       if (disposed) return;

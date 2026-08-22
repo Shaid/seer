@@ -76,6 +76,17 @@ export interface FitShadowCameraOptions {
  * own default) — fine for a toy demo scene, but it clips any model whose
  * footprint exceeds 10 units, silently dropping its shadow with no error.
  *
+ * Repositions `light` itself, too, along whatever direction it's already
+ * offset from its target (preserving the artistic "light comes from this
+ * angle" choice a fixed default like `[3, 5, 4]` — `viewport.ts` — encodes)
+ * but scaled to a distance the model's own size actually needs. Left at its
+ * construction-time position, any model whose bounding-sphere radius
+ * exceeds that default's own ~7-unit magnitude would contain the light
+ * outright, and even a smaller-but-not-tiny model would put casters behind
+ * the shadow camera's near plane — the same "silently drops the shadow"
+ * failure this function exists to fix at the frustum's own scale, just
+ * caused by the light instead of the frustum.
+ *
  * Also repoints `light.target` at the box's center — `viewport.ts` adds the
  * key light's target to the scene at construction specifically so this has
  * somewhere to point it; a `DirectionalLight`'s shadow camera looks from
@@ -91,12 +102,28 @@ export function fitShadowCamera(
 ): void {
   if (box.isEmpty()) return;
   const padding = opts.padding ?? 0.25;
-  const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
-  const radius = Math.max(size.x, size.y, size.z, 0.001) * 0.5 * (1 + padding);
+  // The real bounding-SPHERE radius, not half the longest box dimension —
+  // half-dimension under-covers a box's own corners (a cube's true
+  // circumscribing radius is ~0.866x its half-dimension), which is exactly
+  // the "corner geometry clips despite padding" failure this fixes.
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  const radius = Math.max(sphere.radius, 0.001) * (1 + padding);
 
+  // Preserve the light's current direction from its target (its already-set
+  // position encodes an artistic choice — "upper right front" for the
+  // default [3, 5, 4] — that should survive regardless of model scale);
+  // only the DISTANCE changes, to keep the light outside the model at any
+  // size. Falls back to a fixed direction only in the degenerate case where
+  // light and target already coincide (nothing to normalize).
+  const direction = light.position.clone().sub(light.target.position);
+  if (direction.lengthSq() < 1e-8) direction.set(1, 1, 1);
+  direction.normalize();
+  const distance = radius * 2;
+  light.position.copy(center).addScaledVector(direction, distance);
   light.target.position.copy(center);
   light.target.updateMatrixWorld();
+  light.updateMatrixWorld();
 
   const cam = light.shadow.camera;
   cam.left = -radius;
@@ -107,7 +134,7 @@ export function fitShadowCamera(
   // own depth, generously padded — too tight clips the shadow, too loose
   // just wastes depth precision, not correctness.
   cam.near = 0.5;
-  cam.far = radius * 2 + light.position.distanceTo(center) + radius;
+  cam.far = distance + radius;
   cam.updateProjectionMatrix();
 }
 

@@ -154,6 +154,63 @@ describe('fitShadowCamera', () => {
     fitShadowCamera(light, box);
     expect(light.shadow.camera.projectionMatrix.equals(before)).toBe(false);
   });
+
+  it('repositions the light outside a model large enough that the construction-time default position would sit inside it (regression: a big model contained the light, silently losing its shadow)', () => {
+    const light = new THREE.DirectionalLight();
+    light.position.set(3, 5, 4); // viewport.ts's own default key-light position, magnitude ~7.07
+    // A model with a ~20-unit bounding-sphere radius -- comfortably bigger
+    // than the default light position's own distance from the origin.
+    const box = new THREE.Box3(new THREE.Vector3(-20, 0, -20), new THREE.Vector3(20, 10, 20));
+
+    fitShadowCamera(light, box);
+
+    const center = box.getCenter(new THREE.Vector3());
+    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    expect(light.position.distanceTo(center)).toBeGreaterThan(sphere.radius);
+  });
+
+  it('preserves the light\'s existing direction from its target — only the distance changes, not the angle', () => {
+    const light = new THREE.DirectionalLight();
+    light.position.set(3, 5, 4);
+    const originalDirection = light.position.clone().normalize();
+    const box = new THREE.Box3(new THREE.Vector3(-20, 0, -20), new THREE.Vector3(20, 10, 20));
+
+    fitShadowCamera(light, box);
+
+    const center = box.getCenter(new THREE.Vector3());
+    const newDirection = light.position.clone().sub(center).normalize();
+    expect(newDirection.x).toBeCloseTo(originalDirection.x, 5);
+    expect(newDirection.y).toBeCloseTo(originalDirection.y, 5);
+    expect(newDirection.z).toBeCloseTo(originalDirection.z, 5);
+  });
+
+  it('uses the real bounding-sphere radius, not half the longest box dimension — a cube\'s corners are outside that half-dimension radius', () => {
+    const light = new THREE.DirectionalLight();
+    light.position.set(3, 5, 4);
+    // A perfect cube: half-dimension is 5, but the true bounding-sphere
+    // radius (reaching the corners) is 5 * sqrt(3) ~= 8.66.
+    const box = new THREE.Box3(new THREE.Vector3(-5, -5, -5), new THREE.Vector3(5, 5, 5));
+
+    fitShadowCamera(light, box, { padding: 0 });
+
+    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    expect(sphere.radius).toBeCloseTo(5 * Math.sqrt(3), 5);
+    expect(light.shadow.camera.right).toBeCloseTo(sphere.radius, 5);
+    // The old half-dimension formula would have produced exactly 5 here —
+    // confirm the fix actually covers the cube's corners, not just its faces.
+    expect(light.shadow.camera.right).toBeGreaterThan(5);
+  });
+
+  it('falls back to a default direction when the light already coincides with its target (degenerate case)', () => {
+    const light = new THREE.DirectionalLight();
+    light.position.set(0, 0, 0);
+    light.target.position.set(0, 0, 0);
+    const box = new THREE.Box3(new THREE.Vector3(-2, 0, -2), new THREE.Vector3(2, 2, 2));
+
+    expect(() => fitShadowCamera(light, box)).not.toThrow();
+    const center = box.getCenter(new THREE.Vector3());
+    expect(light.position.distanceTo(center)).toBeGreaterThan(0);
+  });
 });
 
 describe('createShadowCatcher', () => {

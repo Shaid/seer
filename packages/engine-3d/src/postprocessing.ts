@@ -185,9 +185,21 @@ export function createCinematicPath(
   const size = renderer.getSize(new THREE.Vector2());
   const pixelRatio = renderer.getPixelRatio();
 
+  // CSS pixels, not device pixels — EffectComposer's constructor reads
+  // `_width`/`_height` straight off whatever target is passed in (real
+  // source, confirmed by reading it: `this._width = renderTarget.width`),
+  // and every later `setPixelRatio()` call rescales FROM that baseline
+  // (`setSize(this._width, this._height)` internally). Passing a target
+  // already sized in device pixels here would double that scaling — the
+  // very next line's AO cost clamp (`setPixelRatio(1)`, meant to render at
+  // CSS resolution) would land back on device resolution instead, and the
+  // non-AO case would end up 'pixelRatio²' oversized. This self-corrected
+  // on the first real `Viewport.resize()` (`setSize()` below passes CSS
+  // dimensions too) — it's specifically the *initial* frame(s) after
+  // construction, before any resize, that rendered at the wrong scale.
   const useMsaaTarget = plan.some((p) => p.kind === 'msaa-target');
   const renderTarget = useMsaaTarget
-    ? new THREE.WebGLRenderTarget(size.x * pixelRatio, size.y * pixelRatio, {
+    ? new THREE.WebGLRenderTarget(size.x, size.y, {
         type: THREE.HalfFloatType,
         samples: 4,
       })
@@ -227,7 +239,13 @@ export function createCinematicPath(
   let fxaaPass: FXAAPass | null = null;
   if ((current.antialias ?? 'msaa') === 'fxaa') {
     fxaaPass = new FXAAPass();
-    fxaaPass.setSize(size.x * pixelRatio, size.y * pixelRatio);
+    // The composer's OWN effective pixel ratio (the same expression used
+    // for composer.setPixelRatio() above), not the raw renderer one — with
+    // AO on, the composer actually renders at the clamped ratio, and
+    // FXAA's shader needs its resolution uniform to match the real
+    // per-pixel size it's sampling, not the display's.
+    const effectivePixelRatio = current.ao ? Math.min(pixelRatio, 1) : pixelRatio;
+    fxaaPass.setSize(size.x * effectivePixelRatio, size.y * effectivePixelRatio);
     composer.addPass(fxaaPass);
   }
 
