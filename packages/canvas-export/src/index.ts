@@ -14,3 +14,5 @@ export type {
   RecordClipOptions,
   RecordClipResult,
 } from './video-export.js';
+export { buildGradingFilterString, isCtxFilterSupported } from './grading.js';
+export type { GradingOptions } from './grading.js';
