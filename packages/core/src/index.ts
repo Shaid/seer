@@ -11,3 +11,4 @@ export * from './assets.js';
 export * from './palette.js';
 export * from './atlas.js';
 export * from './playback.js';
+export * from './list-labels.js';
