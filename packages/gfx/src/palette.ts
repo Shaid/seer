@@ -37,6 +37,9 @@ export function expandPalette(words: ArrayLike<number>, format: ColorWordFormat)
  * Never treat output built from this as colour-confirmed.
  */
 export function greyscaleRamp(planes: number): number[] {
+  if (!Number.isInteger(planes) || planes < 1 || planes > 8) {
+    throw new Error(`greyscaleRamp: planes must be an integer in [1, 8], got ${planes}`);
+  }
   const count = 1 << planes;
   const rgb: number[] = [];
   for (let i = 0; i < count; i++) {

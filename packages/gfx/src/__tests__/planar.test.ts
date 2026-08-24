@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decodePlanar, planarByteLength, type PlanarConfig } from '../planar.js';
+import { decodePlanar, planarByteLength, planarByteOffset, type PlanarConfig } from '../planar.js';
 import { expandColorWord, expandPalette, greyscaleRamp } from '../palette.js';
 import { indicesToRGBA } from '../rgba.js';
 
@@ -67,17 +67,24 @@ function encodeWordInterleaved(
   width: number,
   height: number,
   planes: number,
+  interleave = 2,
+  rowBytes = width >> 3,
 ): Uint8Array {
-  // Atari ST layout: within each row, words alternate plane 0, plane 1, …
-  const rowBytes = width >> 3;
+  // Atari ST layout: within each row, `interleave`-byte units alternate
+  // plane 0, plane 1, … `rowBytes` may exceed the tight `width >> 3` to
+  // exercise row padding; the padding bytes are left zero.
   const buf = new Uint8Array(height * rowBytes * planes);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const byteX = x >> 3;
-      const wordIndex = byteX >> 1;
+      const unitIndex = Math.floor(byteX / interleave);
       for (let p = 0; p < planes; p++) {
         if ((img[y * width + x] >> p) & 1) {
-          const off = y * rowBytes * planes + wordIndex * planes * 2 + p * 2 + (byteX & 1);
+          const off =
+            y * rowBytes * planes +
+            unitIndex * planes * interleave +
+            p * interleave +
+            (byteX % interleave);
           setBit(buf, off, x);
         }
       }
@@ -160,6 +167,99 @@ describe('decodePlanar', () => {
     // The tail rows, entirely past the truncated buffer, decode as index 0.
     expect(out.subarray(width * (height - 1)).every((v) => v === 0)).toBe(true);
   });
+
+  it('honours a non-default word-interleaved interleave on an aligned config', () => {
+    const interleave = 4;
+    const buf = encodeWordInterleaved(img, width, height, planes, interleave);
+    const cfg: PlanarConfig = { width, height, planes, layout: 'word-interleaved', interleave };
+    expect(decodePlanar(buf, cfg)).toEqual(img);
+    expect(planarByteLength(cfg)).toBe(buf.length);
+  });
+
+  it('honours an offset combined with word-interleaved rowBytes padding', () => {
+    const pad = 5;
+    const rowBytes = (width >> 3) + 2; // still a multiple of the default interleave (2)
+    const padded = encodeWordInterleaved(img, width, height, planes, 2, rowBytes);
+    const buf = new Uint8Array(pad + padded.length);
+    buf.set(padded, pad);
+    expect(
+      decodePlanar(buf, {
+        width,
+        height,
+        planes,
+        layout: 'word-interleaved',
+        offset: pad,
+        rowBytes,
+      }),
+    ).toEqual(img);
+  });
+
+  it('throws a clear error for a misaligned word-interleaved config (rowBytes % interleave !== 0)', () => {
+    // width=8 -> rowBytes=1, default interleave=2: 1 % 2 !== 0. Verified
+    // aliasing example from the review: offset 4 would otherwise be read
+    // by both (y=0, p=2) and (y=1, p=0).
+    const cfg: PlanarConfig = { width: 8, height: 3, planes: 4, layout: 'word-interleaved' };
+    expect(() => decodePlanar(new Uint8Array(32), cfg)).toThrow(/rowBytes/);
+    expect(() => planarByteLength(cfg)).toThrow(/rowBytes/);
+    expect(() => planarByteOffset(0, 1, 0, cfg)).toThrow(/rowBytes/);
+  });
+
+  it('planarByteLength is >= the max planarByteOffset over the whole valid range', () => {
+    const configs: PlanarConfig[] = [
+      { width: 32, height: 5, planes: 3, layout: 'plane-major' },
+      { width: 32, height: 5, planes: 3, layout: 'row-interleaved' },
+      { width: 32, height: 5, planes: 3, layout: 'word-interleaved' },
+      { width: 32, height: 5, planes: 3, layout: 'word-interleaved', interleave: 4 },
+      { width: 32, height: 5, planes: 3, layout: 'plane-major', rowBytes: 8, planeStride: 60 },
+    ];
+    for (const cfg of configs) {
+      const len = planarByteLength(cfg);
+      const bytesPerRow = cfg.width >> 3;
+      let maxOffset = -1;
+      for (let plane = 0; plane < cfg.planes; plane++) {
+        for (let y = 0; y < cfg.height; y++) {
+          for (let byteX = 0; byteX < bytesPerRow; byteX++) {
+            maxOffset = Math.max(maxOffset, planarByteOffset(byteX, y, plane, cfg));
+          }
+        }
+      }
+      expect(len).toBeGreaterThan(maxOffset);
+    }
+  });
+});
+
+describe('decodePlanar validation', () => {
+  const validBase = { height: 4, planes: 2, layout: 'row-interleaved' as const };
+  const data = new Uint8Array(64);
+
+  it('rejects a negative width', () => {
+    expect(() => decodePlanar(data, { ...validBase, width: -8 })).toThrow(/width/);
+  });
+
+  it('rejects a fractional width', () => {
+    expect(() => decodePlanar(data, { ...validBase, width: 8.5 })).toThrow(/width/);
+  });
+
+  it('rejects a non-positive height', () => {
+    expect(() => decodePlanar(data, { width: 8, planes: 2, layout: 'row-interleaved', height: 0 })).toThrow(
+      /height/,
+    );
+  });
+
+  it('rejects planes out of the documented 1-8 range', () => {
+    expect(() => decodePlanar(data, { width: 8, height: 4, planes: 9, layout: 'row-interleaved' })).toThrow(
+      /planes/,
+    );
+    expect(() => decodePlanar(data, { width: 8, height: 4, planes: 0, layout: 'row-interleaved' })).toThrow(
+      /planes/,
+    );
+  });
+
+  it('rejects a fractional planes value', () => {
+    expect(() =>
+      decodePlanar(data, { width: 8, height: 4, planes: 2.5, layout: 'row-interleaved' }),
+    ).toThrow(/planes/);
+  });
 });
 
 describe('palette', () => {
@@ -177,9 +277,20 @@ describe('palette', () => {
     expect(expandPalette([0x0f00, 0x00f0], 'amiga12')).toEqual([255, 0, 0, 0, 255, 0]);
   });
 
+  it('expandPalette flattens amiga24 longwords to rgb triples', () => {
+    expect(expandPalette([0x00ff8000, 0x00001122], 'amiga24')).toEqual([255, 128, 0, 0, 0x11, 0x22]);
+  });
+
   it('greyscaleRamp spans 0..255 over 2^planes levels', () => {
     const ramp = greyscaleRamp(2);
     expect(ramp).toEqual([0, 0, 0, 85, 85, 85, 170, 170, 170, 255, 255, 255]);
+  });
+
+  it('greyscaleRamp rejects planes out of the 1-8 range', () => {
+    // 1 << 31 overflows to a negative number in JS bitwise ops.
+    expect(() => greyscaleRamp(31)).toThrow(/planes/);
+    expect(() => greyscaleRamp(0)).toThrow(/planes/);
+    expect(() => greyscaleRamp(9)).toThrow(/planes/);
   });
 });
 
@@ -212,5 +323,13 @@ describe('indicesToRGBA', () => {
   it('indices past the palette end render black', () => {
     const rgba = indicesToRGBA(Uint8Array.from([5]), palette);
     expect([...rgba]).toEqual([0, 0, 0, 255]);
+  });
+
+  it('a mask shorter than indices renders the uncovered tail transparent', () => {
+    // mask[i] is undefined past its end, which is falsy -> alpha 0.
+    const rgba = indicesToRGBA(indices, palette, { mask: Uint8Array.from([1]) });
+    expect(rgba[3]).toBe(255); // covered by mask
+    expect(rgba[7]).toBe(0); // past mask end -> transparent
+    expect(rgba[11]).toBe(0); // past mask end -> transparent
   });
 });

@@ -27,7 +27,13 @@
 export type PlanarLayout = 'plane-major' | 'row-interleaved' | 'word-interleaved';
 
 export interface PlanarConfig {
-  /** Width in pixels. Amiga hardware bitmaps are word-aligned (width % 16 === 0); this decoder only requires width % 8 === 0. */
+  /**
+   * Width in pixels. Amiga hardware bitmaps are word-aligned (width % 16
+   * === 0); this decoder only requires width % 8 === 0 — except for the
+   * `word-interleaved` layout, which additionally requires `rowBytes` (=
+   * `width / 8` unless overridden) to be a multiple of `interleave`, i.e.
+   * `width % (interleave * 8) === 0` at the default interleave of 2.
+   */
   width: number;
   height: number;
   /** Bitplane count, 1–8. Plane 0 is the least significant index bit. */
@@ -53,6 +59,24 @@ export interface PlanarConfig {
 }
 
 /**
+ * `word-interleaved` packs `planes` interleave-units side by side every
+ * `interleave` bytes, so a row only tiles evenly — with no aliasing between
+ * cells — when `rowBytes` is itself a whole number of interleave units. When
+ * it isn't, distinct (row, plane) cells map to the same source byte (and
+ * `planarByteLength`'s row-stride formula under-reports the true span), so
+ * this is rejected as an invalid config rather than silently corrupted.
+ */
+function assertWordInterleaveAlignment(rowBytes: number, interleave: number): void {
+  if (rowBytes % interleave !== 0) {
+    throw new Error(
+      `planar: word-interleaved layout requires rowBytes to be a multiple of interleave ` +
+        `(got rowBytes=${rowBytes}, interleave=${interleave}); this typically means width ` +
+        `is not a multiple of interleave*8 (${interleave * 8})`,
+    );
+  }
+}
+
+/**
  * Byte offset (relative to `config.offset`) of the byte holding pixel byte
  * column `byteX` (= `x >> 3`), row `y`, plane `plane`.
  */
@@ -72,6 +96,7 @@ export function planarByteOffset(
       return y * rowBytes * config.planes + plane * rowBytes + byteX;
     case 'word-interleaved': {
       const ilv = config.interleave ?? 2;
+      assertWordInterleaveAlignment(rowBytes, ilv);
       return (
         y * rowBytes * config.planes +
         Math.floor(byteX / ilv) * config.planes * ilv +
@@ -92,6 +117,9 @@ export function planarByteLength(config: PlanarConfig): number {
     const planeStride = config.planeStride ?? rowBytes * config.height;
     return (config.planes - 1) * planeStride + config.height * rowBytes;
   }
+  if (config.layout === 'word-interleaved') {
+    assertWordInterleaveAlignment(rowBytes, config.interleave ?? 2);
+  }
   return config.height * rowBytes * config.planes;
 }
 
@@ -103,6 +131,15 @@ export function planarByteLength(config: PlanarConfig): number {
  */
 export function decodePlanar(data: Uint8Array, config: PlanarConfig): Uint8Array {
   const { width, height, planes } = config;
+  if (!Number.isInteger(width) || width <= 0) {
+    throw new Error(`decodePlanar: width must be a positive integer, got ${width}`);
+  }
+  if (!Number.isInteger(height) || height <= 0) {
+    throw new Error(`decodePlanar: height must be a positive integer, got ${height}`);
+  }
+  if (!Number.isInteger(planes) || planes < 1 || planes > 8) {
+    throw new Error(`decodePlanar: planes must be an integer in [1, 8], got ${planes}`);
+  }
   const base = config.offset ?? 0;
   const out = new Uint8Array(width * height);
   const bytesPerRow = width >> 3;

@@ -15,7 +15,7 @@ Optional — install only if your target game stores planar graphics. One
 layout-parameterised decoder replaces the per-game `decodePlanar` copies
 that used to live in each consuming repo (see
 `docs/common-tooling-candidates.md` §1 in the seer workspace). Browser-safe,
-zero dependencies beyond `@seer-project/core`.
+zero dependencies.
 
 ## Installation
 
