@@ -15,10 +15,15 @@ output.
 > which packages are settled and which are still moving.
 
 Structured as an npm workspace: genuinely reusable, game-agnostic code lives
-in scoped `packages/*` (`@seer-project/core`, `@seer-project/engine-2d`, `@seer-project/pipeline`,
-`@seer-project/iff`, `@seer-project/smus`). Everything at the project root (`src/`, `tools/`)
-is your project — templates and placeholders you edit and diverge from
-freely.
+in scoped `packages/*` — `@seer-project/core`, `@seer-project/engine-2d`, and
+`@seer-project/pipeline` are the three every `create-seer-app` scaffold
+depends on; the rest cover other genres and asset types (3D model viewers,
+first-person dungeon crawlers, tracker audio, Amiga binary formats, and
+more) and get added by hand as a project needs them. See
+[`docs/project-status.md`](docs/project-status.md) for the full package list
+and which ones are settled vs. still moving. Everything at the project root
+(`src/`, `tools/`) is your project — templates and placeholders you edit and
+diverge from freely.
 
 See:
 

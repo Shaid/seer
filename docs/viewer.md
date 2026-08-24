@@ -1,7 +1,7 @@
 # Viewer Tooling Guide
 
 How the scaffold's offline asset viewer (`tools/viewer/` — generated from
-`packages/create-seer-viewer/templates/*.eta`, either directly via `npx
+`packages/create-seer-app/templates/viewer/*.eta`, either directly via `npx
 create-seer-app viewer` or as part of `npm create seer-app --viewer`) works: the
 data-driven game/platform selectors, asset-type filter tabs, animation
 autoplay, the generic indexed-texture + palette WebGL2 shader with its live
@@ -31,7 +31,7 @@ and `@seer-project/audio-ui`'s `AudioBarController`/`NativeAudioEngine`).
 
 ## Architecture
 
-Five template files in `packages/create-seer-viewer/templates/`, rendered
+Five template files in `packages/create-seer-app/templates/viewer/`, rendered
 once per scaffolded project into `tools/viewer/`:
 
 - `index.html.eta` → `index.html` — DOM structure.
@@ -423,7 +423,7 @@ for a mesh.
 
 **Scaffold-template support is intentionally not implemented yet.** Only the
 manifest *shape* (the five fields above) lives in
-`packages/create-seer-viewer/templates/shared.ts.eta` — there is no `.eta`
+`packages/create-seer-app/templates/viewer/shared.ts.eta` — there is no `.eta`
 template code anywhere in `create-seer-app` that
 branches on `type: "mesh"`/`"scene"`, imports `@seer-project/engine-3d`, or
 renders a 3D canvas. Each consuming project is expected to hand-wire this
@@ -466,21 +466,25 @@ follow-up, not fixed here.
 
 ## Why this doc isn't vendored into scaffolded projects
 
-`architecture-overview.md` and `boilerplate-guide.md` are copied verbatim
-into every scaffolded project (`docs/architecture-overview.md.eta`,
-`docs/boilerplate-guide.md.eta` — plain copies, no template variables) and
-linked locally from the scaffolded `README.md`. `common-tooling-candidates.md`
-§15a calls this out as a real problem: three of the six real sibling
-projects carry byte-identical stale copies of these docs, one carries a
-57-line-stale fork, and none of those copies will ever receive a framework
-update after the point they were scaffolded. §15a's own recommendation is
-"the scaffold should link, not copy."
+This guide has never been vendored: the scaffolded `README.md.eta` has
+always pointed at `https://github.com/Shaid/seer/blob/main/docs/viewer.md`
+(the same link-not-copy approach `crawl/README.md` already uses for it,
+independently of the scaffold) rather than copying it into a new project's
+`docs/` folder. That was deliberate, not an oversight — `common-tooling-
+candidates.md` §15a flagged that `architecture-overview.md` and
+`boilerplate-guide.md`, which *were* copied verbatim
+(`docs/architecture-overview.md.eta`, `docs/boilerplate-guide.md.eta` — plain
+copies, no template variables) into every scaffolded project, were a real
+problem: three of six real sibling projects carried byte-identical stale
+copies, one carried a 57-line-stale fork, and none would ever receive a
+framework update after the point they were scaffolded. §15a's own
+recommendation was "the scaffold should link, not copy," and this doc's own
+placement was written to set that precedent before generalizing it.
 
-Rather than perpetuate that pattern for a **fourth** doc, this guide is
-**linked, not vendored**: the scaffolded `README.md.eta` points at
-`https://github.com/Shaid/seer/blob/main/docs/viewer.md` (the same
-link-not-copy approach `crawl/README.md` already uses for the other two
-framework docs, independently of the scaffold), and
-`docs/architecture-overview.md.eta`'s own §9 does the same. This means a
-scaffolded project's `docs/` folder does **not** contain a local
-`viewer.md` — that's intentional, not an oversight.
+**Update:** `architecture-overview.md.eta` and `boilerplate-guide.md.eta`
+have since been deleted, and `project.ts` no longer writes a local
+`docs/architecture-overview.md`/`docs/boilerplate-guide.md` at all — a
+scaffolded project's `README.md` now links out to all three framework docs
+the same way, and a fresh scaffold's `docs/` folder doesn't exist until the
+project adds its own game-specific docs to it. §15a is resolved, not just
+diagnosed.

@@ -38,9 +38,12 @@ each package has taken.
 | `@seer-project/core` | **Steadiest.** Binary reading primitives and the asset/palette types are used by every other package and every consuming project; the shapes have survived several games |
 | `@seer-project/iff` | Steady. A parser for a published 1985 standard — the format cannot move underneath it |
 | `@seer-project/pipeline` | Mostly steady, but Node-only helpers get added as new extraction needs appear |
+| `@seer-project/canvas-export`, `@seer-project/retro-display` | New, but already the most widely adopted packages after `core`/`engine-2d`/`pipeline` — picked up by nearly every sibling repo already on `engine-2d` within the same rollout that added them. Expect quicker-than-usual iteration precisely because so many consumers are exercising the API at once |
 | `@seer-project/engine-2d`, `@seer-project/smus`, `@seer-project/tracker`, `@seer-project/audio-dsp` | Moving. Each was extracted from a working project and generalised; expect the generalisation to keep being refined |
 | `@seer-project/audio-ui`, `@seer-project/dungeon` | Moving faster. Recently extracted, fewer independent consumers |
-| `@seer-project/engine-3d` | **Newest and least settled.** Added most recently; the model-adapter boundary in particular is still being worked out |
+| `@seer-project/gfx`, `@seer-project/amiga` | Moving faster still — single-consumer as of this writing (one project each), so the API hasn't yet had to generalise past that one project's needs |
+| `@seer-project/engine-3d`, `@seer-project/mesh-viewer-ui` | **Newest and least settled.** Added most recently; the model-adapter boundary in particular is still being worked out, despite already having several consumers exercising it |
+| `@seer-project/probe` | A standalone CLI (binary triage/recon), not a library a project depends on — run directly from this repo (`npm run probe`), not installed by consuming projects. Stability is about its command surface, which is still gaining subcommands |
 | `create-seer-app` | Churn matters least — it generates code into your project once, so a later change to the template does not break what you already scaffolded |
 
 ## What 1.0 would need

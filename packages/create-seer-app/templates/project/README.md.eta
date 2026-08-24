@@ -46,7 +46,11 @@ seer.config.ts       Pipeline configuration
 
 ## Learn more
 
-- [Architecture overview](docs/architecture-overview.md) — how the project is structured
-- [Boilerplate guide](docs/boilerplate-guide.md) — what's template vs. what you build
+These link to the framework repo rather than a local copy, so they can't go
+stale the way a vendored copy would (see
+[`docs/common-tooling-candidates.md` §15a](https://github.com/Shaid/seer/blob/main/docs/common-tooling-candidates.md)):
+
+- [Architecture overview](https://github.com/Shaid/seer/blob/main/docs/architecture-overview.md) — how the project is structured
+- [Boilerplate guide](https://github.com/Shaid/seer/blob/main/docs/boilerplate-guide.md) — what's template vs. what you build
 - [Viewer tooling guide](https://github.com/Shaid/seer/blob/main/docs/viewer.md) — the offline asset viewer's game/platform selectors, type filters, animation autoplay, and WebGL palette shader/editor/cycling
 

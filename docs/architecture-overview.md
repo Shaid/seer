@@ -5,6 +5,18 @@ for reimplementing classic games through data-driven reverse engineering. It is
 agnostic to any specific game title and focuses on the reusable structural
 patterns.
 
+**Scope note:** §8's runtime engine and the `create-seer-app` scaffold both
+describe the 2D/tile-and-sprite track (PixiJS-based, `@seer-project/engine-2d`).
+A parallel 3D track exists for reverse-engineered 3D character/model corpora —
+`@seer-project/engine-3d` (glTF/polygon-JSON meshes, skinning, materials,
+cloth/hair physics), `@seer-project/mesh-viewer-ui` (settings panels), and
+`@seer-project/canvas-export`/`@seer-project/retro-display` (screenshot/turntable
+export, cinematic rendering, CRT/LCD display filters) — used today by seven
+sibling projects. It isn't wired into `create-seer-app`'s scaffold yet (each
+project hand-wires it into its own `tools/viewer/viewer.ts`); see
+[`viewer.md`](viewer.md) §6 and [`engine-3d-proposal.md`](engine-3d-proposal.md)
+for that track's own design.
+
 ---
 
 ## 1. Core Philosophy: Data-File-First

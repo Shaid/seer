@@ -951,6 +951,16 @@ on GitHub rather than vendoring them.
 *Recommendation:* the scaffold should link, not copy. A framework document
 that four projects hold stale copies of is worse than no local copy.
 
+**Resolved (2026-08-24):** `packages/create-seer-app/templates/project/docs/architecture-overview.md.eta`
+and `boilerplate-guide.md.eta` were deleted and `project.ts` no longer writes
+local copies of either — `README.md.eta` now links out to
+`github.com/Shaid/seer/blob/main/docs/{architecture-overview,boilerplate-guide}.md`,
+the same pattern `viewer.md` already used (see that doc's own "Why this doc
+isn't vendored" section). This only prevents the problem for projects
+scaffolded from this point forward; the four sibling repos named above still
+carry their existing stale/forked copies and were not touched by this fix —
+that remains a separate, per-repo cleanup.
+
 **15b. A fifth zone exists that the four-zone model doesn't name.**
 `crawl/build/cache/`, `strike/build/cache/` and `middilgard/build/cache/` all
 exist and hold decompressed corpora, triage JSON and verification renders —

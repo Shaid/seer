@@ -77,7 +77,7 @@ the pre-publish checklist — see [`WRITING-GUIDE.md`](./WRITING-GUIDE.md).
 `src/components/SpriteGallery.astro` renders a searchable grid from a
 packed-frames sprite atlas — the same `{ frames: [{ name, x, y, w, h }],
 width, height }` shape used by the offline asset viewer
-(`create-seer-viewer`). Given `manifest="items"` and
+(`npx create-seer-app viewer`). Given `manifest="items"` and
 `assetPath="<%= it.game %>/amiga/sprites"`, it reads
 `public/assets/<%= it.game %>/amiga/sprites/items.json` and `.png` — `assetPath`
 is the *complete* directory containing them, so if your project doesn't keep

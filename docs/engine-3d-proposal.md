@@ -2,7 +2,7 @@
 
 **Status: superseded — implemented.** `@seer-project/engine-3d` now exists
 (`packages/engine-3d/`, added in commit `142140b`). See
-[`docs/viewer.md`](viewer.md) §5 for how it's wired into a consuming
+[`docs/viewer.md`](viewer.md) §6 for how it's wired into a consuming
 project's viewer, and [`packages/engine-3d/README.md`](../packages/engine-3d/README.md)
 for the package's own module-by-module reference. This document is kept as
 the historical record of the original scoping pass — the sections below are

@@ -41,7 +41,7 @@ export interface ManifestEntry {
   category?: string;
   group?: string;
   /**
-   * Optional 3D-asset fields (see docs/viewer.md §5 and
+   * Optional 3D-asset fields (see docs/viewer.md §6 and
    * `@seer-project/engine-3d`) — set only on a `mesh`/`scene`-type entry;
    * absent entirely for a 2D sprite/screen/map entry.
    */

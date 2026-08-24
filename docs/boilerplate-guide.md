@@ -38,6 +38,27 @@ The testing *philosophy* used throughout (construct real bytes, assert on
 real decoded output, never mock the decoder) is worth keeping — it validates
 your reverse-engineering against actual byte-level ground truth.
 
+### Other framework packages, not wired into this scaffold by default
+
+The five packages above are everything `npm create seer-app` puts in a new
+project's `package.json` — this scaffold only targets the 2D/PixiJS track.
+The framework has grown other packages for genres and asset types this
+scaffold doesn't cover; add whichever ones fit your target by hand
+(`npm install @seer-project/<name>` inside the monorepo, or the published
+version once released — see `docs/framework-plan.md`):
+
+| Package | For |
+|---------|-----|
+| `@seer-project/dungeon` | First-person grid dungeon crawlers — level/schema types, poses, collision, raycasting-style view-list construction, raster compositing, automaps. See `docs/walker.md`. |
+| `@seer-project/engine-3d`, `@seer-project/mesh-viewer-ui`, `@seer-project/canvas-export`, `@seer-project/retro-display` | 3D character/model viewers over real glTF or polygon-JSON meshes (skinning, materials, cloth/hair physics, cinematic rendering, screenshot/turntable export, CRT/LCD display filters) — no scaffold template yet, see `docs/viewer.md` §6. |
+| `@seer-project/gfx` | Retro planar bitmap pixel-format decoders (Amiga/Atari ST). |
+| `@seer-project/tracker`, `@seer-project/audio-dsp`, `@seer-project/audio-ui` | Tracker-module (ProTracker-style) audio playback, shared real-time DSP primitives, and the bottom-docked audio-bar viewer UI. |
+| `@seer-project/amiga` | AmigaOS HUNK executable/relocatable-module parsing. |
+| `@seer-project/probe` | Exploratory binary recon (triage, byte-map, sprite/stride/audio candidate detection) for an unknown format before you've written a real decoder. |
+
+See [`docs/project-status.md`](project-status.md) for which packages are
+settled vs. still moving, and each package's own README for its actual API.
+
 ---
 
 ## What's a template/pattern — the shape is right, the content is a placeholder

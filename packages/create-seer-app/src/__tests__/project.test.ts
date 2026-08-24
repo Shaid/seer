@@ -78,19 +78,22 @@ describe('scaffold', () => {
     expect(pkg).toContain('"name": "testgame"');
   });
 
-  it('creates documentation files', () => {
+  it('links out to the framework docs instead of vendoring stale copies', () => {
     run('docs-test');
     const dir = resolve(TMP, 'docs-test');
-    expect(existsSync(resolve(dir, 'docs/architecture-overview.md'))).toBe(true);
-    expect(existsSync(resolve(dir, 'docs/boilerplate-guide.md'))).toBe(true);
+    // architecture-overview.md and boilerplate-guide.md used to be vendored
+    // verbatim into every scaffolded project (docs/*.eta, no template
+    // variables) and linked locally. docs/common-tooling-candidates.md §15a
+    // flagged that as a real problem — three sibling repos carried
+    // byte-identical stale copies, one a 57-line-stale fork, and none would
+    // ever receive a framework update. All three framework docs now follow
+    // the same link-not-copy pattern viewer.md set the precedent for: no
+    // local `docs/` directory is created at all, and README.md links out to
+    // GitHub for all three.
+    expect(existsSync(resolve(dir, 'docs'))).toBe(false);
     const readme = readFileSync(resolve(dir, 'README.md'), 'utf-8');
-    expect(readme).toContain('docs/architecture-overview.md');
-    // architecture-overview.md and boilerplate-guide.md are vendored into
-    // the scaffolded project and linked locally, not out to GitHub.
-    expect(readme).not.toContain('github.com/Shaid/seer/blob/main/docs/architecture-overview.md');
-    expect(readme).not.toContain('github.com/Shaid/seer/blob/main/docs/boilerplate-guide.md');
-    // docs/viewer.md is a deliberate exception: linked out to the framework
-    // repo rather than vendored a third time (see docs/common-tooling-candidates.md §15a).
+    expect(readme).toContain('github.com/Shaid/seer/blob/main/docs/architecture-overview.md');
+    expect(readme).toContain('github.com/Shaid/seer/blob/main/docs/boilerplate-guide.md');
     expect(readme).toContain('github.com/Shaid/seer/blob/main/docs/viewer.md');
   });
 
