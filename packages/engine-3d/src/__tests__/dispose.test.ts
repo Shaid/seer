@@ -19,7 +19,9 @@ class FakeTexture {
 
 class FakeMaterial {
   disposeCalls = 0;
-  constructor(public textures: Record<string, FakeTexture> = {}) {
+  textures: Record<string, FakeTexture>;
+  constructor(textures: Record<string, FakeTexture> = {}) {
+    this.textures = textures;
     Object.assign(this, textures);
   }
   dispose(): void {

@@ -1,6 +1,11 @@
 import { createViewport, type Viewport, type ViewportOptions } from './viewport.js';
 import { createAnimationController, type AnimationController } from './animation.js';
-import { applyRenderMode, defaultRenderMode, type RenderMode } from './render-modes.js';
+import {
+  applyRenderMode,
+  defaultRenderMode,
+  disposeGeneratedRenderModeMaterials,
+  type RenderMode,
+} from './render-modes.js';
 import {
   applyMeshShading,
   clearGeneratedShadingMaterials,
@@ -17,7 +22,7 @@ import { applyTextureFilter, type TextureFilterOptions } from './texture-filter.
 import { recolorPolygonModel } from './polygon.js';
 import type { ColorMode, ColorResolver } from './color-modes.js';
 import { fitCameraToObject } from './camera-fit.js';
-import { disposeObject3D } from './dispose.js';
+import { disposeObject3D, disposeMaterials } from './dispose.js';
 import { meshStats, type MeshStats } from './stats.js';
 import { enableModelShadows } from './shadows.js';
 import type { ShadowOptions } from './shadows.js';
@@ -54,6 +59,13 @@ export interface SpringBoneOptions {
   strength?: number;
 }
 
+/**
+ * `createMeshSession()`'s options — the same `ViewportOptions` a bare
+ * `createViewport()` takes, including `onFrame`: `createMeshSession` claims
+ * `viewport.setOnFrame()` for its own animation-mixer update, but chains
+ * `opts.onFrame` right after it, so a host-supplied one still runs every
+ * rendered frame exactly as it would passed straight to `createViewport()`.
+ */
 export type MeshSessionOptions = ViewportOptions;
 
 /** Session-wide default until a host calls `setTextureFilter` — matches three.js's own out-of-the-box texture defaults (trilinear, no anisotropy), so adding this feature changes no existing viewer's rendered appearance until the host opts in. */
@@ -254,6 +266,16 @@ export function createMeshSession(
     for (const tracked of trackedModels) {
       viewport.root.remove(tracked.object);
       disposeObject3D(tracked.object);
+      // disposeObject3D only disposes each mesh's CURRENTLY assigned
+      // material — in a non-'textured' render mode (or with a shading
+      // override active), that's a generated substitute, not the model's
+      // real glTF-loaded material(s). Those originals (and, separately,
+      // whichever of render-modes.ts's own faces/wireframe materials isn't
+      // currently assigned) would otherwise never get disposed at all.
+      // Double-disposing whatever IS currently assigned (already handled
+      // above) is harmless — see disposeMaterials' doc comment.
+      for (const material of tracked.repr.originalMaterials.values()) disposeMaterials(material);
+      disposeGeneratedRenderModeMaterials(tracked);
     }
     trackedModels.length = 0;
   };
@@ -330,8 +352,17 @@ export function createMeshSession(
     }
   };
 
+  // `createViewport()` already claims the viewport's single `setOnFrame`
+  // slot for its own animation-mixer update — a host's own `opts.onFrame`
+  // (part of `ViewportOptions`, which `MeshSessionOptions` re-exports)
+  // would otherwise be silently overwritten and never called. Chain it
+  // after the mixer update instead, so it's still type-valid AND actually
+  // invoked every rendered frame, same as passing it straight to
+  // `createViewport()` would have done.
+  const hostOnFrame = opts.onFrame;
   viewport.setOnFrame((delta) => {
     animation?.update(delta);
+    hostOnFrame?.(delta);
   });
 
   /** Recomputes the bounds of everything currently in `viewport.root` and reports them to the viewport — the single hook that keeps the auto-grid, and (when shadows are on) the shadow-camera frustum and shadow-catcher plane, fit to whatever's actually loaded. Called from both `setModel` (unconditionally, even when `fit: false`) and `fit()` — `setModel` doesn't route through `session.fit()` for this, so the box isn't computed twice when both need it. */

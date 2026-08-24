@@ -97,6 +97,69 @@ function isBoneLike(o: THREE.Object3D): boolean {
   return (o as unknown as { isBone?: boolean }).isBone === true || o.type === 'Bone';
 }
 
+// ── shape validation ─────────────────────────────────────────────────────
+//
+// `SpringBoneConfig` can arrive from two places TypeScript's own types don't
+// actually guard at runtime: a baked glTF `extras.SEER_spring_bones` blob
+// (arbitrary JSON authored by an external tool, read via `readSpringBoneConfig`)
+// and a host-supplied `SpringBoneOptions.config` that may itself have come
+// from JSON (a saved preset, a network response) rather than a literal. Both
+// this module's own doc comments and the package README promise a malformed
+// blob "should degrade to 'no physics', not break model loading" — these
+// checks are what make that true for deeply-malformed shapes (a chain that's
+// `{}` or `null`, a collider `offset` that isn't a numeric 3-tuple), not just
+// the shallow "is `chains` an array" check `readSpringBoneConfig` used to
+// stop at.
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+function isVec3(v: unknown): v is [number, number, number] {
+  return Array.isArray(v) && v.length === 3 && v.every(isFiniteNumber);
+}
+
+function isValidJoint(v: unknown): v is SpringBoneJoint {
+  if (!v || typeof v !== 'object') return false;
+  const j = v as Record<string, unknown>;
+  if (typeof j.node !== 'string') return false;
+  if (j.stiffness !== undefined && !isFiniteNumber(j.stiffness)) return false;
+  if (j.damping !== undefined && !isFiniteNumber(j.damping)) return false;
+  if (j.gravity !== undefined && !isFiniteNumber(j.gravity)) return false;
+  if (j.gravityDir !== undefined && !isVec3(j.gravityDir)) return false;
+  if (j.radius !== undefined && !isFiniteNumber(j.radius)) return false;
+  return true;
+}
+
+function isValidChain(v: unknown): v is SpringBoneChain {
+  if (!v || typeof v !== 'object') return false;
+  const c = v as Record<string, unknown>;
+  if (!Array.isArray(c.joints) || c.joints.length === 0 || !c.joints.every(isValidJoint)) return false;
+  if (c.name !== undefined && typeof c.name !== 'string') return false;
+  if (c.colliderGroups !== undefined) {
+    if (!Array.isArray(c.colliderGroups) || !c.colliderGroups.every((g) => typeof g === 'string')) return false;
+  }
+  return true;
+}
+
+function isValidCollider(v: unknown): v is SpringBoneCollider {
+  if (!v || typeof v !== 'object') return false;
+  const c = v as Record<string, unknown>;
+  if (c.type !== 'sphere' && c.type !== 'capsule') return false;
+  if (typeof c.node !== 'string') return false;
+  if (!isVec3(c.offset)) return false;
+  if (!isFiniteNumber(c.radius)) return false;
+  if (c.type === 'capsule' && !isVec3(c.tail)) return false;
+  return true;
+}
+
+function isValidColliderGroup(v: unknown): v is SpringBoneColliderGroup {
+  if (!v || typeof v !== 'object') return false;
+  const g = v as Record<string, unknown>;
+  if (typeof g.name !== 'string') return false;
+  return Array.isArray(g.colliders) && g.colliders.every(isValidCollider);
+}
+
 interface ResolvedCollider {
   node: THREE.Object3D;
   offset: THREE.Vector3;
@@ -108,6 +171,16 @@ interface ResolvedJoint {
   node: THREE.Object3D;
   /** Node-local direction+length to this joint's simulated child, captured once at resolve time from the rig's rest pose. */
   childLocalOffset: THREE.Vector3;
+  /**
+   * This joint's own local rotation (relative to its parent), captured once
+   * at resolve time — the fixed reference `simulateJoint` rebuilds the
+   * "animated rest pose" from each sub-step (`parentWorldQuat *
+   * initialLocalQuat`), instead of reading the node's *current* world
+   * quaternion (which the sim itself overwrites — see the module's
+   * `simulateJoint` doc comment for why that was self-referential and
+   * caused irreversible droop).
+   */
+  initialLocalQuat: THREE.Quaternion;
   length: number;
   stiffness: number;
   damping: number;
@@ -126,8 +199,17 @@ function resolveColliderGroups(
 ): Map<string, ResolvedCollider[]> {
   const resolved = new Map<string, ResolvedCollider[]>();
   for (const group of groups) {
+    // Defense in depth: `readSpringBoneConfig` already filters malformed
+    // groups/colliders out of anything it hands back, but `config` can also
+    // arrive here directly via `SpringBoneOptions.config` (host-supplied,
+    // not necessarily passed through `readSpringBoneConfig` first, and not
+    // necessarily runtime-checked if it came from JSON on the host's side)
+    // — never trust the cast, and never let a non-numeric `offset`/`tail`
+    // silently poison every joint that tests against this group with NaN.
+    if (!isValidColliderGroup(group)) continue;
     const colliders: ResolvedCollider[] = [];
     for (const c of group.colliders) {
+      if (!isValidCollider(c)) continue;
       const node = root.getObjectByName(c.node);
       if (!node) continue;
       colliders.push({
@@ -171,11 +253,17 @@ export function createSpringBoneSolver(
   const chains: ResolvedJoint[][] = [];
 
   for (const chain of config.chains) {
-    const chainColliders = (chain.colliderGroups ?? []).flatMap((name) => colliderGroups.get(name) ?? []);
+    // Same defense-in-depth reasoning as `resolveColliderGroups` above — a
+    // malformed chain (`{}`, `null`, ...) must be skipped, not crash the
+    // whole solver build.
+    if (!chain || !Array.isArray(chain.joints)) continue;
+    const chainColliderGroups = Array.isArray(chain.colliderGroups) ? chain.colliderGroups : [];
+    const chainColliders = chainColliderGroups.flatMap((name) => colliderGroups.get(name) ?? []);
     const resolvedChain: ResolvedJoint[] = [];
 
     for (let i = 0; i < chain.joints.length; i++) {
       const spec = chain.joints[i]!;
+      if (!spec || typeof spec.node !== 'string') break;
       const node = root.getObjectByName(spec.node);
       if (!node) break;
 
@@ -204,6 +292,7 @@ export function createSpringBoneSolver(
       resolvedChain.push({
         node,
         childLocalOffset,
+        initialLocalQuat: node.quaternion.clone(),
         length,
         stiffness: clamp01(spec.stiffness ?? defaults.stiffness),
         damping: clamp01(spec.damping ?? defaults.damping),
@@ -232,7 +321,9 @@ export function createSpringBoneSolver(
   const nodeWorldPos = new THREE.Vector3();
   const nodeWorldQuat = new THREE.Quaternion();
   const restWorldDir = new THREE.Vector3();
+  const currentWorldDir = new THREE.Vector3();
   const restWorldPos = new THREE.Vector3();
+  const currentWorldPos = new THREE.Vector3();
   const desiredDir = new THREE.Vector3();
   const nextTail = new THREE.Vector3();
   const velocity = new THREE.Vector3();
@@ -244,12 +335,47 @@ export function createSpringBoneSolver(
     node.getWorldPosition(nodeWorldPos);
     node.getWorldQuaternion(nodeWorldQuat);
 
-    restWorldDir.copy(joint.childLocalOffset).normalize().applyQuaternion(nodeWorldQuat);
+    // The parent's CURRENT world quaternion (post its own simulation this
+    // sub-step, if it's an earlier joint in the same chain) combined with
+    // THIS joint's fixed, resolve-time-captured local rotation — never the
+    // node's own current world quaternion, which the sim overwrites below
+    // and would otherwise make "rest" self-referential (each sub-step's
+    // "rest" becoming just wherever the previous sub-step left it, so
+    // stiffness < 1 could never actually pull back toward anything and
+    // every joint would droop irreversibly under gravity).
+    if (node.parent) node.parent.getWorldQuaternion(parentWorldQuat);
+    else parentWorldQuat.identity();
+
+    restWorldDir
+      .copy(joint.childLocalOffset)
+      .normalize()
+      .applyQuaternion(joint.initialLocalQuat)
+      .applyQuaternion(parentWorldQuat);
     restWorldPos.copy(nodeWorldPos).addScaledVector(restWorldDir, joint.length);
 
+    // The node's ACTUAL current facing direction — distinct from
+    // `restWorldDir` above. This is what the final "rotate `node` by the
+    // delta from its current direction to the simulated one" step below
+    // needs: that delta is composed against `nodeWorldQuat` (the node's real
+    // current world orientation), so the "from" vector fed to
+    // `setFromUnitVectors` must be the direction THAT quaternion actually
+    // currently produces, not the (generally different, once drooped) rest
+    // direction — using the rest direction there would make the composed
+    // result not actually point at `desiredDir` at all.
+    currentWorldDir.copy(joint.childLocalOffset).normalize().applyQuaternion(nodeWorldQuat);
+
     if (!joint.initialized) {
-      joint.currTail.copy(restWorldPos);
-      joint.prevTail.copy(restWorldPos);
+      // Re-center on the node's ACTUAL current pose (per `reset()`'s doc
+      // comment), not the fixed rest reference above — `reset()` explicitly
+      // doesn't touch node transforms, so the first sub-step after it (or
+      // the very first sub-step ever, before anything has moved from bind
+      // pose) must snap the internal tail state to wherever the node
+      // currently, really is, or a static/still-animating model's next
+      // step() would suddenly and incorrectly snap toward `restWorldPos`
+      // instead of picking up smoothly from the current pose.
+      currentWorldPos.copy(nodeWorldPos).addScaledVector(currentWorldDir, joint.length);
+      joint.currTail.copy(currentWorldPos);
+      joint.prevTail.copy(currentWorldPos);
       joint.initialized = true;
     }
 
@@ -267,7 +393,7 @@ export function createSpringBoneSolver(
     // Re-anchor to the fixed bone length, preserving whichever direction
     // survived gravity/stiffness/collision.
     desiredDir.copy(nextTail).sub(nodeWorldPos);
-    if (desiredDir.lengthSq() === 0) desiredDir.copy(restWorldDir);
+    if (desiredDir.lengthSq() === 0) desiredDir.copy(currentWorldDir);
     else desiredDir.normalize();
     nextTail.copy(nodeWorldPos).addScaledVector(desiredDir, joint.length);
 
@@ -282,15 +408,17 @@ export function createSpringBoneSolver(
     joint.prevTail.copy(joint.currTail);
     joint.currTail.copy(nextTail);
 
-    // Rotate `node` in world space by the delta from its animated rest
+    // Rotate `node` in world space by the delta from its actual current
     // direction to the simulated one, then convert back to local so
     // `AnimationMixer.update()` (which only ever writes local TRS) composes
     // cleanly with this on the next frame.
-    deltaQuat.setFromUnitVectors(restWorldDir, desiredDir);
+    deltaQuat.setFromUnitVectors(currentWorldDir, desiredDir);
     nodeWorldQuat.premultiply(deltaQuat);
 
+    // `parentWorldQuat` is still the parent's current world quaternion
+    // captured at the top of this call — nothing between there and here
+    // changes it (a joint only ever mutates its own node).
     if (node.parent) {
-      node.parent.getWorldQuaternion(parentWorldQuat);
       node.quaternion.copy(parentWorldQuat).invert().multiply(nodeWorldQuat);
     } else {
       node.quaternion.copy(nodeWorldQuat);
@@ -369,9 +497,30 @@ function closestPointOnSegment(p: THREE.Vector3, a: THREE.Vector3, b: THREE.Vect
 export function readSpringBoneConfig(object: THREE.Object3D): SpringBoneConfig | null {
   const raw = (object.userData as { SEER_spring_bones?: unknown }).SEER_spring_bones;
   if (!raw || typeof raw !== 'object') return null;
-  const chains = (raw as { chains?: unknown }).chains;
-  if (!Array.isArray(chains)) return null;
-  return raw as SpringBoneConfig;
+
+  const chainsRaw = (raw as { chains?: unknown }).chains;
+  if (!Array.isArray(chainsRaw)) return null;
+  // Drop (rather than trust) any chain that doesn't actually match the
+  // shape `createSpringBoneSolver` assumes — a malformed entry here used to
+  // reach `chain.joints.length`/`chain.colliderGroups` downstream and throw
+  // a raw TypeError instead of degrading to "no physics" for just that chain.
+  const chains = chainsRaw.filter(isValidChain);
+  if (chains.length === 0) return null;
+
+  const config: SpringBoneConfig = { chains };
+
+  const colliderGroupsRaw = (raw as { colliderGroups?: unknown }).colliderGroups;
+  if (Array.isArray(colliderGroupsRaw)) {
+    const colliderGroups = colliderGroupsRaw.filter(isValidColliderGroup);
+    if (colliderGroups.length > 0) config.colliderGroups = colliderGroups;
+  }
+
+  const defaultsRaw = (raw as { defaults?: unknown }).defaults;
+  if (defaultsRaw && typeof defaultsRaw === 'object') {
+    config.defaults = defaultsRaw as SpringBoneConfig['defaults'];
+  }
+
+  return config;
 }
 
 /** Drops any chain containing at least one joint the active clip already animates — the caller-facing shape is `session.setSpringBones({ skipAnimatedBones: true })`, wired against `AnimationController.animatedNodeNames()`. Pure and exported directly so the exclusion rule itself is unit-testable without a session. */

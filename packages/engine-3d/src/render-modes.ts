@@ -78,6 +78,31 @@ function isMesh(obj: THREE.Object3D): obj is THREE.Mesh {
   return (obj as { isMesh?: boolean }).isMesh === true;
 }
 
+/**
+ * Disposes every material this module has ever generated and cached for
+ * `model`'s meshes (both `'faces'` and `'wireframe'`'s flat materials —
+ * `generatedMaterialCache` above), regardless of which one (if either) is
+ * currently assigned to a mesh. `disposeObject3D`/`session.ts`'s teardown
+ * only ever disposes a mesh's *currently assigned* material — the other
+ * cached-but-unassigned one (e.g. the `'faces'` material built while
+ * `'wireframe'` mode is active) would otherwise never get released. Safe to
+ * call even for a material that's also currently assigned and therefore
+ * already disposed elsewhere — see `disposeMaterials`' doc comment on why a
+ * double-dispose is harmless. Call this once per model on teardown (model
+ * swap, `session.dispose()`) — not on every render-mode switch, since the
+ * cache is what makes repeated switches cheap.
+ */
+export function disposeGeneratedRenderModeMaterials(model: Model3D): void {
+  model.object.traverse((child) => {
+    if (!isMesh(child)) return;
+    const cache = generatedMaterialCache.get(child);
+    if (!cache) return;
+    cache.faces?.dispose();
+    cache.wireframe?.dispose();
+    generatedMaterialCache.delete(child);
+  });
+}
+
 function originalColorOf(material: THREE.Material | THREE.Material[] | undefined): THREE.Color {
   const mat = Array.isArray(material) ? material[0] : material;
   const color = (mat as { color?: THREE.Color } | undefined)?.color;

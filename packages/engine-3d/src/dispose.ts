@@ -51,6 +51,26 @@ function disposeMaterial(material: THREE.Material): void {
 }
 
 /**
+ * Disposes one mesh's material slot (a single `Material`, or every entry of
+ * a multi-material `Material[]`) plus every texture each one references —
+ * see `disposeMaterial`. Exported so a caller holding onto a material/array
+ * outside a live scene graph (e.g. `session.ts`'s `clearTracked`, disposing
+ * `ModelRepresentations.originalMaterials` — materials `disposeObject3D`
+ * itself never sees once a render mode has swapped in a substitute) can
+ * still release it correctly. Safe to call more than once on the same
+ * material/texture (both `THREE.Material.dispose()` and `THREE.Texture.dispose()`
+ * just dispatch a `'dispose'` event — a double-dispose is a harmless no-op,
+ * not an error), so callers don't need to track what's already been freed
+ * elsewhere.
+ */
+export function disposeMaterials(material: THREE.Material | THREE.Material[]): void {
+  const materials = Array.isArray(material) ? material : [material];
+  for (const m of materials) {
+    if (m) disposeMaterial(m);
+  }
+}
+
+/**
  * Disposes GPU resources (geometry + materials + every texture referenced
  * by those materials) for every disposable renderable under `obj`, so
  * switching models doesn't leak WebGL memory. Generalizes flower's
@@ -63,9 +83,6 @@ export function disposeObject3D(obj: THREE.Object3D): void {
   obj.traverse((child) => {
     if (!isDisposableRenderable(child)) return;
     child.geometry?.dispose();
-    const materials = Array.isArray(child.material) ? child.material : [child.material];
-    for (const material of materials) {
-      if (material) disposeMaterial(material);
-    }
+    if (child.material) disposeMaterials(child.material);
   });
 }

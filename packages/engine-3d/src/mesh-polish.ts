@@ -7,6 +7,16 @@ function isMesh(obj: THREE.Object3D): obj is THREE.Mesh {
   return (obj as { isMesh?: boolean }).isMesh === true;
 }
 
+/**
+ * Whether `geometry` carries skinning data (`skinIndex`/`skinWeight`
+ * attributes) that `subdivideGeometry`'s rebuild would silently drop —
+ * `applyMeshPolish` uses this to leave a `SkinnedMesh`'s geometry untouched
+ * rather than corrupting its deformation.
+ */
+function isSkinnedGeometry(geometry: THREE.BufferGeometry): boolean {
+  return !!geometry.getAttribute('skinIndex') || !!geometry.getAttribute('skinWeight');
+}
+
 function positionKey(v: THREE.Vector3): string {
   return `${Math.round(v.x / POSITION_WELD_EPSILON)},${Math.round(v.y / POSITION_WELD_EPSILON)},${Math.round(v.z / POSITION_WELD_EPSILON)}`;
 }
@@ -159,6 +169,15 @@ export function disposeOriginalGeometry(cache: OriginalGeometryCache): void {
  * model wasn't loaded via glTF). Rebuilding must not disturb camera state —
  * callers typically follow this with a render-mode/shading refresh, never a
  * re-fit.
+ *
+ * Also a no-op — geometry left exactly as-is — for any mesh that is a
+ * `SkinnedMesh` (carries `skinIndex`/`skinWeight` attributes) or whose
+ * material is an array (per-`groups` multi-material). `subdivideGeometry`'s
+ * rebuild only ever emits `position`/`uv`, so applying it to either would
+ * silently break the mesh: an animated skinned character's deformation
+ * (no `skinIndex`/`skinWeight` survives the rebuild) or a multi-material
+ * mesh's rendering entirely (three.js draws nothing for a `groups`-less
+ * geometry assigned a material array).
  */
 export function applyMeshPolish(
   model: Model3D,
@@ -171,6 +190,7 @@ export function applyMeshPolish(
     const mesh = object;
     const original = originalGeometry.get(mesh);
     if (!original) return;
+    if (isSkinnedGeometry(original) || Array.isArray(mesh.material)) return;
     if (mesh.geometry !== original) mesh.geometry.dispose();
     mesh.geometry = subdivideGeometry(original, opts.subdivision);
     if (opts.smooth) applySmoothNormals(mesh.geometry);

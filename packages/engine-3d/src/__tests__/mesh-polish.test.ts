@@ -99,4 +99,46 @@ describe('captureOriginalGeometry / applyMeshPolish', () => {
     disposeOriginalGeometry(cache);
     expect(cache.size).toBe(0);
   });
+
+  it('leaves a SkinnedMesh (skinIndex/skinWeight attributes) untouched rather than dropping its skinning data', () => {
+    const object = new THREE.Group();
+    const geometry = triangleGeometry();
+    // A real skinned mesh needs a skeleton, but subdivideGeometry only cares
+    // about the geometry's own attributes — this is enough to trigger the
+    // "would corrupt skinning" check without building a whole THREE.Skeleton.
+    geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 4));
+    geometry.setAttribute(
+      'skinWeight',
+      new THREE.Float32BufferAttribute([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0], 4),
+    );
+    const mesh = new THREE.SkinnedMesh(geometry, new THREE.MeshStandardMaterial());
+    object.add(mesh);
+    const repr: ModelRepresentations = { faces: null, lines: null, points: null, originalMaterials: new Map() };
+    const model: Model3D = { object, source: 'gltf', animations: [], hasTextures: false, repr };
+
+    const cache = captureOriginalGeometry(model);
+    const originalGeom = mesh.geometry;
+    applyMeshPolish(model, cache, { subdivision: 2, smooth: false });
+
+    expect(mesh.geometry).toBe(originalGeom);
+    expect(mesh.geometry.getAttribute('skinIndex')).toBeDefined();
+    expect(mesh.geometry.getAttribute('skinWeight')).toBeDefined();
+  });
+
+  it('leaves a multi-material mesh (material array / per-group rendering) untouched rather than dropping its geometry groups', () => {
+    const object = new THREE.Group();
+    const geometry = triangleGeometry();
+    geometry.addGroup(0, 3, 0);
+    const mesh = new THREE.Mesh(geometry, [new THREE.MeshStandardMaterial(), new THREE.MeshStandardMaterial()]);
+    object.add(mesh);
+    const repr: ModelRepresentations = { faces: null, lines: null, points: null, originalMaterials: new Map() };
+    const model: Model3D = { object, source: 'gltf', animations: [], hasTextures: false, repr };
+
+    const cache = captureOriginalGeometry(model);
+    const originalGeom = mesh.geometry;
+    applyMeshPolish(model, cache, { subdivision: 2, smooth: false });
+
+    expect(mesh.geometry).toBe(originalGeom);
+    expect(mesh.geometry.groups).toHaveLength(1);
+  });
 });

@@ -80,6 +80,39 @@ describe('createSpringBoneSolver', () => {
     posBefore.forEach((p, i) => expect(p.distanceTo(posAfter[i]!)).toBeLessThan(0.01));
   });
 
+  it('stiffness holds a shape against gravity instead of drooping to the same fully-collapsed pose regardless of its value', () => {
+    // Regression test for a bug where `restWorldDir` (the "pull back toward
+    // rest" target) was derived from the joint's own CURRENT world
+    // quaternion — the exact value the sim itself had just written the
+    // previous sub-step. That made "rest" self-referential: whatever a
+    // joint drooped to became its own new rest, so stiffness < 1 could never
+    // actually pull back toward anything, and every chain — regardless of
+    // its configured stiffness — settled to the same fully-collapsed,
+    // hanging-straight-down-under-gravity-and-damping-alone pose. A fixed
+    // rest reference (captured once at resolve time, rotated rigidly with
+    // the parent each step) means stiffness should visibly matter: a
+    // high-stiffness chain should settle much closer to its rest pose than
+    // a nearly-limp one simulated under the identical gravity/damping.
+    const buildAndSettle = (stiffness: number) => {
+      const { root, bones } = makeChain(['A', 'B', 'C', 'D']);
+      const solver = createSpringBoneSolver(root, {
+        chains: [{ joints: ['A', 'B', 'C', 'D'].map((node) => ({ node, stiffness })) }],
+      })!;
+      for (let i = 0; i < 300; i++) solver.step(1 / 60);
+      return bones[3]!.getWorldPosition(new THREE.Vector3());
+    };
+
+    const restTipY = makeChain(['A', 'B', 'C', 'D']).bones[3]!.getWorldPosition(new THREE.Vector3()).y;
+    const stiffTip = buildAndSettle(0.8);
+    const limpTip = buildAndSettle(0.02);
+
+    const stiffDrop = restTipY - stiffTip.y;
+    const limpDrop = restTipY - limpTip.y;
+
+    expect(stiffDrop).toBeGreaterThan(0); // stiffness isn't 1 — it still deflects some
+    expect(stiffDrop).toBeLessThan(limpDrop * 0.5); // ...but far less than the nearly-limp chain
+  });
+
   it('stiffness=1 pins the chain to its animated rest pose regardless of gravity', () => {
     const { root, bones } = makeChain(['A', 'B', 'C']);
     const solver = createSpringBoneSolver(root, {
@@ -191,10 +224,14 @@ describe('createSpringBoneSolver', () => {
       root.add(obstacle);
       root.updateMatrixWorld(true);
 
+      // Near-zero stiffness — this test is about the collider mechanic, not
+      // about stiffness (which, correctly fixed elsewhere, now holds a
+      // chain much closer to its rest pose under gravity by default and
+      // wouldn't swing down far enough to reach this obstacle at all).
       const solver = createSpringBoneSolver(root, {
         chains: [
           {
-            joints: ['A', 'B', 'C', 'D'].map((node) => ({ node, radius: 0.01 })),
+            joints: ['A', 'B', 'C', 'D'].map((node) => ({ node, radius: 0.01, stiffness: 0 })),
             colliderGroups: ['body'],
           },
         ],
@@ -219,7 +256,7 @@ describe('createSpringBoneSolver', () => {
       // collider group attached swings well inside the sphere.
       const { root: rootNoCollide, bones: bonesNoCollide } = makeChain(['A', 'B', 'C', 'D']);
       const solverNoCollide = createSpringBoneSolver(rootNoCollide, {
-        chains: [{ joints: ['A', 'B', 'C', 'D'].map((node) => ({ node, radius: 0.01 })) }],
+        chains: [{ joints: ['A', 'B', 'C', 'D'].map((node) => ({ node, radius: 0.01, stiffness: 0 })) }],
       })!;
       for (let i = 0; i < 180; i++) solverNoCollide.step(1 / 60);
       const tipNoCollide = bonesNoCollide[3]!.getWorldPosition(new THREE.Vector3());
@@ -272,6 +309,62 @@ describe('readSpringBoneConfig', () => {
     const object2 = new THREE.Object3D();
     object2.userData.SEER_spring_bones = 'garbage';
     expect(readSpringBoneConfig(object2)).toBeNull();
+  });
+
+  it('degrades to null (never throws) for deeply-malformed chain entries', () => {
+    const emptyChain = new THREE.Object3D();
+    emptyChain.userData.SEER_spring_bones = { chains: [{}] };
+    expect(() => readSpringBoneConfig(emptyChain)).not.toThrow();
+    expect(readSpringBoneConfig(emptyChain)).toBeNull();
+
+    const nullChain = new THREE.Object3D();
+    nullChain.userData.SEER_spring_bones = { chains: [null] };
+    expect(() => readSpringBoneConfig(nullChain)).not.toThrow();
+    expect(readSpringBoneConfig(nullChain)).toBeNull();
+
+    // A malformed chain dropped alongside a valid one degrades to just the
+    // valid chain surviving, rather than the whole config being discarded.
+    const mixed = new THREE.Object3D();
+    mixed.userData.SEER_spring_bones = {
+      chains: [{}, { joints: [{ node: 'A' }] }],
+    };
+    const result = readSpringBoneConfig(mixed);
+    expect(result).not.toBeNull();
+    expect(result!.chains).toHaveLength(1);
+    expect(result!.chains[0]!.joints).toEqual([{ node: 'A' }]);
+  });
+
+  it('drops a colliderGroup with a non-numeric collider offset instead of poisoning the sim with NaN', () => {
+    const object = new THREE.Object3D();
+    object.userData.SEER_spring_bones = {
+      chains: [{ joints: [{ node: 'A' }] }],
+      colliderGroups: [
+        {
+          name: 'bad',
+          colliders: [{ type: 'sphere', node: 'Obstacle', offset: ['a', 'b', 'c'], radius: 1 }],
+        },
+      ],
+    };
+    expect(() => readSpringBoneConfig(object)).not.toThrow();
+    const result = readSpringBoneConfig(object)!;
+    expect(result).not.toBeNull();
+    // The chain itself is fine — only the malformed collider group is
+    // dropped, so the config still describes usable (collision-less) physics
+    // rather than being discarded wholesale.
+    expect(result.chains).toHaveLength(1);
+    expect(result.colliderGroups ?? []).toHaveLength(0);
+  });
+
+  it('createSpringBoneSolver never throws for a malformed chain/colliderGroups shape passed directly (bypassing readSpringBoneConfig)', () => {
+    const { root } = makeChain(['A', 'B']);
+    expect(() =>
+      createSpringBoneSolver(root, {
+        // @ts-expect-error deliberately malformed, simulating untyped/JSON-sourced input
+        chains: [{}, null, { joints: [{ node: 'A' }, { node: 'B' }] }],
+        // @ts-expect-error deliberately malformed
+        colliderGroups: [null, { name: 'ok', colliders: [{ type: 'sphere', node: 'A', offset: [0, 0, 0], radius: 1 }] }],
+      }),
+    ).not.toThrow();
   });
 });
 

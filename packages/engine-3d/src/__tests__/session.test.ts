@@ -232,6 +232,31 @@ describe('MeshSession — appearance state', () => {
   });
 });
 
+describe('MeshSession — onFrame', () => {
+  it('chains a host-supplied onFrame after the internal animation-mixer update, instead of discarding it', () => {
+    // createViewport() (via createMeshSession) claims the single
+    // viewport.setOnFrame() slot for the animation mixer — opts.onFrame
+    // must still run every rendered frame, not be silently overwritten.
+    // The default beforeEach() rAF stub never actually invokes its
+    // callback, so this test needs its own that captures and fires it.
+    let animate: FrameRequestCallback | undefined;
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((cb: FrameRequestCallback) => {
+        animate ??= cb;
+        return 1;
+      }),
+    );
+
+    const hostOnFrame = vi.fn();
+    createMeshSession(makeContainer(), { grid: false, lights: false, frameLimiter: false, onFrame: hostOnFrame });
+
+    expect(animate).toBeDefined();
+    animate!(16);
+    expect(hostOnFrame).toHaveBeenCalledTimes(1);
+  });
+});
+
 // A composited "head" added via addModel() used to be frozen at whatever it
 // looked like at load time — setRenderMode/setShading/setSmooth/
 // setSubdivision/setTextureFilter only ever touched the model set via
@@ -939,7 +964,14 @@ describe('MeshSession — spring bones', () => {
     session.setSpringBones(false);
     expect(session.springBones).toBe(false);
     session.stepSpringBones(1 / 60); // no-op — no solver to advance
-    expect(bones[1]!.quaternion.angleTo(atDisable)).toBeCloseTo(0, 10);
+    // Precision 6 (not, say, 10) deliberately: `angleTo` is acos(dot) of two
+    // quaternions whose stored components are bit-identical here (`atDisable`
+    // is a `.clone()`, not a recomputation) — but acos's derivative blows up
+    // near dot=1, so even a quaternion's own tiny not-exactly-unit-norm
+    // floating-point residue (from the chain of multiply/invert ops upstream,
+    // nothing to do with whether any *actual* motion occurred) shows up
+    // amplified here. This asserts "no additional motion", not "bit-exact".
+    expect(bones[1]!.quaternion.angleTo(atDisable)).toBeCloseTo(0, 6);
   });
 
   it('reads a config baked into the model\'s glTF extras (userData.SEER_spring_bones) when none is passed explicitly', () => {

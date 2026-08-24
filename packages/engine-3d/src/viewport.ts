@@ -202,6 +202,12 @@ function addLights(
   return { keyLight, ambientLight };
 }
 
+function disposeGrid(scene: THREE.Scene, grid: THREE.GridHelper): void {
+  scene.remove(grid);
+  grid.geometry.dispose();
+  (grid.material as THREE.Material).dispose();
+}
+
 function buildGrid(cfg: GridConfig): THREE.GridHelper {
   const grid = new THREE.GridHelper(
     cfg.size,
@@ -303,7 +309,7 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
       const footprint = Math.max(size.x, size.z, 0.001);
       const gridSize = footprint * 2;
       const divisions = Math.max(4, Math.min(40, Math.round(gridSize / 10)) || 4);
-      if (gridHelper) scene.remove(gridHelper);
+      if (gridHelper) disposeGrid(scene, gridHelper);
       gridHelper = buildGrid({ size: gridSize, divisions, y: box.min.y });
       scene.add(gridHelper);
     }
@@ -455,6 +461,10 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
         shadowCatcher.geometry.dispose();
         (shadowCatcher.material as THREE.Material).dispose();
         shadowCatcher = null;
+      }
+      if (gridHelper) {
+        disposeGrid(scene, gridHelper);
+        gridHelper = null;
       }
       renderPath?.dispose();
       renderPath = null;

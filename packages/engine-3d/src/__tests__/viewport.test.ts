@@ -11,6 +11,7 @@
 // hand. This is the one file in the package that needs any of this — every
 // other test file runs under plain Node.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as THREE_TYPES from 'three';
 
 const { FakeWebGLRenderer } = vi.hoisted(() => {
   class FakeWebGLRenderer {
@@ -56,7 +57,7 @@ type RenderPath = import('../render-path.js').RenderPath;
 function makeFakeRenderPath() {
   const renderCalls: Array<{ delta: number }> = [];
   const setSizeCalls: Array<[number, number, number]> = [];
-  const setCameraCalls: THREE.PerspectiveCamera[] = [];
+  const setCameraCalls: THREE_TYPES.PerspectiveCamera[] = [];
   let invalidateCalls = 0;
   let disposeCalls = 0;
   const path: RenderPath & {

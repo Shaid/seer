@@ -53,8 +53,25 @@ export function createAnimationController(
   if (clips.length === 0) return null;
 
   const mixer = new THREE.AnimationMixer(root);
+  // Keyed by clip name — but game rips can have duplicate clip names, and a
+  // plain `Map.set` would let each later clip silently clobber an earlier
+  // one's entry (making it unplayable and invisible in `clipNames`).
+  // Disambiguate a collision with a " (2)", " (3)", ... suffix instead, so
+  // every clip stays reachable through `play()`/`clipNames` under a name
+  // that's still recognizably its own.
   const actions = new Map<string, THREE.AnimationAction>();
-  for (const clip of clips) actions.set(clip.name, mixer.clipAction(clip));
+  const nameCounts = new Map<string, number>();
+  for (const clip of clips) {
+    let name = clip.name;
+    if (actions.has(name)) {
+      const count = (nameCounts.get(clip.name) ?? 1) + 1;
+      nameCounts.set(clip.name, count);
+      name = `${clip.name} (${count})`;
+    } else {
+      nameCounts.set(clip.name, 1);
+    }
+    actions.set(name, mixer.clipAction(clip));
+  }
 
   let currentAction: THREE.AnimationAction | null = null;
   let currentName: string | null = null;
