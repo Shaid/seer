@@ -337,7 +337,7 @@ export const GFX_USAGE = `seer-probe gfx <file> [--range start:end] [--regions <
   and JSON with per-candidate score components. Greyscale until a palette
   is confirmed.`;
 
-export function runGfx(argv: string[]): number {
+export async function runGfx(argv: string[]): Promise<number> {
   const { positional, flags } = parseFlags(argv, {
     range: 'string',
     regions: 'string',
@@ -389,12 +389,12 @@ export function runGfx(argv: string[]): number {
     if (swept.candidates.length > 0) {
       const sheet = renderContactSheet(data, swept.candidates, palette);
       const sheetPath = artifactPath(outDir, 'gfx', file, `${suffix}-sheet.png`);
-      writePNG(sheetPath, sheet.rgba, sheet.width, sheet.height);
+      await writePNG(sheetPath, sheet.rgba, sheet.width, sheet.height);
 
       const best = swept.best!;
       const full = renderCandidate(data, best, 1024, palette);
       const bestPath = artifactPath(outDir, 'gfx', file, `${suffix}-best.png`);
-      writePNG(bestPath, full.rgba, full.width, full.height);
+      await writePNG(bestPath, full.rgba, full.width, full.height);
 
       console.log(
         `0x${r.start.toString(16)}-0x${r.end.toString(16)}: best P${best.planes} W${best.width} ${best.layout} ` +

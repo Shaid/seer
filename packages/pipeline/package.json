@@ -46,7 +46,8 @@
     "lint": "eslint src/ bin/"
   },
   "dependencies": {
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@types/node": "^26.0.1",

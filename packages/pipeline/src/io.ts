@@ -8,6 +8,7 @@
 
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { PNG } from 'pngjs';
+import sharp from 'sharp';
 
 /** Read a file as a safe Uint8Array with its own ArrayBuffer (avoids Node.js Buffer pool sharing). */
 export function readBinary(path: string): Uint8Array {
@@ -15,11 +16,16 @@ export function readBinary(path: string): Uint8Array {
   return new Uint8Array(buf);
 }
 
-/** Write RGBA pixel data as a PNG file. */
-export function writePNG(filepath: string, rgba: Uint8Array, width: number, height: number) {
-  const png = new PNG({ width, height });
-  png.data = Buffer.from(rgba);
-  writeFileSync(filepath, PNG.sync.write(png));
+/**
+ * Write RGBA pixel data as a PNG file, via libvips (sharp) rather than the
+ * pure-JS pngjs encoder — measured ~40 MB/s of RGBA with pngjs, the dominant
+ * cost (77% of wall clock) in every texture-extraction pipeline built on this
+ * package. sharp has no synchronous encode API, so this is async — every
+ * caller must await it (a resumed run's existsSync-based skip check, or a
+ * worker pool tearing down, can otherwise race an in-flight write).
+ */
+export async function writePNG(filepath: string, rgba: Uint8Array, width: number, height: number): Promise<void> {
+  await sharp(Buffer.from(rgba), { raw: { width, height, channels: 4 } }).png().toFile(filepath);
 }
 
 /**

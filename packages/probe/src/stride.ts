@@ -216,7 +216,7 @@ export const STRIDE_USAGE = `seer-probe stride <file> [--range start:end] [--reg
   Find candidate record sizes / scanline pitches. Writes a record-grid PNG
   for the best candidate per range, plus JSON with all strong fundamentals.`;
 
-export function runStride(argv: string[]): number {
+export async function runStride(argv: string[]): Promise<number> {
   const { positional, flags } = parseFlags(argv, {
     range: 'string',
     regions: 'string',
@@ -253,7 +253,7 @@ export function runStride(argv: string[]): number {
     if (best) {
       const grid = renderRecordGrid(data, r.start, r.end, best.stride, best.constantColumns);
       const gridPath = artifactPath(outDir, 'stride', file, `${suffix}.png`);
-      writePNG(gridPath, grid.rgba, grid.width, grid.height);
+      await writePNG(gridPath, grid.rgba, grid.width, grid.height);
       console.log(
         `0x${r.start.toString(16)}-0x${r.end.toString(16)}: stride ${best.stride} (score ${best.score}), ` +
           `${result.candidates.length} fundamentals, wrote ${gridPath}`,

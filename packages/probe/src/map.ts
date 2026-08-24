@@ -154,7 +154,7 @@ export const MAP_USAGE = `seer-probe map <file> [--window 256] [--width 512] [--
   (byte plot + entropy + class fractions + region bar) and .json (regions,
   feedable to gfx/audio/stride via --regions).`;
 
-export function runMap(argv: string[]): number {
+export async function runMap(argv: string[]): Promise<number> {
   const { positional, flags } = parseFlags(argv, {
     window: 'number',
     width: 'number',
@@ -175,7 +175,7 @@ export function runMap(argv: string[]): number {
   const outDir = ensureOutDir(flags.out as string | undefined);
   const pngPath = artifactPath(outDir, 'map', file, '.png');
   const jsonPath = artifactPath(outDir, 'map', file, '.json');
-  writePNG(pngPath, canvas.rgba, canvas.width, canvas.height);
+  await writePNG(pngPath, canvas.rgba, canvas.width, canvas.height);
   writeJson(jsonPath, result);
 
   console.log(`${result.size} bytes, ${result.regions.length} regions:`);

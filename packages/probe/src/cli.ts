@@ -16,7 +16,7 @@ import { runCnf, CNF_USAGE } from './cnf.js';
 import { runTriage, TRIAGE_USAGE } from './triage.js';
 import { defaultOutDir } from './out.js';
 
-const COMMANDS: Record<string, { run: (argv: string[]) => number; usage: string }> = {
+const COMMANDS: Record<string, { run: (argv: string[]) => number | Promise<number>; usage: string }> = {
   triage: { run: runTriage, usage: TRIAGE_USAGE },
   map: { run: runMap, usage: MAP_USAGE },
   gfx: { run: runGfx, usage: GFX_USAGE },
@@ -44,7 +44,7 @@ export async function main(argv: string[]): Promise<number> {
     return 1;
   }
   try {
-    return entry.run(argv.slice(1));
+    return await entry.run(argv.slice(1));
   } catch (e) {
     console.error(`Error: ${(e as Error).message}`);
     return 1;

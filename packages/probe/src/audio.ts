@@ -452,7 +452,7 @@ export const AUDIO_USAGE = `seer-probe audio <file> [--range start:end] [--regio
   top candidates (at an ASSUMED rate unless a container header supplied a
   real one — raw PCM cannot reveal its rate).`;
 
-export function runAudio(argv: string[]): number {
+export async function runAudio(argv: string[]): Promise<number> {
   const { positional, flags } = parseFlags(argv, {
     range: 'string',
     regions: 'string',
@@ -515,7 +515,7 @@ export function runAudio(argv: string[]): number {
       const suffix = r.start === 0 && r.end === data.length ? '' : `-0x${r.start.toString(16)}`;
       const grid = renderSpectrogramGrid(data, r, topCands);
       const gridPath = artifactPath(outDir, 'audio', file, `${suffix}-spec.png`);
-      writePNG(gridPath, grid.rgba, grid.width, grid.height);
+      await writePNG(gridPath, grid.rgba, grid.width, grid.height);
       console.log(`0x${r.start.toString(16)}-0x${r.end.toString(16)}: best ${describeEncoding(topCands[0])}`);
       console.log(`wrote ${gridPath}`);
 

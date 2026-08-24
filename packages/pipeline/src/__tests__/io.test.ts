@@ -45,7 +45,7 @@ describe('readBinary', () => {
 });
 
 describe('writePNG', () => {
-  it('writes a valid PNG file that can be read back', () => {
+  it('writes a valid PNG file that can be read back', async () => {
     const path = join(TMP, 'test.png');
     const rgba = new Uint8Array(16); // 2x2 pixels, RGBA
     rgba[0] = 255; // pixel 0: red
@@ -56,7 +56,7 @@ describe('writePNG', () => {
     rgba[11] = 255;
     // pixel 3: transparent (all zero)
 
-    writePNG(path, rgba, 2, 2);
+    await writePNG(path, rgba, 2, 2);
 
     const fileBuf = readFileSync(path);
     // PNG header magic
@@ -65,6 +65,22 @@ describe('writePNG', () => {
     expect(fileBuf[2]).toBe(0x4e); // N
     expect(fileBuf[3]).toBe(0x47); // G
     expect(fileBuf.byteLength).toBeGreaterThan(50);
+  });
+
+  it('round-trips exact RGBA pixel values (readable by pngjs, the format other tools decode with)', async () => {
+    const path = join(TMP, 'roundtrip.png');
+    const rgba = new Uint8Array(16);
+    rgba[0] = 255; rgba[3] = 255; // pixel 0: opaque red
+    rgba[5] = 128; rgba[7] = 64; // pixel 1: half-alpha green-ish
+    // pixel 2 and 3: transparent black
+
+    await writePNG(path, rgba, 2, 2);
+
+    const { PNG } = await import('pngjs');
+    const png = PNG.sync.read(readFileSync(path));
+    expect(png.width).toBe(2);
+    expect(png.height).toBe(2);
+    expect(Array.from(png.data)).toEqual(Array.from(rgba));
   });
 });
 
