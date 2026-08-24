@@ -64,6 +64,8 @@ naturally has):
   </select></label>
   <label>Anisotropy <select id="mesh-anisotropy"></select></label>
   <button id="mesh-reset-camera" type="button">Reset camera</button>
+  <label><input id="mesh-spring-bones" type="checkbox" /> Cloth/hair physics</label>
+  <label>Strength <input id="mesh-spring-bones-strength" type="range" min="0" max="1" step="0.01" value="1" /></label>
 </div>
 ```
 
@@ -72,6 +74,11 @@ naturally has):
 label text is entirely up to the host. `anisotropySelect` should be created
 empty; `refresh()` populates it from the attached session's own
 `getMaxAnisotropy()`.
+
+`springBonesCheckbox`/`springBonesStrengthRange` are **optional** — omit both
+entirely for a host that doesn't want cloth/hair physics UI (every existing
+consumer, until one opts in). See `MeshSettingsPanelOptions.springBoneOptions`
+below for how the checkbox maps to `session.setSpringBones()`'s config.
 
 ```ts
 import { MeshSettingsPanel } from '@seer-project/mesh-viewer-ui';
@@ -86,6 +93,15 @@ const settingsPanel = new MeshSettingsPanel({
   textureFilterSelect: document.getElementById('mesh-texture-filter') as HTMLSelectElement,
   anisotropySelect: document.getElementById('mesh-anisotropy') as HTMLSelectElement,
   resetCameraBtn: document.getElementById('mesh-reset-camera') as HTMLButtonElement,
+  // Optional — omit both to leave cloth/hair physics out of the panel entirely.
+  springBonesCheckbox: document.getElementById('mesh-spring-bones') as HTMLInputElement,
+  springBonesStrengthRange: document.getElementById('mesh-spring-bones-strength') as HTMLInputElement,
+}, {
+  // A host whose rigs have real bone names (e.g. flower's Drakengard 3
+  // `C_MANT1`/`L_HAIR1`-style chains) can ask engine-3d to guess a config;
+  // one relying solely on a baked `SEER_spring_bones` glTF config (e.g.
+  // chimera's nameless `bone0`/`bone1`/... rigs) omits this option entirely.
+  springBoneOptions: () => ({ autoDerive: true }),
 });
 ```
 
@@ -212,7 +228,13 @@ from the attached session and call straight into `downloadScreenshot`/
 `recordClip`+`downloadClip`. The turntable recording is deterministic and
 decoupled from wall-clock time (`recordClip` captures explicit frames, not
 a real-time stream) — see `@seer-project/engine-3d`'s `turntable.ts` docs
-for how `Turntable.step()` composes with it.
+for how `Turntable.step()` composes with it. The recording `CaptureSource`
+also drives `session.animation?.update(1/fps)` and `session.stepSpringBones(1/fps)`
+on every captured frame, alongside the turntable — `viewport.renderNow()`
+deliberately skips every frame hook and `onFrame` (see its own doc comment),
+so a recorded clip must advance the mixer and any active spring-bone solver
+by hand or an animated/clothed asset would record as a single frozen frame
+repeated for the whole clip.
 
 Photo mode is an **optional feature**: `three-gpu-pathtracer` is an
 optional peer dependency of `engine-3d`, and the `photo` `<option>` is

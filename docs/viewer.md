@@ -403,6 +403,23 @@ for a mesh.
   behind shadows/cinematic/photo mode/export themselves (implemented and
   independently reviewed — see that doc's own status line for what shipped
   and what's still a known gap).
+- **Cloth/hair spring-bone physics** (`packages/engine-3d/src/spring-bones.ts`)
+  — a generic, engine-agnostic runtime simulation pass, not a reproduction of
+  either requesting game's real solver (Koei Tecmo's `NUN` cloth sections and
+  Unreal Engine's APEX cloth/`PhysicsAsset` data both stay genuinely
+  undecoded). `session.setSpringBones(opts)` resolves a config in priority
+  order — an explicit `opts.config` → a baked `SEER_spring_bones` glTF
+  `extras` key → (`opts.autoDerive`) a bone-name guess
+  (`deriveSpringBonesFromNames`) → nothing — and registers one
+  `viewport.addFrameHook`, running after the animation mixer's `onFrame` and
+  before the render call. `opts.skipAnimatedBones` (default `true`) drops any
+  chain a clip already keyframes, so the sim never fights baked cloth/hair
+  motion. `MeshSettingsPanel` exposes an optional
+  `springBonesCheckbox`/`springBonesStrengthRange` pair (both omitted by
+  every existing consumer's markup, so this is purely additive) — see
+  `mesh-viewer-ui`'s own README for the element contract. `session.
+  stepSpringBones(dt)` is the deterministic-export counterpart to
+  `Turntable.step()`, since `viewport.renderNow()` skips every frame hook.
 
 **Scaffold-template support is intentionally not implemented yet.** Only the
 manifest *shape* (the five fields above) lives in

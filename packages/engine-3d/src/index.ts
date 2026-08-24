@@ -93,6 +93,23 @@ export type { TextureFilterMode, TextureFilterOptions } from './texture-filter.j
 export { createAnimationController } from './animation.js';
 export type { AnimationController } from './animation.js';
 
+export {
+  createSpringBoneSolver,
+  readSpringBoneConfig,
+  excludeAnimatedChains,
+  deriveSpringBonesFromNames,
+} from './spring-bones.js';
+export type {
+  SpringBoneJoint,
+  SpringBoneChain,
+  SpringBoneCollider,
+  SpringBoneColliderGroup,
+  SpringBoneConfig,
+  SpringBoneSolver,
+  SpringBoneSolverOptions,
+  DeriveSpringBonesOptions,
+} from './spring-bones.js';
+
 export { loadPlacedScene } from './placed-scene.js';
 export type { Placement, PlacedSceneResult, LoadPlacedSceneOptions } from './placed-scene.js';
 
@@ -102,4 +119,4 @@ export { meshStats } from './stats.js';
 export type { MeshStats } from './stats.js';
 
 export { createMeshSession } from './session.js';
-export type { MeshSession, MeshSessionOptions, SetModelOptions } from './session.js';
+export type { MeshSession, MeshSessionOptions, SetModelOptions, SpringBoneOptions } from './session.js';

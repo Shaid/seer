@@ -118,6 +118,45 @@ function makeGltfModel(): { model: Model3D; mesh: THREE.Mesh } {
   return { model: { object, source: 'gltf', animations: [], hasTextures: true, repr }, mesh };
 }
 
+/** A `makeGltfModel()` whose object also has a named child node — for `setExternalAnimations` tests, which need a track's `nodeName` to resolve against `model.object`. */
+function makeGltfModelWithBone(boneName: string): { model: Model3D; bone: THREE.Object3D } {
+  const { model } = makeGltfModel();
+  const bone = new THREE.Object3D();
+  bone.name = boneName;
+  model.object.add(bone);
+  return { model, bone };
+}
+
+/** A minimal one-track `THREE.AnimationClip` animating `nodeName`'s position — enough for `AnimationMixer`/`PropertyBinding` to bind against a real (or, for the mismatch test, absent) node. */
+function makeClip(name: string, nodeName: string): THREE.AnimationClip {
+  const track = new THREE.VectorKeyframeTrack(`${nodeName}.position`, [0, 1], [0, 0, 0, 1, 1, 1]);
+  return new THREE.AnimationClip(name, 1, [track]);
+}
+
+/**
+ * A `makeGltfModel()` with a straight `THREE.Bone` chain attached, each link
+ * offset 0.2 units along +X from its parent — the same "rest pose
+ * perpendicular to gravity" shape `spring-bones.test.ts`'s own `makeChain`
+ * uses, and for the same reason (a chain resting exactly along gravity has
+ * no torque to respond to, which would make "did the sim do anything" tests
+ * vacuously true).
+ */
+function makeGltfModelWithChain(names: string[]): { model: Model3D; bones: THREE.Bone[] } {
+  const { model } = makeGltfModel();
+  const bones: THREE.Bone[] = [];
+  let parent: THREE.Object3D = model.object;
+  for (const name of names) {
+    const bone = new THREE.Bone();
+    bone.name = name;
+    bone.position.set(0.2, 0, 0);
+    parent.add(bone);
+    bones.push(bone);
+    parent = bone;
+  }
+  model.object.updateMatrixWorld(true);
+  return { model, bones };
+}
+
 beforeEach(() => {
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
@@ -190,6 +229,102 @@ describe('MeshSession — appearance state', () => {
       session.setTextureFilter({ mode: 'nearest' });
     }).not.toThrow();
     expect(session.shading).toBe('lit');
+  });
+});
+
+// A composited "head" added via addModel() used to be frozen at whatever it
+// looked like at load time — setRenderMode/setShading/setSmooth/
+// setSubdivision/setTextureFilter only ever touched the model set via
+// setModel(). Fixed by having refreshAppearance/refreshPolish/
+// setTextureFilter apply to every model in the session's internal
+// trackedModels list (which addModel() also pushes into), not just the
+// primary `model` — see session.ts's own doc comments on each setter.
+describe('MeshSession — appearance toggles reach addModel()-added models too', () => {
+  it('setRenderMode affects a model added via addModel, not just the one set via setModel', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, lights: false, frameLimiter: false });
+    const { model: body, mesh: bodyMesh } = makeGltfModel();
+    const { model: head, mesh: headMesh } = makeGltfModel();
+    session.setModel(body, { fit: false });
+    session.addModel(head);
+
+    session.setRenderMode('wireframe');
+
+    expect((bodyMesh.material as THREE.Material).type).toBe('MeshBasicMaterial');
+    expect((headMesh.material as THREE.Material).type).toBe('MeshBasicMaterial');
+  });
+
+  it('setShading affects a model added via addModel, not just the one set via setModel', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, lights: false, frameLimiter: false });
+    const { model: body, mesh: bodyMesh } = makeGltfModel();
+    const { model: head, mesh: headMesh } = makeGltfModel();
+    session.setModel(body, { fit: false });
+    session.addModel(head);
+
+    session.setShading('unlit');
+
+    expect((bodyMesh.material as THREE.Material).type).toBe('MeshBasicMaterial');
+    expect((headMesh.material as THREE.Material).type).toBe('MeshBasicMaterial');
+  });
+
+  it('setShading does not dispose an earlier tracked model\'s freshly-generated material when applied to a later one (shared-cache clobber regression)', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, lights: false, frameLimiter: false });
+    const { model: body, mesh: bodyMesh } = makeGltfModel();
+    const { model: head, mesh: headMesh } = makeGltfModel();
+    session.setModel(body, { fit: false });
+    session.addModel(head);
+
+    session.setShading('unlit');
+    const bodyDisposeSpy = vi.spyOn(bodyMesh.material as THREE.Material, 'dispose');
+
+    // Re-triggering the same refresh (e.g. a second toggle) must only
+    // dispose/rebuild each mesh's OWN stale generated material, never a
+    // sibling tracked model's — applyMeshShading previously wiped the
+    // whole shared cache on every call, which would dispose body's material
+    // out from under it while only rebuilding head's.
+    session.setShading('toon');
+
+    expect(bodyDisposeSpy).toHaveBeenCalled(); // body's own stale 'unlit' material IS disposed...
+    expect((bodyMesh.material as THREE.Material).type).toBe('MeshToonMaterial'); // ...and replaced with a live 'toon' one, not left dangling
+    expect((headMesh.material as THREE.Material).type).toBe('MeshToonMaterial');
+  });
+
+  it('setSmooth/setSubdivision rebuild geometry for a model added via addModel', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, lights: false, frameLimiter: false });
+    const { model: body } = makeGltfModel();
+    const { model: head } = makeGltfModel();
+    session.setModel(body, { fit: false });
+    session.addModel(head);
+
+    session.setSubdivision(2);
+
+    const headMeshAfter = head.object.children[0] as THREE.Mesh;
+    expect(headMeshAfter.geometry.getAttribute('position').count).toBeGreaterThan(3);
+  });
+
+  it('setTextureFilter affects a model added via addModel, not just the one set via setModel', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, lights: false, frameLimiter: false });
+    const { model: body } = makeGltfModel();
+    const { model: head, mesh: headMesh } = makeGltfModel();
+    session.setModel(body, { fit: false });
+    session.addModel(head);
+
+    session.setTextureFilter({ mode: 'nearest', anisotropy: 1 });
+
+    const map = (headMesh.material as THREE.MeshStandardMaterial).map!;
+    expect(map.magFilter).toBe(THREE.NearestFilter);
+  });
+
+  it('a model added via addModel picks up the session\'s already-set texture filter immediately, without waiting for a further setTextureFilter call', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, lights: false, frameLimiter: false });
+    const { model: body } = makeGltfModel();
+    session.setModel(body, { fit: false });
+    session.setTextureFilter({ mode: 'nearest', anisotropy: 1 });
+
+    const { model: head, mesh: headMesh } = makeGltfModel();
+    session.addModel(head);
+
+    const map = (headMesh.material as THREE.MeshStandardMaterial).map!;
+    expect(map.magFilter).toBe(THREE.NearestFilter);
   });
 });
 
@@ -705,5 +840,205 @@ describe('MeshSession — scene-content invalidation', () => {
       session.setSmooth(true);
       session.setColorMode('height');
     }).not.toThrow();
+  });
+});
+
+describe('MeshSession — setExternalAnimations', () => {
+  it('binds an externally-sourced clip to the model set via setModel, not the clip\'s own (nonexistent here) source object', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model } = makeGltfModelWithBone('bone0');
+    session.setModel(model);
+    expect(session.animation).toBeNull(); // model itself has no baked clips
+
+    session.setExternalAnimations([makeClip('walk', 'bone0')]);
+
+    expect(session.animation).not.toBeNull();
+    expect(session.animation!.clipNames).toEqual(['walk']);
+  });
+
+  it('is a no-op when no model has ever been set via setModel', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    expect(() => session.setExternalAnimations([makeClip('walk', 'bone0')])).not.toThrow();
+    expect(session.animation).toBeNull();
+  });
+
+  it('replaces (disposes) a controller built from the model\'s own embedded animations', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model } = makeGltfModelWithBone('bone0');
+    model.animations.push(makeClip('idle', 'bone0'));
+    session.setModel(model);
+    expect(session.animation!.clipNames).toEqual(['idle']);
+
+    session.setExternalAnimations([makeClip('walk', 'bone0')]);
+
+    expect(session.animation!.clipNames).toEqual(['walk']);
+  });
+
+  it('an empty clip array clears the controller rather than leaving a stale one bound', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model } = makeGltfModelWithBone('bone0');
+    session.setModel(model);
+    session.setExternalAnimations([makeClip('walk', 'bone0')]);
+    expect(session.animation).not.toBeNull();
+
+    session.setExternalAnimations([]);
+
+    expect(session.animation).toBeNull();
+  });
+
+  it('a track whose node name has no match under the model degrades gracefully instead of throwing — the retargeting stopgap case', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model } = makeGltfModelWithBone('bone0');
+    session.setModel(model);
+
+    expect(() => session.setExternalAnimations([makeClip('walk', 'bone_not_present_on_this_rig')])).not.toThrow();
+    // The controller is still built and playable — three.js silently
+    // no-ops the unresolvable track (a console.warn, not an error) rather
+    // than failing the whole clip, exactly the "degrades gracefully"
+    // behavior the class-body animation retarget relies on.
+    expect(session.animation!.clipNames).toEqual(['walk']);
+  });
+
+  it('setModel() disposes any externally-sourced controller from a previous model, same as it does for a native one', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model: first } = makeGltfModelWithBone('bone0');
+    session.setModel(first);
+    session.setExternalAnimations([makeClip('walk', 'bone0')]);
+    expect(session.animation).not.toBeNull();
+
+    session.setModel(makeGltfModel().model);
+
+    expect(session.animation).toBeNull();
+  });
+});
+
+describe('MeshSession — spring bones', () => {
+  it('an explicit config drives a real quaternion change across steps', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model, bones } = makeGltfModelWithChain(['A', 'B', 'C']);
+    session.setModel(model, { fit: false });
+
+    session.setSpringBones({ config: { chains: [{ joints: [{ node: 'A' }, { node: 'B' }, { node: 'C' }] }] } });
+    expect(session.springBones).not.toBe(false);
+
+    const before = bones.map((b) => b.quaternion.clone());
+    for (let i = 0; i < 30; i++) session.stepSpringBones(1 / 60);
+    const after = bones.map((b) => b.quaternion.clone());
+    expect(before.some((q, i) => q.angleTo(after[i]!) > 0)).toBe(true);
+  });
+
+  it('setSpringBones(false) stops further motion, leaving the rig wherever physics last left it', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model, bones } = makeGltfModelWithChain(['A', 'B']);
+    session.setModel(model, { fit: false });
+    session.setSpringBones({ config: { chains: [{ joints: [{ node: 'A' }, { node: 'B' }] }] } });
+
+    for (let i = 0; i < 30; i++) session.stepSpringBones(1 / 60);
+    const atDisable = bones[1]!.quaternion.clone();
+
+    session.setSpringBones(false);
+    expect(session.springBones).toBe(false);
+    session.stepSpringBones(1 / 60); // no-op — no solver to advance
+    expect(bones[1]!.quaternion.angleTo(atDisable)).toBeCloseTo(0, 10);
+  });
+
+  it('reads a config baked into the model\'s glTF extras (userData.SEER_spring_bones) when none is passed explicitly', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model, bones } = makeGltfModelWithChain(['A', 'B']);
+    model.object.userData.SEER_spring_bones = { chains: [{ joints: [{ node: 'A' }, { node: 'B' }] }] };
+    session.setModel(model, { fit: false });
+
+    session.setSpringBones({});
+    const before = bones[1]!.quaternion.clone();
+    for (let i = 0; i < 30; i++) session.stepSpringBones(1 / 60);
+    expect(bones[1]!.quaternion.angleTo(before)).toBeGreaterThan(0);
+  });
+
+  it('autoDerive guesses a config from bone names when nothing is baked or explicit', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model, bones } = makeGltfModelWithChain(['C_MANT1', 'C_MANT2', 'C_MANT3']);
+    session.setModel(model, { fit: false });
+
+    session.setSpringBones({ autoDerive: true });
+    const before = bones[2]!.quaternion.clone();
+    for (let i = 0; i < 30; i++) session.stepSpringBones(1 / 60);
+    expect(bones[2]!.quaternion.angleTo(before)).toBeGreaterThan(0);
+  });
+
+  it('without autoDerive, an unnamed rig with no baked config resolves to no solver at all', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model, bones } = makeGltfModelWithChain(['C_MANT1', 'C_MANT2']);
+    session.setModel(model, { fit: false });
+
+    session.setSpringBones({}); // no config, no autoDerive
+    const before = bones[1]!.quaternion.clone();
+    for (let i = 0; i < 30; i++) session.stepSpringBones(1 / 60);
+    expect(bones[1]!.quaternion.angleTo(before)).toBeCloseTo(0, 10);
+  });
+
+  it('skipAnimatedBones (default true) drops a chain the active clip already keyframes', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model, bones } = makeGltfModelWithChain(['A', 'B']);
+    session.setModel(model, { fit: false });
+    session.setExternalAnimations([makeClip('sway', 'A')]);
+
+    session.setSpringBones({ config: { chains: [{ joints: [{ node: 'A' }, { node: 'B' }] }] } });
+    const before = bones[1]!.quaternion.clone();
+    for (let i = 0; i < 30; i++) session.stepSpringBones(1 / 60);
+    // The chain contains 'A', which the active clip keyframes — the whole
+    // chain should have been excluded, so nothing simulates it.
+    expect(bones[1]!.quaternion.angleTo(before)).toBeCloseTo(0, 10);
+  });
+
+  it('skipAnimatedBones: false simulates even a bone the active clip animates', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model, bones } = makeGltfModelWithChain(['A', 'B']);
+    session.setModel(model, { fit: false });
+    session.setExternalAnimations([makeClip('sway', 'A')]);
+
+    session.setSpringBones({
+      config: { chains: [{ joints: [{ node: 'A' }, { node: 'B' }] }] },
+      skipAnimatedBones: false,
+    });
+    const before = bones[1]!.quaternion.clone();
+    for (let i = 0; i < 30; i++) session.stepSpringBones(1 / 60);
+    expect(bones[1]!.quaternion.angleTo(before)).toBeGreaterThan(0);
+  });
+
+  it('setExternalAnimations re-resolves the animated-bone exclusion against the new clips', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model, bones } = makeGltfModelWithChain(['A', 'B']);
+    session.setModel(model, { fit: false });
+    session.setSpringBones({ config: { chains: [{ joints: [{ node: 'A' }, { node: 'B' }] }] } });
+
+    // No animation yet — the chain should simulate freely.
+    const before = bones[1]!.quaternion.clone();
+    for (let i = 0; i < 10; i++) session.stepSpringBones(1 / 60);
+    expect(bones[1]!.quaternion.angleTo(before)).toBeGreaterThan(0);
+
+    // Now animate 'A' — re-resolution should exclude the chain, freezing it
+    // at wherever the sim already left it.
+    session.setExternalAnimations([makeClip('sway', 'A')]);
+    const atExclude = bones[1]!.quaternion.clone();
+    for (let i = 0; i < 30; i++) session.stepSpringBones(1 / 60);
+    expect(bones[1]!.quaternion.angleTo(atExclude)).toBeCloseTo(0, 10);
+  });
+
+  it('setModel resets spring bones to false, tearing down the previous model\'s solver', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    const { model: first } = makeGltfModelWithChain(['A', 'B']);
+    session.setModel(first, { fit: false });
+    session.setSpringBones({ config: { chains: [{ joints: [{ node: 'A' }, { node: 'B' }] }] } });
+    expect(session.springBones).not.toBe(false);
+
+    session.setModel(makeGltfModel().model, { fit: false });
+    expect(session.springBones).toBe(false);
+    expect(() => session.stepSpringBones(1 / 60)).not.toThrow();
+  });
+
+  it('is a no-op with no model set', () => {
+    const session = createMeshSession(makeContainer(), { grid: false, frameLimiter: false });
+    expect(() => session.setSpringBones({ autoDerive: true })).not.toThrow();
+    expect(session.springBones).toBe(false);
   });
 });

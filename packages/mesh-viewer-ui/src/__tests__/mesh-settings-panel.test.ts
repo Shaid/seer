@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MeshSettingsPanel, type MeshSettingsPanelElements } from '../mesh-settings-panel.js';
-import type { MeshSession, Model3D, RenderMode } from '@seer-project/engine-3d';
+import type { MeshSession, Model3D, RenderMode, SpringBoneOptions } from '@seer-project/engine-3d';
 
 function makeSelect(values: string[]): HTMLSelectElement {
   const select = document.createElement('select');
@@ -42,6 +42,7 @@ function makeFakeSession(maxAnisotropy = 8): MeshSession {
     smooth: false,
     subdivision: 0,
     textureFilter: { mode: 'trilinear' as const, anisotropy: 1 },
+    springBones: false as false | SpringBoneOptions,
   };
   return {
     viewport: {} as MeshSession['viewport'],
@@ -53,6 +54,7 @@ function makeFakeSession(maxAnisotropy = 8): MeshSession {
     get smooth() { return state.smooth; },
     get subdivision() { return state.subdivision; },
     get textureFilter() { return state.textureFilter; },
+    get springBones() { return state.springBones; },
     setModel: vi.fn(),
     addModel: vi.fn(),
     setRenderMode: vi.fn((mode: RenderMode) => { state.renderMode = mode; }),
@@ -62,10 +64,20 @@ function makeFakeSession(maxAnisotropy = 8): MeshSession {
     setTextureFilter: vi.fn((opts) => { state.textureFilter = { mode: opts.mode, anisotropy: opts.anisotropy ?? 1 }; }),
     getMaxAnisotropy: vi.fn(() => maxAnisotropy),
     setColorMode: vi.fn(),
+    setSpringBones: vi.fn((opts: false | SpringBoneOptions) => { state.springBones = opts; }),
+    stepSpringBones: vi.fn(),
     fit: vi.fn(),
     stats: vi.fn(() => ({ verts: 0, tris: 0 })),
     dispose: vi.fn(),
   } as unknown as MeshSession;
+}
+
+function withSpringBonesElements(base: MeshSettingsPanelElements): MeshSettingsPanelElements {
+  const springBonesCheckbox = document.createElement('input');
+  springBonesCheckbox.type = 'checkbox';
+  const springBonesStrengthRange = document.createElement('input');
+  springBonesStrengthRange.type = 'range';
+  return { ...base, springBonesCheckbox, springBonesStrengthRange };
 }
 
 let els: MeshSettingsPanelElements;
@@ -254,6 +266,87 @@ describe('MeshSettingsPanel — refresh()', () => {
     expect(els.shadingSelect.value).toBe('unlit');
     expect(els.smoothCheckbox.checked).toBe(true);
     expect(els.subdivideSelect.value).toBe('2');
+  });
+});
+
+describe('MeshSettingsPanel — spring bones controls (optional elements)', () => {
+  it('is a no-op with the optional elements absent — every existing consumer keeps working unmodified', () => {
+    const panel = new MeshSettingsPanel(els);
+    const session = makeFakeSession();
+    expect(() => panel.attach(session)).not.toThrow();
+    expect(session.setSpringBones).not.toHaveBeenCalled();
+  });
+
+  it('checking the box enables physics with the host-provided options', () => {
+    const elsWithSpringBones = withSpringBonesElements(els);
+    const springBoneOptions = vi.fn(() => ({ autoDerive: true }) as SpringBoneOptions);
+    const panel = new MeshSettingsPanel(elsWithSpringBones, { springBoneOptions });
+    const session = makeFakeSession();
+    panel.attach(session);
+
+    elsWithSpringBones.springBonesCheckbox!.checked = true;
+    elsWithSpringBones.springBonesCheckbox!.dispatchEvent(new Event('change'));
+
+    expect(springBoneOptions).toHaveBeenCalledWith(session);
+    expect(session.setSpringBones).toHaveBeenCalledWith({ autoDerive: true, strength: 1 });
+  });
+
+  it('defaults to {} (baked config only) when no springBoneOptions hook is provided', () => {
+    const elsWithSpringBones = withSpringBonesElements(els);
+    const panel = new MeshSettingsPanel(elsWithSpringBones);
+    const session = makeFakeSession();
+    panel.attach(session);
+
+    elsWithSpringBones.springBonesCheckbox!.checked = true;
+    elsWithSpringBones.springBonesCheckbox!.dispatchEvent(new Event('change'));
+
+    expect(session.setSpringBones).toHaveBeenCalledWith({ strength: 1 });
+  });
+
+  it('unchecking the box disables physics', () => {
+    const elsWithSpringBones = withSpringBonesElements(els);
+    const panel = new MeshSettingsPanel(elsWithSpringBones);
+    const session = makeFakeSession();
+    panel.attach(session);
+
+    elsWithSpringBones.springBonesCheckbox!.checked = false;
+    elsWithSpringBones.springBonesCheckbox!.dispatchEvent(new Event('change'));
+
+    expect(session.setSpringBones).toHaveBeenCalledWith(false);
+  });
+
+  it('moving the strength slider forwards its value while checked', () => {
+    const elsWithSpringBones = withSpringBonesElements(els);
+    const panel = new MeshSettingsPanel(elsWithSpringBones);
+    const session = makeFakeSession();
+    panel.attach(session);
+
+    elsWithSpringBones.springBonesCheckbox!.checked = true;
+    elsWithSpringBones.springBonesStrengthRange!.value = '0.4';
+    elsWithSpringBones.springBonesStrengthRange!.dispatchEvent(new Event('input'));
+
+    expect(session.setSpringBones).toHaveBeenCalledWith({ strength: 0.4 });
+  });
+
+  it('refresh() syncs the checkbox and strength slider from session state', () => {
+    const elsWithSpringBones = withSpringBonesElements(els);
+    const panel = new MeshSettingsPanel(elsWithSpringBones);
+    const session = makeFakeSession();
+    session.setSpringBones({ strength: 0.7 });
+    panel.attach(session);
+
+    expect(elsWithSpringBones.springBonesCheckbox!.checked).toBe(true);
+    expect(elsWithSpringBones.springBonesStrengthRange!.value).toBe('0.7');
+    expect(elsWithSpringBones.springBonesStrengthRange!.disabled).toBe(false);
+  });
+
+  it('refresh() disables the strength slider while physics is off', () => {
+    const elsWithSpringBones = withSpringBonesElements(els);
+    const panel = new MeshSettingsPanel(elsWithSpringBones);
+    panel.attach(makeFakeSession());
+
+    expect(elsWithSpringBones.springBonesCheckbox!.checked).toBe(false);
+    expect(elsWithSpringBones.springBonesStrengthRange!.disabled).toBe(true);
   });
 });
 

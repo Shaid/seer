@@ -107,6 +107,7 @@ function makeFakeSession(opts: { renderMode?: RenderMode; shading?: MeshShadingM
     }),
     fit: vi.fn(),
     stats: vi.fn(() => ({ verts: 0, tris: 0 })),
+    stepSpringBones: vi.fn(),
     dispose: vi.fn(),
     // Fields exercised by RenderSettingsPanel's own logic set above; the rest
     // of MeshSession's surface isn't touched by this panel.
@@ -368,10 +369,16 @@ describe('RenderSettingsPanel — export buttons', () => {
       expect.objectContaining({ fps: 20, durationSeconds: 2, watermark: { text: 'watermark' } }),
     );
 
-    // The CaptureSource's renderNow steps the turntable at exactly 1/fps before rendering.
+    // The CaptureSource's renderNow steps the turntable, the animation
+    // mixer, and any active spring-bone solver at exactly 1/fps before
+    // rendering — renderNow() itself deliberately skips every frame hook
+    // and onFrame, so a recorded clip must drive all per-frame state by
+    // hand or an animated/clothed asset would record as a single frozen
+    // frame repeated for the whole clip.
     const source = recordClipMock.mock.calls[0][0];
     source.renderNow();
     expect(turntableMock.step).toHaveBeenCalledWith(1 / 20);
+    expect(session.stepSpringBones).toHaveBeenCalledWith(1 / 20);
     expect(session.viewport.renderNow).toHaveBeenCalled();
 
     expect(downloadClipMock).toHaveBeenCalledWith(
@@ -380,6 +387,23 @@ describe('RenderSettingsPanel — export buttons', () => {
     );
     expect(turntableMock.dispose).toHaveBeenCalled();
     expect(els.recordTurntableBtn.disabled).toBe(false);
+  });
+
+  it("record-turntable's CaptureSource also advances the animation mixer, not just the turntable and physics (regression: an animated asset recorded as a single frozen frame)", async () => {
+    const panel = new RenderSettingsPanel(els, { ...opts, turntable: { durationSeconds: 2, fps: 20 } });
+    const session = makeFakeSession();
+    const update = vi.fn();
+    Object.defineProperty(session, 'animation', { value: { update }, configurable: true });
+    panel.attach(session);
+
+    els.recordTurntableBtn.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const source = recordClipMock.mock.calls[0][0];
+    source.renderNow();
+    expect(update).toHaveBeenCalledWith(1 / 20);
   });
 
   it('does nothing when no session is attached', () => {

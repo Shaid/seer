@@ -26,6 +26,18 @@ export interface AnimationController {
   stop(): void;
   /** Stops all actions and releases the mixer's binding to `root`. */
   dispose(): void;
+  /**
+   * The set of node names any track of `clipName`'s clip targets — or,
+   * omitted, the union across every clip this controller knows about.
+   * `session.setSpringBones({ skipAnimatedBones: true })`'s exclusion check
+   * against `spring-bones.ts`'s `excludeAnimatedChains` is the only current
+   * consumer: a bone this clip already keyframes shouldn't also be driven by
+   * a physics sim layered on top of it. Returns an empty set for an unknown
+   * `clipName`. Uses `THREE.PropertyBinding.parseTrackName` rather than a
+   * naive `track.name.split('.')` since a track name can itself legally
+   * contain dots (see that method's own doc comment).
+   */
+  animatedNodeNames(clipName?: string): Set<string>;
 }
 
 /**
@@ -83,6 +95,18 @@ export function createAnimationController(
       actions.clear();
       currentAction = null;
       currentName = null;
+    },
+    animatedNodeNames(clipName) {
+      const names = new Set<string>();
+      const targetClips = clipName
+        ? [actions.get(clipName)?.getClip()].filter((c): c is THREE.AnimationClip => !!c)
+        : clips;
+      for (const clip of targetClips) {
+        for (const track of clip.tracks) {
+          names.add(THREE.PropertyBinding.parseTrackName(track.name).nodeName);
+        }
+      }
+      return names;
     },
   };
 }

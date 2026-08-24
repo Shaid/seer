@@ -385,6 +385,35 @@ compound. glTF-only (a polygon model has no per-mesh geometry to rebuild).
 
 Wire `controller.update` into `ViewportOptions.onFrame` (or let
 `createMeshSession` do it automatically via `session.setModel`).
+`controller.animatedNodeNames(clipName?)` returns the set of node names a
+clip's tracks target — `spring-bones.ts`'s `excludeAnimatedChains` (and
+`session.setSpringBones({ skipAnimatedBones: true })`) is the one consumer.
+
+### `spring-bones.ts`
+
+Cloth/hair spring-bone (jiggle) physics — a plausible approximation, not a
+reproduction of any specific game's real solver. No parameter here is
+measured from Koei Tecmo's `NUN` cloth sections or Unreal Engine's APEX
+cloth/`PhysicsAsset` data; both stay genuinely undecoded (see each
+consumer's own TODO). This is the same honesty standard `mesh-shading.ts`'s
+`'indexedRamp'` mode holds itself to.
+
+| Function | Description |
+| --- | --- |
+| `createSpringBoneSolver(root, config, opts?)` | Resolves `config`'s chains against real nodes under `root` and returns a `SpringBoneSolver`, or `null` if not a single chain resolved. `solver.step(dt)` integrates via a fixed-timestep accumulator (`opts.fixedStep`, default `1/60`; `opts.maxSubSteps`, default `4` — extra accumulated time beyond the cap is dropped, not carried forward) so behavior doesn't change under the frame-limiter's adaptive 60→30fps fallback. Mutates each resolved joint's local `quaternion` and calls `updateMatrixWorld` itself. `solver.reset()` zeroes velocity; `solver.dispose()` releases accumulator state (neither touches node transforms). |
+| `readSpringBoneConfig(object)` | Reads a baked config from `object.userData.SEER_spring_bones` — a plain custom-data key (not a registered glTF extension), which three's `GLTFLoader` already copies from a glTF's scene/node `extras` into `userData` with no loader changes needed. Returns `null` if absent or malformed; never throws. |
+| `excludeAnimatedChains(config, animatedNodeNames)` | Drops any chain containing at least one joint in `animatedNodeNames` — pure, so the exclusion rule is unit-testable without a session. |
+| `deriveSpringBonesFromNames(root, opts?)` | Guesses a config from bone names alone (the common `hair`/`mant`/`cape`/`skirt`/`sleeve`/`tail`/`wing`/`scarf`/`cloth`/`ribbon`/`chain`/`belt`/`rope`/`swing`/`jiggle` vocabulary), following single-child `THREE.Bone` descent from each unclaimed match. Returns `null` for a rig with no semantic bone names (e.g. Koei Tecmo G1M's `bone0`/`bone1`/... — there is nothing to pattern-match, and guessing off pure indices would be a coin flip). Never applied automatically by `MeshSession`. |
+
+A chain's joints must form an actual parent→child line in the scene graph
+(joint `i+1` must be the sole child of joint `i`'s node) — the whole
+technique works by rotating joint `i` to reposition joint `i+1`. A joint
+whose declared next joint doesn't resolve becomes that chain's effective
+tip rather than failing the whole chain; a joint with no next joint at all
+(a true tip) gets a synthesized virtual child continuing its own
+parent-relative offset one more segment — both are documented
+approximations, since a skeleton alone can't say how far a bone's mesh
+actually extends.
 
 ### `placed-scene.ts`
 
@@ -414,14 +443,16 @@ animation controller (if any).
 | --- | --- |
 | `createMeshSession(container, opts?)` | Builds a `MeshSession`. |
 | `session.setModel(model, opts?)` | Replaces the session's contents, disposing whatever was shown before. `opts.fit` (default `true`) frames the camera; `opts.renderMode` overrides `defaultRenderMode(model)`. |
-| `session.addModel(model)` | Adds `model` alongside whatever's already shown, without disturbing it — for a host assembling several independently-built `Model3D`s into one scene. |
-| `session.setRenderMode(mode)` / `session.setColorMode(mode, resolver?)` | Switch modes on the active model. |
-| `session.setShading(mode)` / `session.setSmooth(bool)` | Switch shading override / smooth-vs-flat normals — see `mesh-shading.ts`. Both reset to `'lit'`/`false` on every `setModel`. |
-| `session.setSubdivision(multiplier)` | Rebuild geometry at a subdivision intensity — see `mesh-polish.ts`. Resets to `0` on every `setModel`. |
-| `session.setTextureFilter(options)` / `session.getMaxAnisotropy()` | Set filter/anisotropy on the active model's textures — see `texture-filter.ts`. Unlike shading/smooth/subdivision, this **persists across `setModel`** (a viewer-wide preference, not a per-model one). `getMaxAnisotropy()` reads `renderer.capabilities.getMaxAnisotropy()`. |
+| `session.addModel(model)` | Adds `model` alongside whatever's already shown, without disturbing it — for a host assembling several independently-built `Model3D`s into one scene. Once added, `model` responds to every render-mode/shading/smooth/subdivision/texture-filter setter below exactly like the model set via `setModel` — it is not a second-class "just displayed" object. |
+| `session.setRenderMode(mode)` / `session.setColorMode(mode, resolver?)` | Switch modes on every model currently in the session (the one set via `setModel`, plus any added via `addModel`). |
+| `session.setShading(mode)` / `session.setSmooth(bool)` | Switch shading override / smooth-vs-flat normals — see `mesh-shading.ts` — on every model currently in the session. Both reset to `'lit'`/`false` on every `setModel` (which also clears any `addModel`-added models). |
+| `session.setSubdivision(multiplier)` | Rebuild geometry at a subdivision intensity, for every model currently in the session — see `mesh-polish.ts`. Resets to `0` on every `setModel`. |
+| `session.setTextureFilter(options)` / `session.getMaxAnisotropy()` | Set filter/anisotropy on every model's textures currently in the session — see `texture-filter.ts`. Unlike shading/smooth/subdivision, this **persists across `setModel`** (a viewer-wide preference, not a per-model one), and is also applied to every model as it's added via `addModel`. `getMaxAnisotropy()` reads `renderer.capabilities.getMaxAnisotropy()`. |
 | `session.setShadows(opts)` | Thin delegation to `viewport.setShadows()` — also **persists across `setModel`/`addModel`** like `textureFilter`, applying `enableModelShadows()` to whichever model is current and to every future one automatically. |
 | `session.setCinematic(opts)` | Switches the `cinematic` render tier on/off, or updates it in place — thin delegation to `viewport.setRenderPath()`. **Persists across `setModel`** like `shadows`/`textureFilter` (viewport-scoped, not per-model). A same-shape update (only numeric option values changed) reuses the existing `EffectComposer` chain via `CinematicPath.setOptions()`; a shape change (an effect toggled, the antialias strategy changed) disposes it and builds a fresh one — see `postprocessing.ts` above. Installing `cinematic` implicitly replaces whichever other render tier was active; `Viewport`'s single `renderPath` slot is what enforces that, not `session.ts`. |
 | `session.setPhotoMode(opts)` | Switches the `photo` render tier on/off — **the only async setter here** (returns `Promise<void>`; `three-gpu-pathtracer` is lazy-loaded, see `photo-mode.ts` above). `session.photoMode` reports `'loading'` for the duration. Safe to call again — including with `false` — before a previous call resolves; the superseded call's result is discarded rather than clobbering whatever's active by the time it finishes, and the same applies if `setCinematic()` claims the slot while a `setPhotoMode()` call is still in flight (both directions keep `session.cinematic`/`session.photoMode` from reporting stale "still active" state for a controller that was actually disposed out from under them). |
+| `session.setSpringBones(opts)` | Enables/reconfigures (`opts` truthy) or disables (`false`) cloth/hair spring-bone simulation — see `spring-bones.ts` above. Config resolution order: `opts.config` → the model's own baked `SEER_spring_bones` glTF extras → (`opts.autoDerive`) a name-pattern guess → nothing. `opts.skipAnimatedBones` (default `true`) drops any chain containing a bone the active clip already keyframes. Registers one `viewport.addFrameHook`, which runs after the animation mixer's `onFrame` and before the render call. **Resets to `false` on every `setModel`** (a third category alongside the shading/smooth/subdivision "resets" and textureFilter/shadows/cinematic "persists" axis — a cloth rig is resolved against one specific model's bone names, not portable to the next). Re-resolved automatically by `setExternalAnimations` when it's active, since the animated-bone set can change. |
+| `session.stepSpringBones(dt)` | Advances the spring-bone solver by `dt` directly, bypassing the frame hook — for the deterministic export path, since `viewport.renderNow()` deliberately skips every frame hook (see `Turntable.step()`'s identical reasoning). No-op if spring bones aren't active. |
 | `session.fit()` | Re-frames the camera on everything currently in the viewport. |
 | `session.stats()` | Vertex/triangle counts for the current view. |
 | `session.dispose()` | Disposes every model ever added, the animation controller, and the viewport. Idempotent. |

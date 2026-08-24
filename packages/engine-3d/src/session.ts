@@ -25,8 +25,34 @@ import { createCinematicPath, cinematicPlansEqual, planCinematicPasses, applyTon
 import type { CinematicOptions, CinematicPath } from './postprocessing.js';
 import { createPhotoMode } from './photo-mode.js';
 import type { PhotoModeOptions, PhotoModeController, PhotoModePhase } from './photo-mode.js';
+import {
+  createSpringBoneSolver,
+  readSpringBoneConfig,
+  deriveSpringBonesFromNames,
+  excludeAnimatedChains,
+  type SpringBoneConfig,
+  type SpringBoneSolver,
+} from './spring-bones.js';
 import type { Model3D } from './types.js';
 import * as THREE from 'three';
+
+/**
+ * `session.setSpringBones()`'s options. Config resolution order: `config` →
+ * the model's own baked `SEER_spring_bones` glTF extras (`readSpringBoneConfig`)
+ * → (only if `autoDerive`) a name-pattern guess (`deriveSpringBonesFromNames`)
+ * → nothing. See `spring-bones.ts` for why none of this is measured from
+ * either requesting game's real data.
+ */
+export interface SpringBoneOptions {
+  config?: SpringBoneConfig;
+  /** Falls back to a bone-name guess when neither `config` nor a baked config is present. Off by default — never applied silently, since a wrong guess is worse than no physics. */
+  autoDerive?: boolean;
+  /** Drops any chain containing a bone the active animation clip already keyframes, so the sim never fights baked cloth/hair motion (flower's Drakengard 3 corpus has both: some clips fully keyframe cape/hair bones, most don't touch them at all). Default `true`. */
+  skipAnimatedBones?: boolean;
+  fixedStep?: number;
+  maxSubSteps?: number;
+  strength?: number;
+}
 
 export type MeshSessionOptions = ViewportOptions;
 
@@ -68,6 +94,8 @@ export interface MeshSession {
   readonly cinematic: false | CinematicOptions;
   /** `'off'` / `'loading'` (constructing — `three-gpu-pathtracer` is lazy-loaded) / `'tracing'` / `'converged'`. See `setPhotoMode()`. */
   readonly photoMode: PhotoModePhase;
+  /** `false`, or the spring-bone options currently active. Reset to `false` on every `setModel` — a cloth/hair rig is resolved against one specific model's bone names (see `spring-bones.ts` on why a config baked into one GLB isn't portable to another), the same per-model-not-persisted category as `shading`/`smooth`/`subdivision`. */
+  readonly springBones: false | SpringBoneOptions;
   readonly disposed: boolean;
   /**
    * Replaces the session's entire contents with `model`: disposes and
@@ -82,18 +110,21 @@ export interface MeshSession {
    * disturbing it — the placed-scene case, where many models share one
    * session (`loadPlacedScene` builds raw placed instances directly; this
    * is for a host that's built several independent `Model3D`s of its own
-   * and wants them all visible together).
+   * and wants them all visible together). Once added, `model` responds to
+   * every subsequent `setRenderMode`/`setShading`/`setSmooth`/
+   * `setSubdivision`/`setTextureFilter` call exactly like the model set via
+   * `setModel` — there is no separate "just added, inert" state.
    */
   addModel(model: Model3D): void;
-  /** Switches `model`'s render mode. No-op if no model is set. */
+  /** Switches the render mode of every model currently in the session (both the one set via `setModel` and any added via `addModel`). No-op if no model has ever been set via `setModel`. */
   setRenderMode(mode: RenderMode): void;
-  /** Switches `model`'s shading override (see `MeshShadingMode`). No-op if no model is set or the model isn't glTF-sourced. */
+  /** Switches the shading override (see `MeshShadingMode`) of every model currently in the session. No-op if no model has ever been set via `setModel`; a no-op per-model for one that isn't glTF-sourced. */
   setShading(mode: MeshShadingMode): void;
-  /** Toggles smooth vs. flat/faceted normals — rebuilds geometry from the captured original at the current `subdivision` level, so it reflects immediately. No-op if no model is set or the model isn't glTF-sourced. */
+  /** Toggles smooth vs. flat/faceted normals for every model currently in the session — rebuilds geometry from each one's captured original at the current `subdivision` level, so it reflects immediately. No-op if no model has ever been set via `setModel`; a no-op per-model for one that isn't glTF-sourced. */
   setSmooth(smooth: boolean): void;
-  /** Sets subdivision intensity (`0` = original geometry). Rebuilds geometry from the captured original — see `mesh-polish.ts`'s `subdivideGeometry` for what the value means. No-op if no model is set or the model isn't glTF-sourced. */
+  /** Sets subdivision intensity (`0` = original geometry) for every model currently in the session. Rebuilds geometry from each one's captured original — see `mesh-polish.ts`'s `subdivideGeometry` for what the value means. No-op if no model has ever been set via `setModel`; a no-op per-model for one that isn't glTF-sourced. */
   setSubdivision(multiplier: number): void;
-  /** Sets the texture filter/anisotropy applied to `model`'s original materials — persists across future `setModel` calls until changed again. No-op (but still remembered for the next model) if no model is set or the model isn't glTF-sourced. */
+  /** Sets the texture filter/anisotropy applied to every model's original materials — persists across future `setModel`/`addModel` calls until changed again. No-op (but still remembered for future models) if no model has ever been set via `setModel`; a no-op per-model for one that isn't glTF-sourced. */
   setTextureFilter(options: TextureFilterOptions): void;
   /** The renderer's `getMaxAnisotropy()` — the ceiling a host's anisotropy control should clamp its own range to. */
   getMaxAnisotropy(): number;
@@ -139,6 +170,50 @@ export interface MeshSession {
   setPhotoMode(opts: false | PhotoModeOptions): Promise<void>;
   /** Recolors `model`'s polygon faces (a no-op for a glTF-sourced model — see `recolorPolygonModel`). No-op if no model is set. */
   setColorMode(mode: ColorMode, resolver?: ColorResolver): void;
+  /**
+   * Rebuilds the animation controller for the model set via `setModel` from
+   * `clips` instead of that model's own embedded `animations` — for a host
+   * that sources motion data from a GLB other than the one it's displaying
+   * (e.g. a skeleton-only "action" file exported from the same underlying
+   * rig as a mesh-only body file, or — approximately, as a stopgap — a
+   * different character's rig that shares enough bone names to produce
+   * recognizable motion). `THREE.AnimationMixer` binds each track to the
+   * CURRENTLY set model's `Object3D` (`session.model.object`) by node NAME,
+   * not identity, so this works whether `clips` came from `model` itself or
+   * from an entirely different loaded GLB: a bone name with no match under
+   * `model.object` just doesn't animate (three.js logs a `console.warn`,
+   * not an error, and every other bound track still plays normally) — see
+   * `PropertyBinding.bind()`'s own `"No target node found for track"`
+   * fallback.
+   *
+   * No-op if no model is set via `setModel`. Passing an empty array disposes
+   * the current controller (same end state as a model with no clips of its
+   * own) rather than leaving a stale one bound to a since-replaced model.
+   */
+  setExternalAnimations(clips: THREE.AnimationClip[]): void;
+  /**
+   * Enables (`opts` truthy), reconfigures, or disables (`false`) cloth/hair
+   * spring-bone simulation for the model set via `setModel` — see
+   * `SpringBoneOptions` for config resolution order. Registers one
+   * `viewport.addFrameHook`, which runs after the animation mixer's own
+   * `onFrame` update and before the render call, so a simulated bone's
+   * rotation composes with (rather than fights) whatever the mixer just
+   * wrote — see `spring-bones.ts`'s module doc for the full frame-ordering
+   * contract, including why it calls `updateMatrixWorld` itself. No-op if no
+   * model is set via `setModel`; re-resolved automatically by
+   * `setExternalAnimations` (the animated-bone set `skipAnimatedBones`
+   * checks against changes when the clips do).
+   */
+  setSpringBones(opts: false | SpringBoneOptions): void;
+  /**
+   * Advances the spring-bone solver by `dt` seconds directly, bypassing the
+   * frame hook — for the same reason `Turntable` exposes its own `step()`:
+   * `viewport.renderNow()` (the deterministic screenshot/video-export path)
+   * deliberately skips every frame hook, so an exporter recording a clip
+   * with spring bones active must drive this by hand alongside
+   * `session.animation?.update(dt)`. No-op if spring bones aren't active.
+   */
+  stepSpringBones(dt: number): void;
   /** Re-frames the camera on everything currently in `viewport.root`. */
   fit(): void;
   /** Vertex/triangle counts for everything currently visible in `viewport.root`. */
@@ -167,6 +242,9 @@ export function createMeshSession(
   let photoModeController: PhotoModeController | null = null;
   let photoModeLoading = false;
   let photoModeGeneration = 0;
+  let springBoneOptions: false | SpringBoneOptions = false;
+  let springBoneSolver: SpringBoneSolver | null = null;
+  let springBoneUnsubscribe: (() => void) | null = null;
   let disposed = false;
 
   const shadingCache: GeneratedShadingMaterials = new Map();
@@ -180,19 +258,76 @@ export function createMeshSession(
     trackedModels.length = 0;
   };
 
-  /** Reapplies render mode + shading together — the pair `render-modes.ts`/`mesh-shading.ts` must stay in sync on (shading defers to render mode for wireframe/points). Does not touch geometry. Invalidates any render-tier state built over the model's materials (a path tracer's BVH/material data) — covers `setRenderMode`/`setShading`/`setModel` directly, and `refreshPolish` transitively (it always calls this after rebuilding geometry), so neither of those needs its own separate call. */
+  /**
+   * Reapplies render mode + shading together — the pair `render-modes.ts`/
+   * `mesh-shading.ts` must stay in sync on (shading defers to render mode
+   * for wireframe/points). Does not touch geometry. Invalidates any
+   * render-tier state built over the model's materials (a path tracer's
+   * BVH/material data) — covers `setRenderMode`/`setShading`/`setModel`
+   * directly, and `refreshPolish` transitively (it always calls this after
+   * rebuilding geometry), so neither of those needs its own separate call.
+   *
+   * Applies to every model in `trackedModels`, not just the one set via
+   * `setModel` — this is what makes an `addModel()`-added piece (e.g. a
+   * host compositing a separately-loaded head onto a body) respond to the
+   * SAME render-mode/shading toggles as the primary model, instead of
+   * being frozen at whatever it looked like when added. Gated on `model`
+   * (not `trackedModels.length`) so this stays a no-op for a host that only
+   * ever calls `addModel()` and never establishes a primary model via
+   * `setModel()` — that host never calls `setRenderMode`/`setShading`
+   * either, so the gate is never actually exercised there, but keeping it
+   * preserves the documented "no-op before any model is set" contract.
+   */
   const refreshAppearance = () => {
     if (disposed || !model) return;
-    applyRenderMode(model, renderMode!);
-    applyMeshShading(model, shadingCache, { shading, smooth, renderMode: renderMode! });
+    for (const tracked of trackedModels) {
+      applyRenderMode(tracked, renderMode!);
+      applyMeshShading(tracked, shadingCache, { shading, smooth, renderMode: renderMode! });
+    }
     viewport.invalidateSceneContents();
   };
 
-  /** Rebuilds geometry from `originalGeometry` at the current subdivision/smooth settings, then refreshes appearance — mirrors what a render-mode-only change does, but geometry changes need the rebuild first. */
+  /** Rebuilds geometry from `originalGeometry` at the current subdivision/smooth settings, then refreshes appearance — mirrors what a render-mode-only change does, but geometry changes need the rebuild first. Applies to every model in `trackedModels`, same reasoning as `refreshAppearance`; relies on `addModel()` having merged each added model's meshes into `originalGeometry` (see there) so a mesh added after the fact isn't silently skipped as "missing from originalGeometry" (`applyMeshPolish`'s own no-op-for-unknown-mesh behavior). */
   const refreshPolish = () => {
     if (disposed || !model) return;
-    applyMeshPolish(model, originalGeometry, { subdivision, smooth });
+    for (const tracked of trackedModels) applyMeshPolish(tracked, originalGeometry, { subdivision, smooth });
     refreshAppearance();
+  };
+
+  const teardownSpringBones = () => {
+    springBoneUnsubscribe?.();
+    springBoneUnsubscribe = null;
+    springBoneSolver?.dispose();
+    springBoneSolver = null;
+  };
+
+  /**
+   * (Re)builds the spring-bone solver from `springBoneOptions` against the
+   * current `model`/`animation` — called on `setSpringBones` itself, and
+   * again from `setExternalAnimations` (whose new clips can change which
+   * bones `skipAnimatedBones` excludes). Always tears down first: disabling
+   * (`springBoneOptions === false`), a config that resolves to nothing, or
+   * no model at all should all leave no solver and no dangling frame hook.
+   */
+  const applySpringBones = () => {
+    teardownSpringBones();
+    if (!springBoneOptions || !model) return;
+    const opts = springBoneOptions;
+    let config = opts.config ?? readSpringBoneConfig(model.object);
+    if (!config && opts.autoDerive) config = deriveSpringBonesFromNames(model.object);
+    if (!config) return;
+    if ((opts.skipAnimatedBones ?? true) && animation) {
+      config = excludeAnimatedChains(config, animation.animatedNodeNames());
+    }
+    springBoneSolver = createSpringBoneSolver(model.object, config, {
+      fixedStep: opts.fixedStep,
+      maxSubSteps: opts.maxSubSteps,
+      strength: opts.strength,
+    });
+    if (springBoneSolver) {
+      const solver = springBoneSolver;
+      springBoneUnsubscribe = viewport.addFrameHook((dt) => solver.step(dt));
+    }
   };
 
   viewport.setOnFrame((delta) => {
@@ -237,6 +372,9 @@ export function createMeshSession(
     get cinematic() {
       return cinematic;
     },
+    get springBones() {
+      return springBoneOptions;
+    },
     get photoMode() {
       if (photoModeController) return photoModeController.phase;
       return photoModeLoading ? 'loading' : 'off';
@@ -250,6 +388,8 @@ export function createMeshSession(
 
       animation?.dispose();
       animation = null;
+      teardownSpringBones();
+      springBoneOptions = false;
 
       clearTracked();
       clearGeneratedShadingMaterials(shadingCache);
@@ -281,6 +421,23 @@ export function createMeshSession(
       trackedModels.push(next);
       viewport.root.add(next.object);
       if (shadows) enableModelShadows(next.object);
+      // Merge this model's meshes into the session-wide original-geometry
+      // cache (keyed by mesh, so entries from different models never
+      // collide) — a no-op capture (empty map) for a polygon model, but
+      // required for a glTF model to respond to a LATER setSmooth()/
+      // setSubdivision() call the same way setModel()'s own model does; see
+      // `refreshPolish`'s doc comment. Deliberately NOT eagerly re-running
+      // applyMeshPolish/applyRenderMode/applyMeshShading on `next` here: at
+      // its default state (subdivision 0, smooth off, shading 'lit',
+      // render mode 'textured') every one of those is a no-op restore of
+      // the model's own native geometry/materials (verified in
+      // `render-modes.ts`'s 'textured' branch and `mesh-polish.ts`'s
+      // subdivision-0 path), so a freshly-added model already looks
+      // correct without touching it — actually applying happens the first
+      // time a host calls one of the `set*` methods below, which now
+      // reaches every tracked model, not just the primary one.
+      for (const [mesh, geometry] of captureOriginalGeometry(next)) originalGeometry.set(mesh, geometry);
+      applyTextureFilter(next, textureFilter, session.getMaxAnisotropy());
       viewport.invalidateSceneContents();
     },
 
@@ -311,7 +468,7 @@ export function createMeshSession(
     setTextureFilter(options) {
       textureFilter = options;
       if (disposed || !model) return;
-      applyTextureFilter(model, options, session.getMaxAnisotropy());
+      for (const tracked of trackedModels) applyTextureFilter(tracked, options, session.getMaxAnisotropy());
     },
 
     getMaxAnisotropy() {
@@ -322,6 +479,26 @@ export function createMeshSession(
       if (disposed || !model) return;
       recolorPolygonModel(model, mode, resolver);
       viewport.invalidateSceneContents();
+    },
+
+    setExternalAnimations(clips) {
+      if (disposed || !model) return;
+      animation?.dispose();
+      animation = clips.length > 0 ? createAnimationController(model.object, clips) : null;
+      // The animated-node set `skipAnimatedBones` excludes against just
+      // changed (or vanished, if `clips` is empty) — re-resolve rather than
+      // leaving chains filtered against the previous clip's bones.
+      if (springBoneOptions) applySpringBones();
+    },
+
+    setSpringBones(opts) {
+      if (disposed || !model) return;
+      springBoneOptions = opts;
+      applySpringBones();
+    },
+
+    stepSpringBones(dt) {
+      springBoneSolver?.step(dt);
     },
 
     setShadows(opts) {
@@ -458,6 +635,8 @@ export function createMeshSession(
       disposed = true;
       animation?.dispose();
       animation = null;
+      teardownSpringBones();
+      springBoneOptions = false;
       clearTracked();
       clearGeneratedShadingMaterials(shadingCache);
       disposeOriginalGeometry(originalGeometry);

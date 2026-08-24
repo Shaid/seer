@@ -183,6 +183,15 @@ export class RenderSettingsPanel {
       canvas: session.viewport.renderer.domElement,
       renderNow: () => {
         turntable.step(1 / fps);
+        // `viewport.renderNow()` deliberately skips every frame hook and
+        // `onFrame` (see its own doc comment) — a synchronous capture
+        // shouldn't advance state as a side effect of being read. That
+        // means a recorded clip must drive the animation mixer and any
+        // active spring-bone solver by hand, the same way it already drove
+        // the turntable, or an animated/clothed asset would record as a
+        // single frozen frame repeated for the whole clip's duration.
+        session.animation?.update(1 / fps);
+        session.stepSpringBones(1 / fps);
         session.viewport.renderNow();
       },
     };

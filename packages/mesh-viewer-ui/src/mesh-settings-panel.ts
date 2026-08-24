@@ -5,6 +5,7 @@ import {
   type RenderMode,
   type MeshShadingMode,
   type TextureFilterMode,
+  type SpringBoneOptions,
 } from '@seer-project/engine-3d';
 
 /** Shows/hides an element via the `.hidden { display: none }` class every seer project's own `viewer.css` already defines — re-implemented here (rather than imported) so this package has no dependency on any consumer project's local module, same rationale as `@seer-project/audio-ui`'s own copy. */
@@ -33,6 +34,16 @@ export interface MeshSettingsPanelElements {
   /** Its `<option>`s are rebuilt by `refresh()` (powers of two up to the attached session's `getMaxAnisotropy()`) — the host only needs to create the empty `<select>`. */
   anisotropySelect: HTMLSelectElement;
   resetCameraBtn: HTMLButtonElement;
+  /**
+   * Optional cloth/hair spring-bone physics toggle — omit both this and
+   * `springBonesStrengthRange` entirely for a host that doesn't want the
+   * control at all (every existing consumer, until one opts in). See
+   * `MeshSettingsPanelOptions.springBoneOptions` for how the checked state
+   * maps to `session.setSpringBones()`'s config.
+   */
+  springBonesCheckbox?: HTMLInputElement;
+  /** `<input type="range" min="0" max="1" step="0.01">` — a 0..1 global intensity dial, forwarded as `SpringBoneOptions.strength`. Meaningless without `springBonesCheckbox`; both are optional together. */
+  springBonesStrengthRange?: HTMLInputElement;
 }
 
 export interface MeshSettingsPanelOptions {
@@ -45,6 +56,18 @@ export interface MeshSettingsPanelOptions {
    * package deliberately doesn't own.
    */
   onResetCamera?: (session: MeshSession) => void;
+  /**
+   * Builds the `SpringBoneOptions` to pass to `session.setSpringBones()`
+   * when `springBonesCheckbox` is checked (or its strength slider moves).
+   * The host decides whether physics should guess a config from bone names
+   * (flower's Drakengard 3 rigs have real names like `C_MANT1`/`L_HAIR1` —
+   * pass `{ autoDerive: true }`) or rely solely on a baked
+   * `SEER_spring_bones` glTF config (chimera's `bone0`/`bone1`/... rigs have
+   * nothing a name guess could match — omit `autoDerive`). Defaults to `{}`
+   * (baked config only) if not provided. Only consulted when
+   * `springBonesCheckbox` is present.
+   */
+  springBoneOptions?: (session: MeshSession) => SpringBoneOptions;
 }
 
 /**
@@ -114,6 +137,24 @@ export class MeshSettingsPanel {
       if (this.opts.onResetCamera) this.opts.onResetCamera(this.session);
       else this.session.fit();
     });
+
+    if (this.els.springBonesCheckbox) {
+      this.on(this.els.springBonesCheckbox, 'change', () => this.applySpringBonesFromControls());
+    }
+    if (this.els.springBonesStrengthRange) {
+      this.on(this.els.springBonesStrengthRange, 'input', () => this.applySpringBonesFromControls());
+    }
+  }
+
+  private applySpringBonesFromControls(): void {
+    if (!this.session || !this.els.springBonesCheckbox) return;
+    if (!this.els.springBonesCheckbox.checked) {
+      this.session.setSpringBones(false);
+      return;
+    }
+    const base = this.opts.springBoneOptions?.(this.session) ?? {};
+    const strength = this.els.springBonesStrengthRange ? Number(this.els.springBonesStrengthRange.value) : base.strength;
+    this.session.setSpringBones({ ...base, strength });
   }
 
   private applyTextureFilterFromControls(): void {
@@ -186,6 +227,15 @@ export class MeshSettingsPanel {
     this.els.textureFilterSelect.value = session.textureFilter.mode;
     this.els.anisotropySelect.value = String(session.textureFilter.anisotropy ?? 1);
     this.els.anisotropySelect.disabled = session.textureFilter.mode === 'nearest';
+
+    if (this.els.springBonesCheckbox) {
+      this.els.springBonesCheckbox.checked = session.springBones !== false;
+    }
+    if (this.els.springBonesStrengthRange) {
+      const strength = session.springBones !== false ? (session.springBones.strength ?? 1) : 1;
+      this.els.springBonesStrengthRange.value = String(strength);
+      this.els.springBonesStrengthRange.disabled = session.springBones === false;
+    }
   }
 
   /** Closes the panel, hides the toolbar toggle button, and releases the session reference. Call on every asset switch away from a mesh (mirrors `AudioBarController.detach()`) — does not touch the session itself (a host still owns disposing it). */
