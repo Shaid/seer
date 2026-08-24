@@ -68,6 +68,20 @@ export interface MeshSettingsPanelOptions {
    * `springBonesCheckbox` is present.
    */
   springBoneOptions?: (session: MeshSession) => SpringBoneOptions;
+  /**
+   * Called after this panel applies a user-initiated session change —
+   * render mode or shading, specifically, since those are the two pieces of
+   * state `RenderSettingsPanel.refresh()` gates its photo-tier and shadows
+   * controls on. This panel has no reference to any other panel instance
+   * and doesn't call `refresh()` on itself here, so a host running both
+   * panels side by side (one toolbar, two independent popovers) should wire
+   * this to the render-settings panel's own `refresh()`:
+   * `new MeshSettingsPanel(elements, { onChange: () => renderPanel.refresh() })`.
+   * Not called from `refresh()` itself — only from the interactive control
+   * handlers — so wiring both panels' `onChange` to each other's `refresh()`
+   * can't recurse.
+   */
+  onChange?: () => void;
 }
 
 /**
@@ -87,6 +101,14 @@ export interface MeshSettingsPanelOptions {
  * (constructed once against the toolbar's static markup) and have
  * `attach()`/`refresh()`/`detach()` called across asset selections — the
  * same pattern as `AudioBarController`.
+ *
+ * This panel and `RenderSettingsPanel` are independent — neither holds a
+ * reference to the other, so switching render mode or shading here (which
+ * `RenderSettingsPanel.refresh()` gates its photo-tier and shadows controls
+ * on) doesn't update an already-open render-settings panel on its own. A
+ * host running both together should wire `MeshSettingsPanelOptions.onChange`
+ * to the render panel's `refresh()` (and, symmetrically,
+ * `RenderSettingsPanelOptions.onChange` to this panel's `refresh()`).
  */
 export class MeshSettingsPanel {
   private els: MeshSettingsPanelElements;
@@ -118,13 +140,17 @@ export class MeshSettingsPanel {
     this.teardown.push(createPopover(this.els.toggleBtn, this.els.panel));
 
     this.on(this.els.renderModeSelect, 'change', () => {
-      this.session?.setRenderMode(this.els.renderModeSelect.value as RenderMode);
+      if (!this.session) return;
+      this.session.setRenderMode(this.els.renderModeSelect.value as RenderMode);
+      this.opts.onChange?.();
     });
     this.on(this.els.smoothCheckbox, 'change', () => {
       this.session?.setSmooth(this.els.smoothCheckbox.checked);
     });
     this.on(this.els.shadingSelect, 'change', () => {
-      this.session?.setShading(this.els.shadingSelect.value as MeshShadingMode);
+      if (!this.session) return;
+      this.session.setShading(this.els.shadingSelect.value as MeshShadingMode);
+      this.opts.onChange?.();
     });
     this.on(this.els.subdivideSelect, 'change', () => {
       this.session?.setSubdivision(Number(this.els.subdivideSelect.value));
@@ -148,7 +174,9 @@ export class MeshSettingsPanel {
 
   private applySpringBonesFromControls(): void {
     if (!this.session || !this.els.springBonesCheckbox) return;
-    if (!this.els.springBonesCheckbox.checked) {
+    const enabled = this.els.springBonesCheckbox.checked;
+    if (this.els.springBonesStrengthRange) this.els.springBonesStrengthRange.disabled = !enabled;
+    if (!enabled) {
       this.session.setSpringBones(false);
       return;
     }
@@ -164,10 +192,16 @@ export class MeshSettingsPanel {
     this.session.setTextureFilter({ mode, anisotropy: Number(this.els.anisotropySelect.value) });
   }
 
+  /** The device's own anisotropy ceiling — the largest value `anisotropySelect` will ever offer an `<option>` for. */
+  private deviceMaxAnisotropy(): number {
+    if (!this.session) return 1;
+    return Math.max(1, Math.floor(this.session.getMaxAnisotropy()));
+  }
+
   /** Rebuilds `anisotropySelect`'s `<option>`s as powers of two up to the attached session's `getMaxAnisotropy()` — a device with no anisotropic filtering support (max `1`) ends up with just `Off`. Preserves the previously-selected value when it's still in range. */
   private refreshAnisotropyOptions(): void {
     if (!this.session) return;
-    const max = Math.max(1, Math.floor(this.session.getMaxAnisotropy()));
+    const max = this.deviceMaxAnisotropy();
     const levels: number[] = [1];
     for (let level = 2; level <= max; level *= 2) levels.push(level);
     if (max > 1 && levels[levels.length - 1] !== max) levels.push(max);
@@ -225,7 +259,15 @@ export class MeshSettingsPanel {
 
     this.refreshAnisotropyOptions();
     this.els.textureFilterSelect.value = session.textureFilter.mode;
-    this.els.anisotropySelect.value = String(session.textureFilter.anisotropy ?? 1);
+    // Clamp rather than assign the raw persisted value: a preference saved
+    // on a higher-end device (e.g. 16x) can exceed *this* device's max
+    // (e.g. 8x, see getMaxAnisotropy()) — assigning it unclamped leaves the
+    // select showing no matching <option> (value === '', selectedIndex ===
+    // -1), and the next filter-mode change would then send
+    // `Number('') === 0`, which the engine clamps down to 1x instead of the
+    // device's actually-available max.
+    const anisotropy = Math.min(session.textureFilter.anisotropy ?? 1, this.deviceMaxAnisotropy());
+    this.els.anisotropySelect.value = String(anisotropy);
     this.els.anisotropySelect.disabled = session.textureFilter.mode === 'nearest';
 
     if (this.els.springBonesCheckbox) {

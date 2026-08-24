@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MeshSession, RenderMode, MeshShadingMode, CinematicOptions, PhotoModePhase } from '@seer-project/engine-3d';
+import type { CaptureSource, RecordClipOptions, RecordClipResult } from '@seer-project/canvas-export';
 
 const { isPhotoModeAvailableMock, createTurntableMock, turntableMock } = vi.hoisted(() => {
   const turntableMock = {
@@ -23,7 +24,9 @@ vi.mock('@seer-project/engine-3d', async (importOriginal) => {
 });
 
 const { recordClipMock, downloadScreenshotMock, downloadClipMock } = vi.hoisted(() => ({
-  recordClipMock: vi.fn(async () => ({ blob: new Blob(['x']), mimeType: 'video/webm', durationSeconds: 4 })),
+  recordClipMock: vi.fn<(source: CaptureSource, opts: RecordClipOptions) => Promise<RecordClipResult>>(
+    async () => ({ blob: new Blob(['x']), mimeType: 'video/webm', durationSeconds: 4 }),
+  ),
   downloadScreenshotMock: vi.fn(async () => {}),
   downloadClipMock: vi.fn(),
 }));
@@ -157,7 +160,7 @@ describe('RenderSettingsPanel — visibility', () => {
     expect(els.panel.classList.contains('hidden')).toBe(true);
   });
 
-  it('detach() hides the toggle button, closes the panel, and forces photo mode off is left to the host (detach does not touch the session)', () => {
+  it('detach() hides the toggle button and closes the panel, but does not touch the session (forcing photo mode off, if desired, is left to the host)', () => {
     const panel = new RenderSettingsPanel(els, opts);
     const session = makeFakeSession();
     panel.attach(session);
@@ -165,6 +168,7 @@ describe('RenderSettingsPanel — visibility', () => {
     panel.detach();
     expect(els.toggleBtn.classList.contains('hidden')).toBe(true);
     expect(els.panel.classList.contains('hidden')).toBe(true);
+    expect(session.setPhotoMode).not.toHaveBeenCalled();
   });
 });
 
@@ -174,7 +178,7 @@ describe('RenderSettingsPanel — tier selector wiring', () => {
     const session = makeFakeSession();
     panel.attach(session);
 
-    els.bloomCheckbox.checked = true;
+    els.bloomCheckbox!.checked = true;
     els.qualitySelect.value = 'cinematic';
     els.qualitySelect.dispatchEvent(new Event('change'));
 
@@ -185,23 +189,23 @@ describe('RenderSettingsPanel — tier selector wiring', () => {
   });
 
   it('does NOT force bloom/AO/DOF checkboxes to unchecked on attach() just because the flat tier is active (regression: a host-authored checked default must survive attach())', () => {
-    els.bloomCheckbox.checked = true;
-    els.aoCheckbox.checked = true;
-    els.dofCheckbox.checked = true;
+    els.bloomCheckbox!.checked = true;
+    els.aoCheckbox!.checked = true;
+    els.dofCheckbox!.checked = true;
     const panel = new RenderSettingsPanel(els, opts);
     const session = makeFakeSession();
 
     panel.attach(session);
 
-    expect(els.bloomCheckbox.checked).toBe(true);
-    expect(els.aoCheckbox.checked).toBe(true);
-    expect(els.dofCheckbox.checked).toBe(true);
+    expect(els.bloomCheckbox!.checked).toBe(true);
+    expect(els.aoCheckbox!.checked).toBe(true);
+    expect(els.dofCheckbox!.checked).toBe(true);
   });
 
   it('the first switch to cinematic uses HTML-authored checked defaults, not force-cleared ones (regression)', () => {
-    els.bloomCheckbox.checked = true;
-    els.aoCheckbox.checked = true;
-    els.dofCheckbox.checked = true;
+    els.bloomCheckbox!.checked = true;
+    els.aoCheckbox!.checked = true;
+    els.dofCheckbox!.checked = true;
     const panel = new RenderSettingsPanel(els, opts);
     const session = makeFakeSession();
     panel.attach(session);
@@ -245,16 +249,16 @@ describe('RenderSettingsPanel — tier selector wiring', () => {
     const session = makeFakeSession();
     panel.attach(session);
 
-    els.aoCheckbox.checked = true;
-    els.aoCheckbox.dispatchEvent(new Event('change'));
+    els.aoCheckbox!.checked = true;
+    els.aoCheckbox!.dispatchEvent(new Event('change'));
     expect(session.setCinematic).not.toHaveBeenCalled();
 
     els.qualitySelect.value = 'cinematic';
     els.qualitySelect.dispatchEvent(new Event('change'));
     (session.setCinematic as ReturnType<typeof vi.fn>).mockClear();
 
-    els.dofCheckbox.checked = true;
-    els.dofCheckbox.dispatchEvent(new Event('change'));
+    els.dofCheckbox!.checked = true;
+    els.dofCheckbox!.dispatchEvent(new Event('change'));
     expect(session.setCinematic).toHaveBeenCalledWith(
       expect.objectContaining({ ao: expect.any(Object), dof: expect.any(Object) }),
     );
@@ -269,6 +273,18 @@ describe('RenderSettingsPanel — tier selector wiring', () => {
     els.shadowsCheckbox.dispatchEvent(new Event('change'));
     expect(session.setShadows).toHaveBeenCalledWith(true);
   });
+
+  it('calls the onChange hook after an interactive render-tier change, for a host wiring a sibling MeshSettingsPanel\'s refresh()', () => {
+    const onChange = vi.fn();
+    const panel = new RenderSettingsPanel(els, { ...opts, onChange });
+    const session = makeFakeSession();
+    panel.attach(session);
+    onChange.mockClear(); // attach()'s own refresh() must not count as a change
+
+    els.qualitySelect.value = 'cinematic';
+    els.qualitySelect.dispatchEvent(new Event('change'));
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('RenderSettingsPanel — sub-option rows shown per tier', () => {
@@ -276,12 +292,12 @@ describe('RenderSettingsPanel — sub-option rows shown per tier', () => {
     const panel = new RenderSettingsPanel(els, opts);
     const session = makeFakeSession();
     panel.attach(session);
-    expect(els.cinematicOptionsRow.classList.contains('hidden')).toBe(true);
+    expect(els.cinematicOptionsRow!.classList.contains('hidden')).toBe(true);
 
     els.qualitySelect.value = 'cinematic';
     els.qualitySelect.dispatchEvent(new Event('change'));
-    expect(els.cinematicOptionsRow.classList.contains('hidden')).toBe(false);
-    expect(els.photoModeRow.classList.contains('hidden')).toBe(true);
+    expect(els.cinematicOptionsRow!.classList.contains('hidden')).toBe(false);
+    expect(els.photoModeRow!.classList.contains('hidden')).toBe(true);
   });
 
   it('photoModeRow is only visible when the photo tier is active', () => {
@@ -291,8 +307,8 @@ describe('RenderSettingsPanel — sub-option rows shown per tier', () => {
 
     els.qualitySelect.value = 'photo';
     els.qualitySelect.dispatchEvent(new Event('change'));
-    expect(els.photoModeRow.classList.contains('hidden')).toBe(false);
-    expect(els.cinematicOptionsRow.classList.contains('hidden')).toBe(true);
+    expect(els.photoModeRow!.classList.contains('hidden')).toBe(false);
+    expect(els.cinematicOptionsRow!.classList.contains('hidden')).toBe(true);
   });
 });
 
@@ -336,6 +352,36 @@ describe('RenderSettingsPanel — photo mode availability', () => {
   });
 });
 
+describe('RenderSettingsPanel — photo-mode status polling', () => {
+  it('keeps updating the displayed status after "Converged", picking up a camera-move-triggered sample reset instead of staying stuck (regression: the poll stopped as soon as phase first reached converged)', () => {
+    vi.useFakeTimers();
+    let phase: PhotoModePhase = 'tracing';
+    const panel = new RenderSettingsPanel(els, opts);
+    const session = makeFakeSession();
+    Object.defineProperty(session, 'photoMode', { get: () => phase, configurable: true });
+    panel.attach(session);
+
+    els.qualitySelect.value = 'photo';
+    els.qualitySelect.dispatchEvent(new Event('change'));
+    expect(els.photoModeStatus!.textContent).toBe('Tracing…');
+
+    phase = 'converged';
+    vi.advanceTimersByTime(250);
+    expect(els.photoModeStatus!.textContent).toBe('Converged');
+
+    // Simulate the user orbiting the model post-convergence: engine-3d
+    // resets path-tracer accumulation on every controls 'change' event, so
+    // `phase` drops back to 'tracing' live with nothing else calling
+    // refresh() — only a still-running poll would notice.
+    phase = 'tracing';
+    vi.advanceTimersByTime(250);
+    expect(els.photoModeStatus!.textContent).toBe('Tracing…');
+
+    panel.dispose();
+    vi.useRealTimers();
+  });
+});
+
 describe('RenderSettingsPanel — export buttons', () => {
   it('screenshot button delegates to downloadScreenshot with a CaptureSource over the renderer canvas and the built watermark/filename', async () => {
     const panel = new RenderSettingsPanel(els, opts);
@@ -376,7 +422,7 @@ describe('RenderSettingsPanel — export buttons', () => {
     // hand or an animated/clothed asset would record as a single frozen
     // frame repeated for the whole clip.
     const source = recordClipMock.mock.calls[0][0];
-    source.renderNow();
+    source.renderNow?.();
     expect(turntableMock.step).toHaveBeenCalledWith(1 / 20);
     expect(session.stepSpringBones).toHaveBeenCalledWith(1 / 20);
     expect(session.viewport.renderNow).toHaveBeenCalled();
@@ -402,7 +448,7 @@ describe('RenderSettingsPanel — export buttons', () => {
     await Promise.resolve();
 
     const source = recordClipMock.mock.calls[0][0];
-    source.renderNow();
+    source.renderNow?.();
     expect(update).toHaveBeenCalledWith(1 / 20);
   });
 
@@ -509,6 +555,30 @@ describe('RenderSettingsPanel — export buttons', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('switching to photo mode'), expect.any(Error));
     consoleErrorSpy.mockRestore();
   });
+
+  it('a rejected setPhotoMode({}) re-syncs the UI to the engine\'s actual (reverted) state instead of leaving the select/status stuck on photo (regression)', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const panel = new RenderSettingsPanel(els, opts);
+    const session = makeFakeSession();
+    (session.setPhotoMode as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+      throw new Error('three-gpu-pathtracer unavailable');
+    });
+    panel.attach(session);
+
+    els.qualitySelect.value = 'photo';
+    els.qualitySelect.dispatchEvent(new Event('change'));
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // session.photoMode reverted to 'off' (the mocked setPhotoMode never
+    // wrote 'tracing' since it threw) — the panel must re-read that instead
+    // of leaving the select/status stuck on the tier the user picked.
+    expect(session.photoMode).toBe('off');
+    expect(els.qualitySelect.value).toBe('flat');
+    expect(els.photoModeRow!.classList.contains('hidden')).toBe(true);
+    consoleErrorSpy.mockRestore();
+  });
 });
 
 describe('RenderSettingsPanel — reduced panel (optional elements absent)', () => {
@@ -583,10 +653,10 @@ describe('RenderSettingsPanel — dispose()', () => {
 
   it('aborts an in-flight turntable recording (regression: otherwise the recordClip loop keeps calling renderNow() on a session that may be about to be disposed)', async () => {
     let capturedSignal: AbortSignal | undefined;
-    let resolveRecord!: (r: unknown) => void;
+    let resolveRecord!: (r: RecordClipResult) => void;
     recordClipMock.mockImplementationOnce(
       (_source, recordOpts) =>
-        new Promise((resolve) => {
+        new Promise<RecordClipResult>((resolve) => {
           capturedSignal = recordOpts.signal;
           resolveRecord = resolve;
         }),
@@ -616,7 +686,7 @@ describe('RenderSettingsPanel — dispose()', () => {
     let capturedSignal: AbortSignal | undefined;
     recordClipMock.mockImplementationOnce(
       (_source, recordOpts) =>
-        new Promise(() => {
+        new Promise<RecordClipResult>(() => {
           capturedSignal = recordOpts.signal;
         }),
     );

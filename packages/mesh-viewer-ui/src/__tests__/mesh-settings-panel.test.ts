@@ -191,6 +191,36 @@ describe('MeshSettingsPanel — control wiring', () => {
     expect(onResetCamera).toHaveBeenCalledWith(session);
     expect(session.fit).not.toHaveBeenCalled();
   });
+
+  it('calls the onChange hook after an interactive render-mode or shading change, for a host wiring a sibling RenderSettingsPanel\'s refresh()', () => {
+    const onChange = vi.fn();
+    const panel = new MeshSettingsPanel(els, { onChange });
+    const session = makeFakeSession();
+    panel.attach(session);
+    onChange.mockClear(); // attach()'s own refresh() must not count as a change
+
+    els.renderModeSelect.value = 'wireframe';
+    els.renderModeSelect.dispatchEvent(new Event('change'));
+    expect(onChange).toHaveBeenCalledTimes(1);
+
+    els.shadingSelect.value = 'toon';
+    els.shadingSelect.dispatchEvent(new Event('change'));
+    expect(onChange).toHaveBeenCalledTimes(2);
+
+    // A control unrelated to RenderSettingsPanel's refresh() decisions must
+    // not trigger it.
+    els.smoothCheckbox.checked = true;
+    els.smoothCheckbox.dispatchEvent(new Event('change'));
+    expect(onChange).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not call onChange when no session is attached', () => {
+    const onChange = vi.fn();
+    const panel = new MeshSettingsPanel(els, { onChange });
+    els.renderModeSelect.dispatchEvent(new Event('change'));
+    expect(onChange).not.toHaveBeenCalled();
+    void panel;
+  });
 });
 
 describe('MeshSettingsPanel — texture filter controls', () => {
@@ -253,6 +283,15 @@ describe('MeshSettingsPanel — refresh()', () => {
       .map((o) => o.value);
     expect(disabled).toEqual(expect.arrayContaining(['textured', 'wireframe', 'points']));
     expect(disabled).not.toContain('faces');
+  });
+
+  it('clamps a persisted anisotropy above this device\'s max to the largest available option instead of leaving the select blank (regression: Number(\'\') would then send anisotropy 0, clamped by the engine to 1x instead of the device\'s real max)', () => {
+    const panel = new MeshSettingsPanel(els);
+    const session = makeFakeSession(8);
+    session.setTextureFilter({ mode: 'trilinear', anisotropy: 16 });
+    panel.attach(session);
+
+    expect(els.anisotropySelect.value).toBe('8');
   });
 
   it('syncs displayed values from the session on refresh', () => {
@@ -346,6 +385,22 @@ describe('MeshSettingsPanel — spring bones controls (optional elements)', () =
     panel.attach(makeFakeSession());
 
     expect(elsWithSpringBones.springBonesCheckbox!.checked).toBe(false);
+    expect(elsWithSpringBones.springBonesStrengthRange!.disabled).toBe(true);
+  });
+
+  it('checking the box interactively enables the strength slider immediately, without waiting for a later refresh() (regression: the slider stayed disabled until some unrelated future refresh())', () => {
+    const elsWithSpringBones = withSpringBonesElements(els);
+    const panel = new MeshSettingsPanel(elsWithSpringBones);
+    const session = makeFakeSession();
+    panel.attach(session);
+    expect(elsWithSpringBones.springBonesStrengthRange!.disabled).toBe(true);
+
+    elsWithSpringBones.springBonesCheckbox!.checked = true;
+    elsWithSpringBones.springBonesCheckbox!.dispatchEvent(new Event('change'));
+    expect(elsWithSpringBones.springBonesStrengthRange!.disabled).toBe(false);
+
+    elsWithSpringBones.springBonesCheckbox!.checked = false;
+    elsWithSpringBones.springBonesCheckbox!.dispatchEvent(new Event('change'));
     expect(elsWithSpringBones.springBonesStrengthRange!.disabled).toBe(true);
   });
 });

@@ -156,6 +156,32 @@ toggle/outside-click/Escape logic itself is `@seer-project/canvas-export`'s
 `createPopover`, shared with that package's own future export controls —
 this package depends on the generic one, not the other way around.
 
+### Keeping a sibling `RenderSettingsPanel` in sync
+
+`MeshSettingsPanel` and `RenderSettingsPanel` are independent — neither
+holds a reference to the other. But `RenderSettingsPanel.refresh()` gates
+its `photo` quality option and shadows checkbox off `session.renderMode`/
+`session.shading`, both of which only change through this panel's render
+mode and shading controls. A host running both panels together (one
+toolbar, two popovers) should wire `onChange` to the sibling's `refresh()`
+so a change made in one panel is reflected in the other:
+
+```ts
+const meshPanel = new MeshSettingsPanel(meshElements, {
+  onChange: () => renderPanel.refresh(),
+});
+const renderPanel = new RenderSettingsPanel(renderElements, {
+  watermarkText: (session) => `${assetName} — ${gameName}`,
+  onChange: () => meshPanel.refresh(),
+});
+```
+
+`onChange` fires only after an interactive control change this panel itself
+applies to the session (not from `refresh()` itself), so the two panels
+can't recurse into each other. A host that only ever shows one of the two
+panels can omit `onChange` entirely — the same optional, backward-compatible
+allowance as `onResetCamera`/`springBoneOptions`.
+
 ## `RenderSettingsPanel` — cinematic rendering, photo mode, and export
 
 A second, independent popover controller for the render-quality tiers

@@ -57,6 +57,17 @@ export interface RenderSettingsPanelOptions {
   turntable?: { durationSeconds?: number; fps?: number };
   /** How often (ms) to refresh `photoModeStatus`'s text while tracing, since `session.photoMode`/its sample count aren't independently observable. Default `250`. */
   photoModePollMs?: number;
+  /**
+   * Called after this panel applies a user-initiated render-tier change
+   * (the `qualitySelect` control). Nothing in `MeshSettingsPanel` currently
+   * reads any state this panel owns, so this has no effect on it today — it
+   * exists for symmetry with `MeshSettingsPanelOptions.onChange` and so a
+   * host can wire it to the mesh-settings panel's `refresh()` without this
+   * package needing to grow a real cross-panel dependency. Not called from
+   * `refresh()` itself, so wiring both panels' `onChange` to each other's
+   * `refresh()` can't recurse.
+   */
+  onChange?: () => void;
 }
 
 const DEFAULT_CINEMATIC: Required<Pick<CinematicOptions, 'bloom' | 'ao' | 'dof'>> = {
@@ -75,6 +86,15 @@ const DEFAULT_CINEMATIC: Required<Pick<CinematicOptions, 'bloom' | 'ao' | 'dof'>
  *
  * Same attach/refresh/detach/dispose, host-owns-DOM contract as
  * `MeshSettingsPanel`; a second, independent popover on the same toolbar.
+ *
+ * Independent also means uncoupled: this panel's own `refresh()` gates the
+ * `photo` option and the shadows checkbox off `session.renderMode`/
+ * `session.shading`, but those only change through `MeshSettingsPanel`, and
+ * neither panel notifies the other. A host running both together should
+ * wire `MeshSettingsPanelOptions.onChange` to this panel's `refresh()` (and,
+ * symmetrically, `RenderSettingsPanelOptions.onChange` to
+ * `MeshSettingsPanel.refresh()`) so a render-mode/shading change made in one
+ * panel is reflected in the other without a page-level poll.
  */
 export class RenderSettingsPanel {
   private els: RenderSettingsPanelElements;
@@ -124,11 +144,22 @@ export class RenderSettingsPanel {
   private applyQuality(): void {
     if (!this.session) return;
     const quality = this.els.qualitySelect.value as RenderQuality;
-    if (quality !== 'photo') void this.session.setPhotoMode(false).catch((err) => this.reportError('turning photo mode off', err));
+    if (quality !== 'photo') {
+      void this.session.setPhotoMode(false).catch((err) => {
+        this.reportError('turning photo mode off', err);
+        this.refresh();
+      });
+    }
     if (quality !== 'cinematic') this.session.setCinematic(false);
     if (quality === 'cinematic') this.session.setCinematic(this.currentCinematicOptions());
-    if (quality === 'photo') void this.session.setPhotoMode({}).catch((err) => this.reportError('switching to photo mode', err));
+    if (quality === 'photo') {
+      void this.session.setPhotoMode({}).catch((err) => {
+        this.reportError('switching to photo mode', err);
+        this.refresh();
+      });
+    }
     this.refresh();
+    this.opts.onChange?.();
   }
 
   private applyCinematicOptions(): void {
@@ -156,7 +187,17 @@ export class RenderSettingsPanel {
       this.els.photoModeStatus.textContent =
         phase === 'loading' ? 'Loading…' : phase === 'tracing' ? 'Tracing…' : phase === 'converged' ? 'Converged' : '';
     }
-    if (phase === 'tracing' || phase === 'loading') this.startPhotoModePoll();
+    // Keep polling for as long as the photo tier itself is active, not
+    // merely while `phase` is still 'tracing'/'loading' — `phase` is
+    // computed live off `pathTracer.samples`, and every controls 'change'
+    // event (the user orbiting the model) resets accumulation via
+    // `pathTracer.updateCamera()` (see `photo-mode.ts`), dropping samples
+    // — and therefore `phase` — back below `targetSamples` with nothing
+    // else calling `refresh()` to notice. Stopping the poll right at
+    // 'converged' left the displayed status stuck there indefinitely after
+    // any post-convergence camera move; polling through 'converged' means
+    // the next tick picks the reset back up.
+    if (phase !== 'off') this.startPhotoModePoll();
     else this.stopPhotoModePoll();
   }
 
