@@ -169,16 +169,18 @@ export class Module {
     }
     this.numPatterns = maxPat
 
+    const isDigit = (b: number) => b >= 0x30 && b <= 0x39
+
     const tag = ushortbe(module, 1082)
     if (tag === 0x4b2e || tag === 0x4b21 || tag === 0x5434) {
       this.numChannels = 4
       this.c2Rate = 8287
       this.gain = 64
-    } else if (tag === 0x484e) {
+    } else if (tag === 0x484e && isDigit(module[1080])) {
       this.numChannels = module[1080] - 48
       this.c2Rate = 8363
       this.gain = 32
-    } else if (tag === 0x4348) {
+    } else if (tag === 0x4348 && isDigit(module[1080]) && isDigit(module[1081])) {
       this.numChannels = (module[1080] - 48) * 10 + (module[1081] - 48)
       this.c2Rate = 8363
       this.gain = 32

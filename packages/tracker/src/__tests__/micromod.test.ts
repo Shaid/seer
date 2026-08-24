@@ -117,4 +117,22 @@ describe('Micromod', () => {
     expect(mod.numChannels).toBe(6);
     expect(peak(render(new Micromod(mod, RATE), 4096).left)).toBeGreaterThan(0);
   });
+
+  it('rejects a channel-count tag whose digit byte is not ASCII 0-9', () => {
+    // Only the trailing two bytes of the 4-char tag ('H','N') gate the 'xCHN'
+    // branch; a non-digit byte at the count position must not silently
+    // produce a negative or oversized numChannels.
+    const buf = buildMod({ tag: '4CHN' });
+    buf[1080] = 0x21; // '!' — not a digit, but tag bytes 1082-1083 still read 'H','N'
+    expect(() => new Module(buf)).toThrow('MOD format not recognised');
+  });
+
+  it('rejects a two-digit channel-count tag with a non-digit byte', () => {
+    const buf = buildMod({ tag: 'M.K.' });
+    buf[1080] = 0x31; // '1' — digit
+    buf[1081] = 0xff; // not a digit
+    buf[1082] = 0x43; // 'C'
+    buf[1083] = 0x48; // 'H'
+    expect(() => new Module(buf)).toThrow('MOD format not recognised');
+  });
 });
