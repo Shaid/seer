@@ -76,9 +76,13 @@ describe('buildViewList: M4 hotspot/entity wiring on real props.test.ts fixtures
   });
 
   it('door-switch (row 5, col 55) carries hotspot code 0x64 and a handle', () => {
-    // Same co-occurrence caveat as the alcove case above -- this square also
-    // carries a plain floor item.
-    const items = propItemsAt(55, 5).filter((i) => i.entity?.type === 0x0f);
+    // The switch is a wall decoration, so it renders when FACED at depth 1
+    // (pose (55,4) facing N puts the (55,5) switch straight ahead), not from
+    // the switch's own square. Same co-occurrence caveat as the alcove case:
+    // the square also carries a plain floor item.
+    const items = propItemsAt(55, 4).filter(
+      (i) => i.entity?.type === 0x0f,
+    );
     expect(items.length).toBeGreaterThan(0);
     for (const item of items) {
       expect(item.hotspot).toEqual({ code: 0x64 });

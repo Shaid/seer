@@ -119,20 +119,44 @@ function dispatchOne(rec: EntityRecord, tile: number): number {
  * — see the module doc comment for exactly what is and isn't ported from
  * `automap_tiles.py`. Entities are read via `level.entitiesAt(x, y)`, so
  * this needs no entity-lookup/unit-id plumbing of its own.
+ *
+ * **Wall model (M6 generalisation):** the `type` plane is Black Crypt's
+ * per-cell solid-wall square; a `shared-edge` level (Wizardry 6 — walls
+ * stored per edge on two planes, the other two faces read from the
+ * neighbour) has no `type` plane at all. When `planeAt('type', ...)`
+ * throws (`FlatGridLevel`'s "unknown plane"), a cell is a wall tile iff it
+ * is *enclosed* — every one of its four edges is a wall (W6's densified
+ * fill blocks and isolated cells; the out-of-bounds edge reads return
+ * `offMapValue`, so the maze border also renders solid). Corridor cells
+ * have at least one open edge and stay floor.
  */
 export function tileForCell(level: CellQuery, x: number, y: number): number {
   if (!level.inBounds(x, y)) return 0;
 
-  const type = level.planeAt('type', x, y);
-  let tile = 15; // floor baseline
-  if (type & 1) tile = 0; // square type bit 0: solid wall
-  if (type & 2) tile = 16; // square type bit 1: darkness
-  if (tile === 0) return tile; // a solid wall square is never feature-dispatched
-
-  for (const rec of level.entitiesAt(x, y)) {
-    if (((rec.gfx ?? 0) & 0x7fff) !== 0) tile = dispatchOne(rec, tile);
+  let type: number | undefined;
+  try {
+    type = level.planeAt('type', x, y);
+  } catch {
+    type = undefined; // shared-edge / Wizardry-6-shaped level
   }
-  return tile;
+
+  if (type !== undefined) {
+    let tile = 15; // floor baseline
+    if (type & 1) tile = 0; // square type bit 0: solid wall
+    if (type & 2) tile = 16; // square type bit 1: darkness
+    if (tile === 0) return tile; // a solid wall square is never feature-dispatched
+
+    for (const rec of level.entitiesAt(x, y)) {
+      if (((rec.gfx ?? 0) & 0x7fff) !== 0) tile = dispatchOne(rec, tile);
+    }
+    return tile;
+  }
+
+  // Shared-edge wall model (Wizardry 6): no `type` plane. Enclosed cells
+  // (all four edges walls) render as solid wall; everything else is floor.
+  const DIRS: Dir4[] = [0, 1, 2, 3];
+  if (DIRS.every((dir) => level.wallAt(x, y, dir))) return 0;
+  return 15;
 }
 
 export interface AutomapRenderOptions {

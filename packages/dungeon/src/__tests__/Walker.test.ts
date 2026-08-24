@@ -28,11 +28,11 @@ const SEMANTICS = {
   walls: {},
   features: {},
 } as SemanticsFile;
-const DOOR_SWITCH_HANDLE = '1:0:0:9';
+const DOOR_SWITCH_HANDLE = '1:0:1:9';
 
-// Pose starts at (0,0) facing E (1); depth 0 projects to the party's own
-// cell, which carries a real door-switch (`type 0x0f`) entity. `raw[0x07]`
-// bit 3 set satisfies `decoratesRightWall` for facing E (`rightOf(E) = S`,
+// Pose starts at (0,0) facing E (1); the door-switch entity is one square
+// ahead at (1,0), so depth 1 projects onto it. `raw[0x07]` bit 3 set
+// satisfies `decoratesRightWall` for facing E (`rightOf(E) = S`,
 // `bitIndex = (S+1)&3 = 3` — see `buildViewList.ts`'s `decoratesRightWall`).
 function doorSwitchEntity(flags = 0): EntityRecord {
   const raw = new Array(20).fill(0);
@@ -46,10 +46,10 @@ function makeLevel(): CellQuery {
     wallAt: () => false,
     planeAt: () => 0,
     entitiesAt(x, y) {
-      return x === 0 && y === 0 ? [doorSwitchEntity()] : [];
+      return x === 1 && y === 0 ? [doorSwitchEntity()] : [];
     },
     entityHandlesAt(x, y) {
-      return x === 0 && y === 0 ? [{ handle: DOOR_SWITCH_HANDLE, entity: doorSwitchEntity() }] : [];
+      return x === 1 && y === 0 ? [{ handle: DOOR_SWITCH_HANDLE, entity: doorSwitchEntity() }] : [];
     },
   };
 }
@@ -59,7 +59,7 @@ function makeSlots(): SlotTableFile {
     schemaVersion: 1,
     surface: { width: 320, height: 200 },
     viewport: { x: 0, y: 0, width: 208, height: 140 },
-    depthCount: 1,
+    depthCount: 2,
     lateralOffsets: [0],
     frontWallMaxDepth: 1,
     banks: [{ id: 'b', atlas: 'a.json', image: 'a.png' }],
@@ -160,7 +160,7 @@ describe('Walker.setEntityState', () => {
 });
 
 describe('Walker.setPose / update — movement integration', () => {
-  it('setPose jumps immediately, marking the view dirty (the door-switch entity is only at (0,0))', () => {
+  it('setPose jumps immediately, marking the view dirty (the door-switch entity is only at (1,0))', () => {
     const walker = makeWalker();
     expect(walker.items).toHaveLength(1); // cache populated at (0,0,E)
     walker.setPose({ level: 1, x: 1, y: 0, facing: 1 });

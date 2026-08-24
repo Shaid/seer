@@ -259,6 +259,83 @@ const DOOR_LOCK_HOTSPOT_CODE = 0x6b;
 /** `EntityRecord.type` sentinel for a monster record (`export_dungeon_levels.py`'s `EntityRecord` field mapping: `raw[0]&0x80` -> `0x80`). Not a floor item, not a structure — excluded from the floor-item fallback below. */
 const MONSTER_TYPE_SENTINEL = 0x80;
 
+/**
+ * Door rendering (Black Crypt kind 11, `data-structure.md` "Kind 11"): a
+ * doorway square (structure type `0x11`, gfx `0x35`/`0x36` = Door Type 0/1)
+ * draws a **frame** (the jamb/lintel portal, `+0x25CAE`) at every depth
+ * 1-3, plus a **leaf** (the door panels, `+0x2613E`) on top only while the
+ * door is closed (`raw[0x0F]` bit 0 clear). Positions are the confirmed
+ * literal values from the renderer's disassembly (lateral 0, straight
+ * ahead). Frame art is in the tileset bank's `doorway-*` frames.
+ */
+const DOOR_FRAME_SLOTS: Record<number, Array<{ frame: string; x: number; y: number }>> = {
+  1: [
+    { frame: 'doorway-1a', x: 26, y: 9 },
+    { frame: 'doorway-1c', x: 134, y: 9 },
+    { frame: 'doorway-1b', x: 64, y: 9 },
+  ],
+  2: [
+    { frame: 'doorway-2a', x: 54, y: 20 },
+    { frame: 'doorway-2b', x: 80, y: 20 },
+    { frame: 'doorway-2c', x: 124, y: 20 },
+  ],
+  3: [{ frame: 'doorway-3', x: 64, y: 25 }],
+};
+
+const DOOR_LEAF_SLOTS: Record<number, { type0: string; type1: string; x: number; y: number }> = {
+  1: { type0: 'door-type0-1', type1: 'door-type1-1', x: 64, y: 18 },
+  2: { type0: 'door-type0-2', type1: 'door-type1-2', x: 73, y: 26 },
+  3: { type0: 'door-type0-3', type1: 'door-type1-3', x: 80, y: 30 },
+};
+
+/** Emit the door frame + closed-leaf DrawItems for a doorway cell straight ahead (`lateral === 0`). */
+function pushDoor(
+  items: DrawItem[],
+  bankId: string,
+  doors: EntityRecord[],
+  depth: number,
+  cell: { x: number; y: number },
+): void {
+  const frameSlots = DOOR_FRAME_SLOTS[depth] ?? DOOR_FRAME_SLOTS[3]!;
+  for (const door of doors) {
+    const open = (door.raw?.[0x0f] ?? 0) & 1 ? true : false;
+    for (const p of frameSlots) {
+      items.push({
+        bank: bankId,
+        frame: p.frame,
+        destX: p.x,
+        destY: p.y,
+        blend: 'mask',
+        kind: 'prop',
+        depth,
+        lateral: 0,
+        propType: 'door',
+        cellX: cell.x,
+        cellY: cell.y,
+        entity: door,
+        origin: 'bcdft S_1+0x25CAE (door frame, kind 11)',
+      });
+    }
+    if (open) continue;
+    const leaf = DOOR_LEAF_SLOTS[depth] ?? DOOR_LEAF_SLOTS[3]!;
+    items.push({
+      bank: bankId,
+      frame: door.gfx === 0x36 ? leaf.type1 : leaf.type0,
+      destX: leaf.x,
+      destY: leaf.y,
+      blend: 'mask',
+      kind: 'prop',
+      depth,
+      lateral: 0,
+      propType: 'door',
+      cellX: cell.x,
+      cellY: cell.y,
+      entity: door,
+      origin: 'bcdft S_1+0x2613E (door leaf, closed)',
+    });
+  }
+}
+
 /** Every structure type this file renders its own dedicated way — the floor-item fallback in `pushProps` applies to anything *not* in this set (and not a monster). */
 const HANDLED_STRUCTURE_TYPES = new Set<number>([0x16, 0x20, 0x21, 0x12, 0x0f, 0x22, 0x1e]);
 
@@ -396,13 +473,17 @@ function pushProps(
         'stairs',
       );
     } else if (entity.type === 0x0f) {
-      if (depth >= 3) continue;
+      // The position table (`+0x25E5A`) is keyed by *local* depth (0-2 =
+      // door one/two/three squares away), so the slot key uses `depth - 1`.
+      // A lock/switch on the party's own square (depth 0) isn't rendered.
+      if (depth < 1 || depth > 3) continue;
       if (!decoratesRightWall(entity.raw, facing)) continue;
+      const local = depth - 1;
       const hotspot = { code: DOOR_SWITCH_HOTSPOT_CODE };
       pushSlot(
         items,
         slots,
-        `prop:door-switch:${lateral}:${depth}`,
+        `prop:door-switch:${lateral}:${local}`,
         'prop',
         depth,
         lateral,
@@ -411,7 +492,8 @@ function pushProps(
         'door-switch',
       );
     } else if (entity.type === 0x22) {
-      if (depth >= 3) continue;
+      // Same local-depth convention as door-switch (`+0x25E12`).
+      if (depth < 1 || depth > 3) continue;
       if (!decoratesRightWall(entity.raw, facing)) continue;
       // gfxNumber 0x51/0x52/0x53 -> gfxIndex 0/1/2 (read_door_lock); a
       // gfxNumber outside that range has no per-map decor art, so skip
@@ -419,18 +501,19 @@ function pushProps(
       if (entity.gfx === undefined) continue;
       const gfxIndex = entity.gfx - 0x51;
       if (gfxIndex < 0 || gfxIndex > 2) continue;
+      const local = depth - 1;
       const hotspot = { code: DOOR_LOCK_HOTSPOT_CODE };
       pushSlot(
         items,
         slots,
-        `prop:door-lock:${lateral}:${depth}`,
+        `prop:door-lock:${lateral}:${local}`,
         'prop',
         depth,
         lateral,
         { ...cell, entity, entityHandle: handle, hotspot },
         undefined,
         'door-lock',
-        (frame) => resolveDoorLockFrame(frame, mapId, gfxIndex, depth),
+        (frame) => resolveDoorLockFrame(frame, mapId, gfxIndex, local),
       );
     } else if (entity.type === 0x1e) {
       // Floor plate / trap (`blackcrypt-floorplate-placement-wiring`) --
@@ -511,6 +594,15 @@ export function buildViewList(
 
       if (depth < spec.frontWallMaxDepth && level.wallAt(x, y, pose.facing)) {
         pushSlot(items, slots, `front:${lateral}:${depth}`, 'front', depth, lateral, cell);
+      }
+
+      // Doorway square straight ahead (kind 11): frame at depths 1-3, leaf
+      // only while closed. Uses the tileset bank's `doorway-*`/`door-type*`
+      // frames — the door renders even at depth 3 (the front-wall gate
+      // above is `frontWallMaxDepth`-bounded, but doors aren't).
+      if (lateral === 0 && depth >= 1) {
+        const doors = level.entitiesAt(x, y).filter((e) => e.type === 0x11);
+        if (doors.length > 0) pushDoor(items, slots.banks[0]!.id, doors, depth, cell);
       }
 
       if (lateral === 0) {

@@ -73,15 +73,13 @@ const SEMANTICS = {
 // door-switch pull-chain frames used by the fixture's slots.json copy, so
 // this only needs the fixture's own bank/atlas to resolve every frame the
 // wired classes reference (alcove-*, plaque-*, stairs-flight-*).
+// Door-lock/door-switch are deliberately absent: they're wall decorations
+// that render only when *faced* at depth 1+, not from the structure's own
+// square (the pose-on-cell `it.each` below can't exercise them).
 const REAL_CELLS: Array<{ row: number; col: number; propType: string }> = [
   { row: 2, col: 35, propType: 'alcove' },
   { row: 5, col: 43, propType: 'plaque' },
   { row: 18, col: 5, propType: 'stairs' },
-  { row: 5, col: 55, propType: 'door-switch' },
-  // Real map-1 (`unit id === 1`) door lock, gfxNumber 0x53 -> gfxIndex 2
-  // (`bclib.bcdfs.read_dungeon_world`, type `0x22`, `raw[7] == 0x2`) — found
-  // by the same scan the module doc comment describes for the other three.
-  { row: 9, col: 5, propType: 'door-lock' },
   // Real map-1 floor item: type 0x2a (not a monster, not any handled
   // structure type -- falls to the generic floor-item path), gfxNumber
   // 0x77 -> group 26 (`data/floor-item-gfx-table.json`), single entity, no
@@ -205,23 +203,34 @@ describe('M5 props: real bcdfs cells x 4 facings', () => {
     }
     expect(checked).toBe(8);
   });
-
-  it('door-lock resolves its FrameTemplate to a literal frame name matching the real per-map decor bank, never leaves it unresolved', () => {
-    // gfxNumber 0x53 -> gfxIndex 2 (`read_door_lock`'s `(gfx-0x51)`), unit id
-    // 1 -> `{mapId}` == "1" -- so every resolved frame must be exactly
-    // `m1_decor2_<near|mid|far>`, one of the three real frames confirmed to
-    // exist in `sprites/wall-decorations.json` for this map/gfxIndex pair.
+  it('door-lock resolves its FrameTemplate to a literal frame name matching the real per-map decor bank, never leaves it unresolved, and is full-size one square away', () => {
+    // Real map-1 door lock at (5,9), gfxNumber 0x53 -> gfxIndex 2
+    // (`read_door_lock`'s `(gfx-0x51)`). The position table is keyed by
+    // *local* depth, so the lock is full-size (`near`) when the party is ONE
+    // square away facing it (depth 1), mid at depth 2, far at depth 3, and
+    // not rendered from the lock's own square (depth 0). Facing W puts the
+    // lock ahead at x=6/7/8 -> depth 1/2/3.
+    const EXPECTED: Array<{ x: number; frame: string }> = [
+      { x: 6, frame: 'm1_decor2_near' },
+      { x: 7, frame: 'm1_decor2_mid' },
+      { x: 8, frame: 'm1_decor2_far' },
+    ];
     let resolvedAny = false;
-    for (const facing of FACINGS) {
-      const pose: Pose = { level: 1, x: 5, y: 9, facing };
+    for (const { x, frame } of EXPECTED) {
+      const pose: Pose = { level: 1, x, y: 9, facing: 3 };
       const items = buildViewList(cellLevel, pose, spec, SEMANTICS, slots);
-      for (const item of items.filter((i) => i.propType === 'door-lock')) {
+      const locks = items.filter((i) => i.propType === 'door-lock');
+      expect(locks.length).toBeGreaterThan(0);
+      for (const item of locks) {
         expect(typeof item.frame).toBe('string');
-        expect(item.frame).toMatch(/^m1_decor2_(near|mid|far)$/);
+        expect(item.frame).toBe(frame);
         expect(decorBank.hasFrame(item.frame as string)).toBe(true);
         resolvedAny = true;
       }
     }
+    // From the lock's own square (depth 0) nothing renders.
+    const onLock = buildViewList(cellLevel, { level: 1, x: 5, y: 9, facing: 3 }, spec, SEMANTICS, slots);
+    expect(onLock.filter((i) => i.propType === 'door-lock')).toHaveLength(0);
     expect(resolvedAny).toBe(true);
   });
 
@@ -275,5 +284,25 @@ describe('M5 props: real bcdfs cells x 4 facings', () => {
       const items = buildViewList(cellLevel, pose, spec, SEMANTICS, slots);
       expect(items.filter((i) => i.propType === 'floor-plate')).toHaveLength(0);
     }
+  });
+
+  it('renders a doorway square straight ahead as its frame (doorway-1*) plus the closed leaf (door-type0-1), using real atlas frames', () => {
+    // Map-1 door at (row 5, col 55) — gfxNumber 0x35 (Door Type 0), closed
+    // (raw[0x0F] bit 0 clear). Facing N from (55,4) puts it at depth 1,
+    // lateral 0, so the kind-11 frame (3 pieces) + closed leaf should emit.
+    const pose: Pose = { level: 1, x: 55, y: 4, facing: 0 };
+    const items = buildViewList(cellLevel, pose, spec, SEMANTICS, slots);
+    const doors = items.filter((i) => i.propType === 'door');
+    expect(doors.length).toBeGreaterThan(0);
+    const frames = doors.map((i) => i.frame as string);
+    expect(frames).toContain('doorway-1a');
+    expect(frames).toContain('doorway-1b');
+    expect(frames).toContain('doorway-1c');
+    expect(frames).toContain('door-type0-1'); // closed -> leaf drawn
+    expect(doors[0]!.blend).toBe('mask');
+    for (const item of doors) expect(bank.hasFrame(item.frame as string)).toBe(true);
+
+    const surface = new IndexedSurface(slots.surface.width, slots.surface.height);
+    expect(() => compositeDrawList(surface, banks, slots, items)).not.toThrow();
   });
 });

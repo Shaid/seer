@@ -5,31 +5,19 @@
  *
  * ## Draw order
  *
- * Black Crypt's own nine front-wall pieces genuinely nest in screen space
- * once every depth is populated simultaneously (as M1's hand-authored
- * `slots.json` does, to exercise every documented placement in one static
- * scene): each farther depth's face is smaller than, and centred inside,
- * the nearer depth's face (depth0 face is 176px wide at x16-192; depth1's
- * is 112px at x48-160, entirely inside depth0's; depth2's is 80px at
- * x64-144, entirely inside depth1's). The doc's own placement table only
- * proves each depth-row's own three pieces (left return + face + right
- * return) tile with zero gap/overlap — it says nothing about cross-depth
- * overlap, because in a real frame only one depth's front wall is ever
- * populated (wherever the sightline is actually blocked). With every
- * depth populated at once, the correct read is "three nested wall frames
- * closing off the corridor," matching the doc's "receding to a vanishing
- * point": each farther, smaller frame must be drawn *after* (on top of)
- * the nearer, larger one it sits inside, or the nearer frame would wrongly
- * paint over the farther one it's supposed to be framing.
+ * Farthest first, nearest last (nearest on top) — Black Crypt's confirmed
+ * `AddRenderItem` display-list drain order (`view/order.ts`'s module doc
+ * comment; the game drains `depthKey` 0=farthest → 11=nearest). When every
+ * depth's front wall is populated at once (as M1's hand-authored corridor
+ * does to exercise every placement), the *nearest*, largest frame paints
+ * over the farther frames it overlaps — the game's own painter's result.
  *
  * `ordering: 'painter-back-to-front'` (the default) sorts every `slots`
  * key by the depth embedded in its own key (`"front:<lateral>:<depth>"` /
- * `"side:<L|R>:<depth>"`), nearest first / farthest last; same-depth ties
- * put the side wall before the front-wall row, since a wall that blocks
- * the corridor at a given depth visually caps/overwrites that depth's
- * side-wall texture. `ordering: 'array'` instead draws `Object.keys(slots)`
- * in their JS insertion order, unsorted — for a slot table that's already
- * been authored/sorted by its producer.
+ * `"side:<L|R>:<depth>"`), farthest first / nearest last; same-depth ties
+ * put the side wall before the front-wall row. `ordering: 'array'` instead
+ * draws `Object.keys(slots)` in their JS insertion order, unsorted — for a
+ * slot table that's already been authored/sorted by its producer.
  */
 import type { PieceBank } from './PieceBank.js';
 import type { IndexedSurface } from './IndexedSurface.js';
@@ -152,10 +140,11 @@ export function compositeSlotTable(
     return p;
   });
 
-  // Nearest depth first, farthest depth last (on top); at equal depth,
-  // side walls, then front wall, then props. See the module doc comment for why.
+  // Farthest depth first, nearest depth last (on top); at equal depth,
+  // side walls, then front wall, then props. Matches Black Crypt's confirmed
+  // `AddRenderItem` drain order (see `view/order.ts`'s module doc comment).
   parsed.sort((a, b) => {
-    if (a.depth !== b.depth) return a.depth - b.depth;
+    if (a.depth !== b.depth) return b.depth - a.depth;
     return KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
   });
 

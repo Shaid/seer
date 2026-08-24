@@ -43,14 +43,14 @@ function makeBank(): PieceBank {
 }
 
 describe('compositeSlotTable', () => {
-  it('draws staticSlots first, then slots in painter-back-to-front order (nearest depth first, farthest last/on top)', () => {
+  it('draws staticSlots first, then slots in painter-back-to-front order (farthest depth first, nearest last/on top)', () => {
     const bank = makeBank();
     const surface = new IndexedSurface(1, 1);
 
     // front:0:1 (far) and front:0:0 (near) both draw to the same pixel;
-    // a farther depth's front-wall face nests inside (and must be drawn
-    // after, i.e. on top of) the nearer, larger depth's face — see the
-    // composite.ts module doc comment.
+    // Black Crypt's confirmed AddRenderItem drain order is farthest first,
+    // nearest last — the nearer wall paints over the farther one (see
+    // view/order.ts's module doc comment).
     const table: SlotTableFile = {
       schemaVersion: 1,
       surface: { width: 1, height: 1 },
@@ -71,8 +71,8 @@ describe('compositeSlotTable', () => {
     };
 
     compositeSlotTable(surface, { bank }, table);
-    // red (far, index for A) must win over green (near) — the far frame is drawn last, on top.
-    expect(surface.data[0]).toBe(bank.index[bank.frame('A').y * bank.width + bank.frame('A').x]);
+    // green (near, index for B) must win over red (far) — the near wall is drawn last, on top.
+    expect(surface.data[0]).toBe(bank.index[bank.frame('B').y * bank.width + bank.frame('B').x]);
   });
 
   it('draws side before front at the same depth', () => {

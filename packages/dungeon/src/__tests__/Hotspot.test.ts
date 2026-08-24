@@ -119,10 +119,10 @@ describe('pickHotspot', () => {
 });
 
 describe('view/order paint order (shared with compositeDrawList)', () => {
-  it("sorts nearest depth first, farthest last (on top — Black Crypt's own nested-wall-frame convention, see raster/composite.ts's module doc comment)", () => {
+  it("sorts farthest depth first, nearest last (on top — Black Crypt's confirmed AddRenderItem drain order, see view/order.ts's module doc comment)", () => {
     const near = item({ depth: 0 });
     const far = item({ depth: 2 });
-    expect(paintOrder([near, far])).toEqual([near, far]);
+    expect(paintOrder([near, far])).toEqual([far, near]);
   });
 
   it('at equal depth: side before front before prop', () => {

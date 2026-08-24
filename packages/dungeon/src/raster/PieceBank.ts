@@ -211,6 +211,41 @@ export class PieceBank {
     return this.frames.has(name);
   }
 
+  /**
+   * Remap a bank's local palette indices into a *target* palette's index
+   * space (e.g. a tileset's 64-entry EHB base palette), so a surface
+   * composited from multiple banks can be presented with one palette. Each
+   * source color is matched to the target palette by exact RGB when
+   * possible, otherwise by nearest RGB distance (prop-atlas extraction can
+   * drift a colour off the game's EHB palette by a nibble or two — the
+   * nearest EHB entry is what the game's 64-colour hardware would show).
+   * Used by the walker harness to align Black Crypt's prop banks
+   * (floor-items, wall-decorations, ui-panel, torches) with the tileset's
+   * indexed EHB indices — `blend: 'or'` and the single-palette present only
+   * mean anything when every bank shares one index space.
+   */
+  static reindex(bank: PieceBank, targetPalette: RGBAColor[]): PieceBank {
+    const remap = new Array<number>(bank.palette.length);
+    for (let i = 0; i < bank.palette.length; i++) {
+      const c = bank.palette[i]!;
+      let best = -1;
+      let bestDist = Infinity;
+      for (let t = 0; t < targetPalette.length; t++) {
+        const p = targetPalette[t]!;
+        const dist = (p.r - c.r) ** 2 + (p.g - c.g) ** 2 + (p.b - c.b) ** 2;
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = t;
+          if (dist === 0) break;
+        }
+      }
+      remap[i] = best;
+    }
+    const index = new Uint8Array(bank.index.length);
+    for (let i = 0; i < bank.index.length; i++) index[i] = remap[bank.index[i]!]!;
+    return new PieceBank(bank.width, bank.height, index, bank.mask, [...targetPalette], bank.frames);
+  }
+
   frame(name: string): PieceRect {
     const rect = this.frames.get(name);
     if (!rect) throw new Error(`PieceBank: unknown frame "${name}"`);
