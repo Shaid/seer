@@ -55,6 +55,13 @@ function assertNumber(v: unknown, context: string, field: string): number {
   return v;
 }
 
+/** Like `assertNumber`, but also rejects zero/negative values — for fields (e.g. tick durations) where a non-positive value produces `NaN`/`undefined` downstream (`raster/anim.ts`'s `animFrameIndex`/`resolveFrameName`) instead of a clear validation error near the actual bad data. */
+function assertPositiveNumber(v: unknown, context: string, field: string): number {
+  const n = assertNumber(v, context, field);
+  if (n <= 0) fail(context, `"${field}" must be a positive number, got ${n}`);
+  return n;
+}
+
 function assertBoolean(v: unknown, context: string, field: string): boolean {
   if (typeof v !== 'boolean') fail(context, `"${field}" must be a boolean, got ${typeof v}`);
   return v;
@@ -271,6 +278,7 @@ export function validateDungeonLevelFile(v: unknown): DungeonLevelFile {
 // slots.json
 
 const BLEND_MODES: BlendMode[] = ['replace', 'mask', 'or'];
+const MASK_SOURCES: Array<'plane' | 'index'> = ['plane', 'index'];
 
 function validatePieceBankRef(v: unknown, context: string): PieceBankRef {
   const o = assertObject(v, context, 'bank');
@@ -296,11 +304,11 @@ function validateAnimRef(v: unknown, context: string): AnimRef {
   }
   return {
     frames,
-    ticksPerFrame: assertNumber(o.ticksPerFrame, context, 'draw.frame.ticksPerFrame'),
+    ticksPerFrame: assertPositiveNumber(o.ticksPerFrame, context, 'draw.frame.ticksPerFrame'),
     periodTicks:
       o.periodTicks === undefined
         ? undefined
-        : assertNumber(o.periodTicks, context, 'draw.frame.periodTicks'),
+        : assertPositiveNumber(o.periodTicks, context, 'draw.frame.periodTicks'),
     phase: phase as AnimRef['phase'],
     phaseTicks:
       o.phaseTicks === undefined
@@ -325,6 +333,17 @@ function validateFrameRef(v: unknown, context: string): FrameRef {
   );
 }
 
+function validateMaskSource(v: unknown, context: string): 'plane' | 'index' | undefined {
+  if (v === undefined) return undefined;
+  if (typeof v !== 'string' || !MASK_SOURCES.includes(v as 'plane' | 'index')) {
+    fail(
+      context,
+      `draw.maskSource must be one of ${MASK_SOURCES.join(', ')}, got ${JSON.stringify(v)}`,
+    );
+  }
+  return v as 'plane' | 'index';
+}
+
 function validatePieceDraw(v: unknown, context: string): PieceDraw {
   const o = assertObject(v, context, 'draw');
   const blend = o.blend;
@@ -346,10 +365,7 @@ function validatePieceDraw(v: unknown, context: string): PieceDraw {
     mirrorX:
       o.mirrorX === undefined ? undefined : assertBoolean(o.mirrorX, context, 'draw.mirrorX'),
     blend: blend as BlendMode,
-    maskSource:
-      o.maskSource === undefined
-        ? undefined
-        : (assertString(o.maskSource, context, 'draw.maskSource') as 'plane' | 'index'),
+    maskSource: validateMaskSource(o.maskSource, context),
     maskIndex:
       o.maskIndex === undefined ? undefined : assertNumber(o.maskIndex, context, 'draw.maskIndex'),
     priority:

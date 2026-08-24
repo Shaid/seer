@@ -107,6 +107,97 @@ describe('validateSlotTableFile', () => {
     };
     expect(() => validateSlotTableFile(bad)).toThrow(/blend/);
   });
+
+  it('accepts a valid maskSource', () => {
+    const ok = {
+      ...minimalSlots,
+      slots: {
+        'front:0:0': {
+          draws: [
+            { bank: 'x', frame: 'y', destX: 0, destY: 0, blend: 'mask', maskSource: 'plane' },
+          ],
+        },
+      },
+    };
+    const result = validateSlotTableFile(ok);
+    expect(result.slots['front:0:0']?.draws[0]?.maskSource).toBe('plane');
+  });
+
+  it('rejects an invalid maskSource (finding: maskSource had no enum validation)', () => {
+    const bad = {
+      ...minimalSlots,
+      slots: {
+        'front:0:0': {
+          draws: [
+            { bank: 'x', frame: 'y', destX: 0, destY: 0, blend: 'mask', maskSource: 'nonsense' },
+          ],
+        },
+      },
+    };
+    expect(() => validateSlotTableFile(bad)).toThrow(/maskSource/);
+  });
+
+  it('rejects a non-positive ticksPerFrame (finding: only checked "finite", not > 0)', () => {
+    const bad = {
+      ...minimalSlots,
+      slots: {
+        'front:0:0': {
+          draws: [
+            {
+              bank: 'x',
+              frame: { frames: ['a', 'b'], ticksPerFrame: 0 },
+              destX: 0,
+              destY: 0,
+              blend: 'replace',
+            },
+          ],
+        },
+      },
+    };
+    expect(() => validateSlotTableFile(bad)).toThrow(/ticksPerFrame/);
+  });
+
+  it('rejects a non-positive periodTicks', () => {
+    const bad = {
+      ...minimalSlots,
+      slots: {
+        'front:0:0': {
+          draws: [
+            {
+              bank: 'x',
+              frame: { frames: ['a', 'b'], ticksPerFrame: 4, periodTicks: -1 },
+              destX: 0,
+              destY: 0,
+              blend: 'replace',
+            },
+          ],
+        },
+      },
+    };
+    expect(() => validateSlotTableFile(bad)).toThrow(/periodTicks/);
+  });
+
+  it('accepts a valid AnimRef with positive ticksPerFrame/periodTicks', () => {
+    const ok = {
+      ...minimalSlots,
+      slots: {
+        'front:0:0': {
+          draws: [
+            {
+              bank: 'x',
+              frame: { frames: ['a', 'b'], ticksPerFrame: 4, periodTicks: 8 },
+              destX: 0,
+              destY: 0,
+              blend: 'replace',
+            },
+          ],
+        },
+      },
+    };
+    const result = validateSlotTableFile(ok);
+    const frame = result.slots['front:0:0']?.draws[0]?.frame;
+    expect(frame).toEqual({ frames: ['a', 'b'], ticksPerFrame: 4, periodTicks: 8 });
+  });
 });
 
 describe('validateSemanticsFile', () => {

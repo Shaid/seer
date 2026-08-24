@@ -18,31 +18,35 @@ export class AutomapState {
   private readonly sizeOf: (unitId: number) => CellSize;
   private readonly bitsets = new Map<number, Uint8Array>();
   private readonly widths = new Map<number, number>();
+  private readonly heights = new Map<number, number>();
 
   constructor(sizeOf: (unitId: number) => CellSize) {
     this.sizeOf = sizeOf;
   }
 
-  private bitsetFor(unitId: number): { bits: Uint8Array; width: number } {
+  private bitsetFor(unitId: number): { bits: Uint8Array; width: number; height: number } {
     let bits = this.bitsets.get(unitId);
     if (!bits) {
       const { width, height } = this.sizeOf(unitId);
       bits = new Uint8Array(width * height);
       this.bitsets.set(unitId, bits);
       this.widths.set(unitId, width);
+      this.heights.set(unitId, height);
     }
-    return { bits, width: this.widths.get(unitId)! };
+    return { bits, width: this.widths.get(unitId)!, height: this.heights.get(unitId)! };
   }
 
-  /** Mark `(x, y)` in `unitId` as visited. Idempotent — entering an already-visited cell again is a no-op. */
+  /** Mark `(x, y)` in `unitId` as visited. Idempotent — entering an already-visited cell again is a no-op. Out-of-bounds `(x, y)` (including a row/column wraparound like `x === width`) is silently rejected, not corrupted into an adjacent-row cell. */
   onEnterCell(unitId: number, x: number, y: number): void {
-    const { bits, width } = this.bitsetFor(unitId);
+    const { bits, width, height } = this.bitsetFor(unitId);
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
     const idx = y * width + x;
     if (idx >= 0 && idx < bits.length) bits[idx] = 1;
   }
 
   isVisited(unitId: number, x: number, y: number): boolean {
-    const { bits, width } = this.bitsetFor(unitId);
+    const { bits, width, height } = this.bitsetFor(unitId);
+    if (x < 0 || x >= width || y < 0 || y >= height) return false;
     const idx = y * width + x;
     return idx >= 0 && idx < bits.length && bits[idx] === 1;
   }

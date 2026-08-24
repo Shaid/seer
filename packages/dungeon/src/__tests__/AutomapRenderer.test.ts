@@ -20,7 +20,7 @@
 import { describe, expect, it } from 'vitest';
 import { tileForCell, AUTOMAP_TILE_NAMES } from '../automap/AutomapRenderer.js';
 import type { EntityRecord } from '../schema/level.js';
-import type { CellQuery } from '../model/CellQuery.js';
+import { UnknownPlaneError, type CellQuery } from '../model/CellQuery.js';
 import type { Dir4 } from '../model/Pose.js';
 
 function u16(raw: number[], off: number): number {
@@ -159,5 +159,54 @@ describe('tileForCell over multiple chained entities', () => {
   it('a facing constant is exactly 17 + Dir4', () => {
     const facings: Dir4[] = [0, 1, 2, 3];
     for (const f of facings) expect(AUTOMAP_TILE_NAMES[17 + f]).toMatch(/^party facing/);
+  });
+});
+
+describe('tileForCell shared-edge fallback (no `type` plane) — finding: entity dispatch must still run', () => {
+  function fallbackLevel(opts: { walls: [boolean, boolean, boolean, boolean]; records?: EntityRecord[] }): CellQuery {
+    return {
+      inBounds: () => true,
+      wallAt: (_x, _y, dir) => opts.walls[dir],
+      planeAt: (name) => {
+        throw new UnknownPlaneError(name, 'test fixture');
+      },
+      entitiesAt: () => opts.records ?? [],
+    };
+  }
+
+  // Same raw record as "a closed vertical door ... -> tile 6" above.
+  const CLOSED_VERTICAL_DOOR_RAW = [0, 54, 0, 0, 80, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0];
+
+  it('an enclosed cell (all four edges walls) is tile 0, entities notwithstanding (never feature-dispatched)', () => {
+    const level = fallbackLevel({
+      walls: [true, true, true, true],
+      records: [buildRecord(CLOSED_VERTICAL_DOOR_RAW)],
+    });
+    expect(tileForCell(level, X, Y)).toBe(0);
+  });
+
+  it('a non-enclosed cell with no entities falls back to plain floor (tile 15)', () => {
+    const level = fallbackLevel({ walls: [false, false, false, false] });
+    expect(tileForCell(level, X, Y)).toBe(15);
+  });
+
+  it('a non-enclosed cell with a door entity dispatches to the door tile, not the plain floor baseline (the bug: entity dispatch was skipped entirely on this branch)', () => {
+    const level = fallbackLevel({
+      walls: [true, false, true, true], // one open edge -> not enclosed -> floor baseline
+      records: [buildRecord(CLOSED_VERTICAL_DOOR_RAW)],
+    });
+    expect(tileForCell(level, X, Y)).toBe(6); // door closed (vertical), not 15
+  });
+
+  it('propagates a non-UnknownPlaneError thrown by planeAt instead of silently degrading to the fallback wall model', () => {
+    const level: CellQuery = {
+      inBounds: () => true,
+      wallAt: () => false,
+      planeAt: () => {
+        throw new Error('boom: genuinely broken CellQuery');
+      },
+      entitiesAt: () => [],
+    };
+    expect(() => tileForCell(level, X, Y)).toThrow(/boom/);
   });
 });

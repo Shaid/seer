@@ -18,6 +18,7 @@ import type { SlotTableFile } from '../schema/slots.js';
 import type { SemanticsFile } from '../schema/semantics.js';
 import type { PieceBankLookup } from '../raster/composite.js';
 import type { EntityRecord } from '../schema/level.js';
+import type { DrawItem } from '../view/DrawItem.js';
 import type { Pose, Dir4 } from '../model/Pose.js';
 import type { KeyStateLike } from '../input/WalkerController.js';
 
@@ -156,6 +157,73 @@ describe('Walker.setEntityState', () => {
     walker.setEntityState(DOOR_SWITCH_HANDLE, { open: true }); // no check against the locked flag
     const hit = walker.pick(11, 21);
     expect(doorState(hit!.entity!)).toEqual({ open: true, locked: true });
+  });
+});
+
+describe('Walker.setEntityState — door rendering (finding: raw/flags drift)', () => {
+  // Regression test for `PatchedCellQuery.applyPatch` only updating `flags`
+  // and leaving `raw` untouched: `buildViewList`'s `pushDoor` reads open
+  // state from `door.raw?.[0x0f] & 1`, not `flags`, so a patch that only
+  // touched `flags` was invisible to the actual rendered view.
+  const DOOR_HANDLE = 'door:1:0';
+
+  function doorEntity(): EntityRecord {
+    const raw = new Array(0x10).fill(0); // raw[0x0f] bit 0 clear -> closed
+    return { type: 0x11, gfx: 0x35, raw };
+  }
+
+  function makeDoorLevel(): CellQuery {
+    return {
+      inBounds: (x, y) => x >= 0 && x <= 1 && y === 0,
+      wallAt: () => false,
+      planeAt: () => 0,
+      entitiesAt(x, y) {
+        return x === 1 && y === 0 ? [doorEntity()] : [];
+      },
+      entityHandlesAt(x, y) {
+        return x === 1 && y === 0 ? [{ handle: DOOR_HANDLE, entity: doorEntity() }] : [];
+      },
+    };
+  }
+
+  function makeDoorWalker() {
+    return new Walker(
+      makeDoorLevel(),
+      makeSlots(),
+      SEMANTICS,
+      makeBanks(),
+      START_POSE,
+      DEFAULT_BINDINGS,
+      {},
+    );
+  }
+
+  /** A door leaf item is the one with `propType === 'door'` and a `door-type*` frame (frame slots use `doorway-*`). */
+  function doorLeafItems(items: DrawItem[]) {
+    return items.filter(
+      (it) => it.propType === 'door' && !(it.frame as string).startsWith('doorway-'),
+    );
+  }
+
+  it('renders a closed-door leaf on top of the frame before any patch', () => {
+    const walker = makeDoorWalker();
+    const leaves = doorLeafItems(walker.items);
+    expect(leaves).toHaveLength(1);
+    expect(leaves[0]!.frame).toBe('door-type0-1');
+  });
+
+  it('setEntityState({ open: true }) removes the closed-door leaf from the rendered view', () => {
+    const walker = makeDoorWalker();
+    expect(doorLeafItems(walker.items)).toHaveLength(1); // closed, leaf present
+
+    walker.setEntityState(DOOR_HANDLE, { open: true });
+
+    const items = walker.items;
+    expect(doorLeafItems(items)).toHaveLength(0); // open, leaf gone
+    // The frame (jamb/lintel) is unaffected by open/closed state.
+    expect(
+      items.some((it) => it.propType === 'door' && (it.frame as string).startsWith('doorway-')),
+    ).toBe(true);
   });
 });
 

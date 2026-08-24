@@ -225,8 +225,22 @@ export class PieceBank {
    * mean anything when every bank shares one index space.
    */
   static reindex(bank: PieceBank, targetPalette: RGBAColor[]): PieceBank {
+    if (targetPalette.length === 0) {
+      throw new Error(
+        'PieceBank.reindex: targetPalette is empty — cannot remap any source colour into it',
+      );
+    }
     const remap = new Array<number>(bank.palette.length);
     for (let i = 0; i < bank.palette.length; i++) {
+      if (i === 0) {
+        // Index 0 is the reserved transparency/background sentinel by
+        // convention (`palette.ts`'s `BACKGROUND_COLOR` doc comment) — keep
+        // it mapped to target index 0 unconditionally rather than
+        // nearest-RGB matching it like a real colour, which could remap
+        // previously-transparent pixels onto a real, visible target colour.
+        remap[0] = 0;
+        continue;
+      }
       const c = bank.palette[i]!;
       let best = -1;
       let bestDist = Infinity;

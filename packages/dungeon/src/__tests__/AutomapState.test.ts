@@ -40,6 +40,23 @@ describe('AutomapState', () => {
     ]);
   });
 
+  it('rejects an out-of-bounds x that would otherwise wrap into the next row (finding: flattened-index bounds check)', () => {
+    const state = new AutomapState(sizeOf); // width 4, height 4
+    state.onEnterCell(1, 4, 0); // x === width: out of bounds, not row (0,1)
+    expect(state.isVisited(1, 0, 1)).toBe(false); // did not corrupt the next row
+    expect(state.isVisited(1, 4, 0)).toBe(false); // and the out-of-bounds cell itself reads back false
+    expect(state.visitedCount(1)).toBe(0);
+  });
+
+  it('rejects negative and out-of-bounds y the same way', () => {
+    const state = new AutomapState(sizeOf); // width 4, height 4
+    state.onEnterCell(1, 0, -1);
+    state.onEnterCell(1, 0, 4);
+    state.onEnterCell(1, -1, 0);
+    expect(state.visitedCount(1)).toBe(0);
+    expect(state.isVisited(1, -1, 0)).toBe(false);
+  });
+
   it('serialize/restore round-trips visited state', () => {
     const state = new AutomapState(sizeOf);
     state.onEnterCell(1, 1, 1);

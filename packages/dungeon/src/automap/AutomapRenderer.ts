@@ -34,7 +34,7 @@
  * hardcodes `wallFlags` — a future generalisation pass (M6) would
  * parameterise it, the same way `WallStorage.plane` already is.
  */
-import type { CellQuery } from '../model/CellQuery.js';
+import { UnknownPlaneError, type CellQuery } from '../model/CellQuery.js';
 import type { EntityRecord } from '../schema/level.js';
 import type { PieceBank } from '../raster/PieceBank.js';
 import type { IndexedSurface } from '../raster/IndexedSurface.js';
@@ -124,39 +124,40 @@ function dispatchOne(rec: EntityRecord, tile: number): number {
  * per-cell solid-wall square; a `shared-edge` level (Wizardry 6 — walls
  * stored per edge on two planes, the other two faces read from the
  * neighbour) has no `type` plane at all. When `planeAt('type', ...)`
- * throws (`FlatGridLevel`'s "unknown plane"), a cell is a wall tile iff it
- * is *enclosed* — every one of its four edges is a wall (W6's densified
- * fill blocks and isolated cells; the out-of-bounds edge reads return
- * `offMapValue`, so the maze border also renders solid). Corridor cells
- * have at least one open edge and stay floor.
+ * throws `UnknownPlaneError` specifically (not any other failure — a
+ * genuinely broken `CellQuery` still propagates its error rather than
+ * silently degrading), a cell is a wall tile iff it is *enclosed* — every
+ * one of its four edges is a wall (W6's densified fill blocks and isolated
+ * cells; the out-of-bounds edge reads return `offMapValue`, so the maze
+ * border also renders solid). Corridor cells have at least one open edge and
+ * stay floor. Either way, a non-wall base tile still goes through the same
+ * entity dispatch below — the no-`type`-plane fallback is a wall-model
+ * substitution, not a "skip entities" mode, so doors/stairs/teleports/etc.
+ * render on a shared-edge level exactly as they do on a `type`-plane one.
  */
 export function tileForCell(level: CellQuery, x: number, y: number): number {
   if (!level.inBounds(x, y)) return 0;
 
-  let type: number | undefined;
+  let tile: number;
   try {
-    type = level.planeAt('type', x, y);
-  } catch {
-    type = undefined; // shared-edge / Wizardry-6-shaped level
-  }
-
-  if (type !== undefined) {
-    let tile = 15; // floor baseline
+    const type = level.planeAt('type', x, y);
+    tile = 15; // floor baseline
     if (type & 1) tile = 0; // square type bit 0: solid wall
     if (type & 2) tile = 16; // square type bit 1: darkness
-    if (tile === 0) return tile; // a solid wall square is never feature-dispatched
-
-    for (const rec of level.entitiesAt(x, y)) {
-      if (((rec.gfx ?? 0) & 0x7fff) !== 0) tile = dispatchOne(rec, tile);
-    }
-    return tile;
+  } catch (err) {
+    if (!(err instanceof UnknownPlaneError)) throw err; // a real bug, not "no type plane" — surface it
+    // Shared-edge wall model (Wizardry 6): no `type` plane. Enclosed cells
+    // (all four edges walls) render as solid wall; everything else is floor.
+    const DIRS: Dir4[] = [0, 1, 2, 3];
+    tile = DIRS.every((dir) => level.wallAt(x, y, dir)) ? 0 : 15;
   }
 
-  // Shared-edge wall model (Wizardry 6): no `type` plane. Enclosed cells
-  // (all four edges walls) render as solid wall; everything else is floor.
-  const DIRS: Dir4[] = [0, 1, 2, 3];
-  if (DIRS.every((dir) => level.wallAt(x, y, dir))) return 0;
-  return 15;
+  if (tile === 0) return tile; // a solid wall square is never feature-dispatched
+
+  for (const rec of level.entitiesAt(x, y)) {
+    if (((rec.gfx ?? 0) & 0x7fff) !== 0) tile = dispatchOne(rec, tile);
+  }
+  return tile;
 }
 
 export interface AutomapRenderOptions {

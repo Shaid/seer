@@ -44,3 +44,39 @@ describe('PieceBank.fromRGBA', () => {
     expect(() => PieceBank.fromRGBA(new Uint8Array(4), 2, 2, atlas)).toThrow();
   });
 });
+
+describe('PieceBank.reindex', () => {
+  it('keeps source index 0 (the transparency/background sentinel) mapped to target index 0, not nearest-RGB', () => {
+    const bank = PieceBank.fromRGBA(rgba, 2, 2, atlas);
+    // Target palette's index 0 is deliberately NOT black -- a poor RGB
+    // match for the source sentinel -- while index 3 IS exact black, the
+    // match nearest-RGB matching would otherwise pick. Index 0 must still
+    // map to target index 0 regardless.
+    const target = [
+      { r: 100, g: 100, b: 100, a: 255 }, // 0: target sentinel
+      { r: 250, g: 0, b: 0, a: 255 }, // 1: near red
+      { r: 0, g: 0, b: 250, a: 255 }, // 2: near blue
+      { r: 0, g: 0, b: 0, a: 255 }, // 3: exact black -- nearest-RGB "trap"
+    ];
+    const reindexed = PieceBank.reindex(bank, target);
+    expect(reindexed.index[3]).toBe(0); // source pixel 3 was transparent -> index 0
+    expect(reindexed.palette).toEqual(target);
+  });
+
+  it('remaps non-sentinel colors by nearest RGB distance', () => {
+    const bank = PieceBank.fromRGBA(rgba, 2, 2, atlas);
+    const target = [
+      { r: 0, g: 0, b: 0, a: 255 }, // 0: sentinel
+      { r: 250, g: 5, b: 5, a: 255 }, // 1: near red
+      { r: 5, g: 5, b: 250, a: 255 }, // 2: near blue
+    ];
+    const reindexed = PieceBank.reindex(bank, target);
+    expect(reindexed.index[0]).toBe(1); // red pixel -> near-red target index
+    expect(reindexed.index[2]).toBe(2); // blue pixel -> near-blue target index
+  });
+
+  it('throws a clear error instead of silently producing a garbage index for an empty target palette', () => {
+    const bank = PieceBank.fromRGBA(rgba, 2, 2, atlas);
+    expect(() => PieceBank.reindex(bank, [])).toThrow(/empty/i);
+  });
+});

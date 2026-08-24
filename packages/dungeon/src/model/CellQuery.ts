@@ -10,6 +10,22 @@
 import type { Dir4 } from './Pose.js';
 import type { EntityRecord } from '../schema/level.js';
 
+/**
+ * The specific error `planeAt` throws for "this level has no plane by that
+ * name" (as opposed to some other failure inside a `CellQuery`
+ * implementation). A caller that wants to treat "plane doesn't exist" as an
+ * expected, recoverable case (e.g. `AutomapRenderer.tileForCell`'s
+ * shared-edge/no-`type`-plane fallback) should catch/check for this specific
+ * type rather than a bare `catch {}`, so a genuinely broken `CellQuery`
+ * still surfaces its error instead of silently degrading.
+ */
+export class UnknownPlaneError extends Error {
+  constructor(name: string, context: string) {
+    super(`${context}: unknown plane "${name}"`);
+    this.name = 'UnknownPlaneError';
+  }
+}
+
 export interface CellQuery {
   /** Whether `(x, y)` is a real, addressable cell in this level. */
   inBounds(x: number, y: number): boolean;

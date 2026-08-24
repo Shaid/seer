@@ -267,6 +267,16 @@ const MONSTER_TYPE_SENTINEL = 0x80;
  * door is closed (`raw[0x0F]` bit 0 clear). Positions are the confirmed
  * literal values from the renderer's disassembly (lateral 0, straight
  * ahead). Frame art is in the tileset bank's `doorway-*` frames.
+ *
+ * > **Documented renderer simplification:** the disassembly only tabulates
+ * > positions for local depths 1-3 (Black Crypt's own viewport never draws
+ * > a door frame farther than that) — `pushDoor` clamps any deeper `depth`
+ * > to the depth-3 art (`?? DOOR_FRAME_SLOTS[3]!` / `DOOR_LEAF_SLOTS[3]!`)
+ * > rather than fabricating undisassembled positions. This only matters for
+ * > a future consumer (e.g. Wizardry 6) whose `depthCount` exceeds 4 with a
+ * > door visible past depth 3 — such a door still renders (at the depth-3
+ * > size/position) instead of crashing, but the exact placement past depth
+ * > 3 is not a confirmed fact the way depths 1-3 are.
  */
 const DOOR_FRAME_SLOTS: Record<number, Array<{ frame: string; x: number; y: number }>> = {
   1: [
@@ -602,7 +612,15 @@ export function buildViewList(
       // above is `frontWallMaxDepth`-bounded, but doors aren't).
       if (lateral === 0 && depth >= 1) {
         const doors = level.entitiesAt(x, y).filter((e) => e.type === 0x11);
-        if (doors.length > 0) pushDoor(items, slots.banks[0]!.id, doors, depth, cell);
+        if (doors.length > 0) {
+          const bank = slots.banks[0];
+          if (!bank) {
+            throw new Error(
+              'buildViewList: slot table has no banks (banks: []) -- cannot resolve door art for the doorway cell in view',
+            );
+          }
+          pushDoor(items, bank.id, doors, depth, cell);
+        }
       }
 
       if (lateral === 0) {

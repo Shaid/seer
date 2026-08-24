@@ -62,17 +62,25 @@ export function pickHotspot(
   surfaceY: number,
 ): HotspotHit | null {
   for (const item of topmostFirst(items)) {
-    if (!item.hotspot) continue;
     const rect = destRect(banks, item, tick);
     if (!rect) continue;
-    if (
+    const covers =
       surfaceX >= rect.x &&
       surfaceX < rect.x + rect.w &&
       surfaceY >= rect.y &&
-      surfaceY < rect.y + rect.h
-    ) {
-      return { item, hotspot: item.hotspot };
-    }
+      surfaceY < rect.y + rect.h;
+    if (!covers) continue;
+    if (item.hotspot) return { item, hotspot: item.hotspot };
+    // `buildViewList` performs no occlusion culling — a hotspot-less item
+    // can still sit in front of a hotspot at this pixel in the list, just
+    // painted over it. `blend: 'replace'` (`IndexedSurface.blit`) overwrites
+    // its whole destination rect unconditionally, i.e. it's opaque with no
+    // per-pixel transparency, so it really is "the piece actually visible on
+    // top at that pixel" the module doc comment promises: stop here rather
+    // than falling through to a farther hotspot occluded behind it.
+    // `mask`/`or` items may have transparent pixels within their rect (no
+    // per-pixel source data is available here to know), so they don't block.
+    if (item.blend === 'replace') return null;
   }
   return null;
 }

@@ -3,7 +3,8 @@ import { buildViewList } from '../view/buildViewList.js';
 import { viewSpecFromSlotTable } from '../view/ViewSpec.js';
 import { FlatGridLevel } from '../model/FlatGridLevel.js';
 import type { Pose } from '../model/Pose.js';
-import type { DungeonLevelFile } from '../schema/level.js';
+import type { CellQuery } from '../model/CellQuery.js';
+import type { DungeonLevelFile, EntityRecord } from '../schema/level.js';
 import type { SlotTableFile } from '../schema/slots.js';
 import type { SemanticsFile } from '../schema/semantics.js';
 
@@ -225,5 +226,58 @@ describe('buildViewList', () => {
       priority: 0x64,
       origin: 'cite',
     });
+  });
+});
+
+describe('buildViewList — door rendering edge cases (finding: malformed slot-table crash paths)', () => {
+  // Facing east from (0,0): project(x0=0,y0=0,E,depth,0) = (depth,0).
+  const DOOR_POSE: Pose = { level: 1, x: 0, y: 0, facing: 1 };
+  const doorEntity = (): EntityRecord => ({ type: 0x11, gfx: 0x35, raw: new Array(0x10).fill(0) });
+
+  function doorLevel(doorX: number, maxX: number): CellQuery {
+    return {
+      inBounds: (x, y) => x >= 0 && x <= maxX && y === 0,
+      wallAt: () => false,
+      planeAt: () => 0,
+      entitiesAt: (x, y) => (x === doorX && y === 0 ? [doorEntity()] : []),
+    };
+  }
+
+  function slotsWithBanks(banks: SlotTableFile['banks'], depthCount = 2): SlotTableFile {
+    return {
+      schemaVersion: 1,
+      surface: { width: 320, height: 200 },
+      viewport: { x: 0, y: 0, width: 208, height: 140 },
+      depthCount,
+      lateralOffsets: [0],
+      frontWallMaxDepth: 1,
+      banks,
+      slots: {},
+    };
+  }
+
+  it('throws a clear, descriptive error (not a raw TypeError) when banks is empty and a door is in view', () => {
+    const slots = slotsWithBanks([]);
+    const level = doorLevel(1, 1);
+    expect(() =>
+      buildViewList(level, DOOR_POSE, viewSpecFromSlotTable(slots), SEMANTICS, slots),
+    ).toThrow(/no banks/i);
+  });
+
+  it('resolves the door normally once a bank is present', () => {
+    const slots = slotsWithBanks([{ id: 'b', atlas: 'a.json', image: 'a.png' }]);
+    const level = doorLevel(1, 1);
+    const items = buildViewList(level, DOOR_POSE, viewSpecFromSlotTable(slots), SEMANTICS, slots);
+    expect(items.some((i) => i.propType === 'door')).toBe(true);
+  });
+
+  it('clamps door frame art to the depth-3 position for depths beyond 3 (documented simplification) instead of crashing', () => {
+    const slots = slotsWithBanks([{ id: 'b', atlas: 'a.json', image: 'a.png' }], 5);
+    const level = doorLevel(4, 4); // depth 4 door
+    const items = buildViewList(level, DOOR_POSE, viewSpecFromSlotTable(slots), SEMANTICS, slots);
+    const frames = items
+      .filter((i) => i.propType === 'door')
+      .map((i) => i.frame as string);
+    expect(frames).toContain('doorway-3'); // clamped to the depth-3 frame table
   });
 });

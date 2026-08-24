@@ -154,8 +154,8 @@ export function compositeSlotTable(
 /**
  * Composites `buildViewList`'s pose-specific output: draws `table.staticSlots`
  * (ceiling, floor — unconditional, pose-independent) first, then every
- * `DrawItem` in `view/order.ts`'s shared `paintOrder` (nearest-first/
- * farthest-last, side walls before the front-wall row at equal depth).
+ * `DrawItem` in `view/order.ts`'s shared `paintOrder` (farthest-first/
+ * nearest-last, side walls before the front-wall row at equal depth).
  * `tick` (default 0, so every pre-M4 caller is unaffected) resolves any
  * `AnimRef` frames via each item's own `cellX`/`cellY` for `phase: 'cell'`.
  */

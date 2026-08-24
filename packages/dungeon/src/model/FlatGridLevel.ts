@@ -11,7 +11,7 @@
  * query for the same edge reads its neighbour's plane value instead of its
  * own — see `wallAt` below).
  */
-import type { CellQuery } from './CellQuery.js';
+import { UnknownPlaneError, type CellQuery } from './CellQuery.js';
 import type { Dir4 } from './Pose.js';
 import { step } from './Direction.js';
 import type { DungeonLevelFile, EntityRecord, LevelUnit, WallStorage } from '../schema/level.js';
@@ -172,7 +172,7 @@ export class FlatGridLevel implements CellQuery {
   planeAt(name: string, x: number, y: number): number {
     if (!this.inBounds(x, y)) return 0;
     const plane = this.unit.planes[name];
-    if (!plane) throw new Error(`FlatGridLevel.planeAt: unknown plane "${name}"`);
+    if (!plane) throw new UnknownPlaneError(name, 'FlatGridLevel.planeAt');
     return plane[this.index(x, y)] ?? 0;
   }
 

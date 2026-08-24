@@ -40,7 +40,23 @@ export class PatchedCellQuery implements CellQuery {
   private applyPatch(handle: string, entity: EntityRecord): EntityRecord {
     const patch = this.patches.get(handle);
     if (!patch) return entity;
-    return { ...entity, flags: applyEntityStatePatch(entity.flags ?? 0, patch) };
+    const flags = applyEntityStatePatch(entity.flags ?? 0, patch);
+    const patched: EntityRecord = { ...entity, flags };
+    // `flags` is documented (`EntityState.ts`) as exactly the big-endian
+    // word at `raw[0x0E:0x10]` — but the renderer/automap read door-open and
+    // floor-plate state straight out of `raw`, not `flags` (`buildViewList`'s
+    // `pushDoor`/`resolveFloorPlate`, `AutomapRenderer`'s `dispatchOne`).
+    // Mirror the patched word back into a copy of `raw` so both
+    // representations stay in sync — otherwise a patch is invisible to
+    // anything downstream of `entitiesAt`/`entityHandlesAt` that reads `raw`.
+    if (entity.raw) {
+      const raw = entity.raw.slice();
+      while (raw.length < 0x10) raw.push(0);
+      raw[0x0e] = (flags >> 8) & 0xff;
+      raw[0x0f] = flags & 0xff;
+      patched.raw = raw;
+    }
+    return patched;
   }
 
   entityHandlesAt(x: number, y: number): Array<{ handle: string; entity: EntityRecord }> {

@@ -112,6 +112,53 @@ describe('pickHotspot', () => {
     expect(hit!.hotspot.code).toBe(0x64);
   });
 
+  it('does NOT pick a hotspot behind a nearer opaque (blend: replace) occluder covering the same pixel (finding: pickHotspot occlusion)', () => {
+    // `buildViewList` performs no sight-line culling, so a hotspot prop
+    // behind a nearer opaque wall is still emitted into the item list — it's
+    // just painted over. Picking must respect that: the nearer opaque item
+    // is what's actually visible at this pixel, so the farther hotspot
+    // underneath it must not be reachable.
+    const occluder = item({
+      kind: 'front',
+      depth: 0,
+      destX: 0,
+      destY: 0,
+      frame: 'wall', // 4x2, blend: 'replace' (opaque, from the item() default)
+    }); // no hotspot
+    const hiddenHotspot = item({
+      kind: 'prop',
+      depth: 1,
+      destX: 0,
+      destY: 0,
+      frame: 'plaque', // 2x2, fully inside the occluder's rect
+      hotspot: { code: 0x6a },
+    });
+    expect(pickHotspot([occluder, hiddenHotspot], banks, 0, 1, 1)).toBeNull();
+  });
+
+  it('still picks a hotspot when the nearer covering item is non-opaque (blend: mask)', () => {
+    // A `mask`-blend item may have transparent pixels within its rect, so it
+    // must not block picking the same way a `replace` occluder does.
+    const maskOccluder = item({
+      kind: 'front',
+      depth: 0,
+      destX: 0,
+      destY: 0,
+      frame: 'wall',
+      blend: 'mask',
+    });
+    const hotspot = item({
+      kind: 'prop',
+      depth: 1,
+      destX: 0,
+      destY: 0,
+      frame: 'plaque',
+      hotspot: { code: 0x6a },
+    });
+    const hit = pickHotspot([maskOccluder, hotspot], banks, 0, 1, 1);
+    expect(hit!.hotspot.code).toBe(0x6a);
+  });
+
   it('returns null when the referenced bank is unknown', () => {
     const orphan = item({ destX: 0, destY: 0, bank: 'missing', hotspot: { code: 1 } });
     expect(pickHotspot([orphan], banks, 0, 0, 0)).toBeNull();
