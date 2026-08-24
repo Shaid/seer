@@ -90,6 +90,31 @@ describe('applyMeshShading — custom modes', () => {
     applyMeshShading(model, cache, { shading: 'toon', smooth: false, renderMode: 'faces' });
     expect(cache.size).toBe(0);
   });
+
+  it('"indexedRamp" swaps in a MeshToonMaterial carrying a gradientMap and the original normal/AO maps', () => {
+    const { model, mesh, originalMaterial } = makeGltfModel();
+    originalMaterial.normalMap = new THREE.Texture();
+    originalMaterial.aoMap = new THREE.Texture();
+    const cache: GeneratedShadingMaterials = new Map();
+    applyMeshShading(model, cache, { shading: 'indexedRamp', smooth: false, renderMode: 'textured' });
+    expect(mesh.material).toBeInstanceOf(THREE.MeshToonMaterial);
+    const material = mesh.material as THREE.MeshToonMaterial;
+    expect(material.gradientMap).toBeInstanceOf(THREE.DataTexture);
+    expect(material.normalMap).toBe(originalMaterial.normalMap);
+    expect(material.aoMap).toBe(originalMaterial.aoMap);
+    expect(material.color.getHex()).toBe(originalMaterial.color.getHex());
+  });
+
+  it('"indexedRamp" reuses the same gradientMap instance across calls (module-shared, not per-material)', () => {
+    const { model: modelA, mesh: meshA } = makeGltfModel();
+    const { model: modelB, mesh: meshB } = makeGltfModel();
+    const cache: GeneratedShadingMaterials = new Map();
+    applyMeshShading(modelA, cache, { shading: 'indexedRamp', smooth: false, renderMode: 'textured' });
+    applyMeshShading(modelB, cache, { shading: 'indexedRamp', smooth: false, renderMode: 'textured' });
+    const gradientA = (meshA.material as THREE.MeshToonMaterial).gradientMap;
+    const gradientB = (meshB.material as THREE.MeshToonMaterial).gradientMap;
+    expect(gradientA).toBe(gradientB);
+  });
 });
 
 describe('clearGeneratedShadingMaterials', () => {
