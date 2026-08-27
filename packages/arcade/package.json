@@ -1,0 +1,57 @@
+{
+  "name": "@seer-project/arcade",
+  "version": "0.1.0",
+  "description": "Decoders for arcade board ROM sets: MAME zip containers, CPS1/CPS2 gfx+palette+encryption, Neo Geo graphics",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shaid/seer.git",
+    "directory": "packages/arcade"
+  },
+  "keywords": [
+    "reverse-engineering",
+    "arcade",
+    "cps1",
+    "cps2",
+    "neogeo",
+    "mame"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/__tests__",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "prepack": "npm run build",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.0"
+  },
+  "homepage": "https://seer.shaid.net",
+  "bugs": {
+    "url": "https://github.com/Shaid/seer/issues"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
