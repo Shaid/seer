@@ -47,6 +47,20 @@ export {
 } from './capcom/cps3.js';
 
 export {
+  Sh2,
+  SR_T,
+  SR_S,
+  SR_I,
+  SR_Q,
+  SR_M,
+  SR_FLAGS,
+  IRQ_HOLD,
+  IRQ_ACK,
+  IRQ_NONE,
+  type Sh2Bus,
+} from './capcom/sh2.js';
+
+export {
   decodeNeogeoSpriteTile,
   decodeNeogeoFixTile,
   neogeoSpriteTileCount,

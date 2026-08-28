@@ -141,7 +141,7 @@ export class Cps3CharDma {
 
   /** One little-endian read from the assembled user5 region (byte-swapped). */
   private readUser5(source: number): number {
-    return this.user5[(source ^ CPS3_DMA_XOR) & 0x7fffff] & 0xff;
+    return this.user5[(source ^ CPS3_DMA_XOR) % this.user5.length] & 0xff;
   }
 
   constructor(user5: Uint8Array) {
