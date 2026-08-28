@@ -405,12 +405,12 @@ export class Sh2 {
     let temp2 = u32(tempm);
     const RnL = temp1 & 0xffff, RnH = (temp1 >> 16) & 0xffff;
     const RmL = temp2 & 0xffff, RmH = (temp2 >> 16) & 0xffff;
-    let temp0 = RmL * RnL;
+    const temp0 = RmL * RnL;
     temp1 = RmH * RnL;
     temp2 = RmL * RnH;
     const temp3 = RmH * RnH;
     let Res2 = 0;
-    let Res1 = temp1 + temp2;
+    const Res1 = temp1 + temp2;
     if (Res1 < temp1) Res2 += 0x00010000;
     temp1 = (Res1 << 16) & 0xffff0000;
     let Res0 = temp0 + temp1;
@@ -428,15 +428,15 @@ export class Sh2 {
   private dmulu(m: number, n: number): void {
     const RnL = this.r[n]! & 0xffff, RnH = (this.r[n]! >>> 16) & 0xffff;
     const RmL = this.r[m]! & 0xffff, RmH = (this.r[m]! >>> 16) & 0xffff;
-    let temp0 = RmL * RnL;
+    const temp0 = RmL * RnL;
     let temp1 = RmH * RnL;
-    let temp2 = RmL * RnH;
+    const temp2 = RmL * RnH;
     const temp3 = RmH * RnH;
     let Res2 = 0;
-    let Res1 = temp1 + temp2;
+    const Res1 = temp1 + temp2;
     if (Res1 < temp1) Res2 += 0x00010000;
     temp1 = (Res1 << 16) & 0xffff0000;
-    let Res0 = temp0 + temp1;
+    const Res0 = temp0 + temp1;
     if (Res0 < temp0) Res2++;
     Res2 = Res2 + ((Res1 >> 16) & 0x0000ffff) + temp3;
     this.mach = s32(Res2);
@@ -516,12 +516,12 @@ export class Sh2 {
     let temp2 = u32(tempm);
     const RnL = temp1 & 0xffff, RnH = (temp1 >> 16) & 0xffff;
     const RmL = temp2 & 0xffff, RmH = (temp2 >> 16) & 0xffff;
-    let temp0 = RmL * RnL;
+    const temp0 = RmL * RnL;
     temp1 = RmH * RnL;
     temp2 = RmL * RnH;
     const temp3 = RmH * RnH;
     let Res2 = 0;
-    let Res1 = temp1 + temp2;
+    const Res1 = temp1 + temp2;
     if (Res1 < temp1) Res2 += 0x00010000;
     temp1 = (Res1 << 16) & 0xffff0000;
     let Res0 = temp0 + temp1;
@@ -755,7 +755,7 @@ export class Sh2 {
     this.charge(2);
   }
   private rotcl(n: number): void {
-    let temp = (this.r[n]! >>> 31) & SR_T;
+    const temp = (this.r[n]! >>> 31) & SR_T;
     this.r[n] = s32(u32(this.r[n]! << 1) | (this.sr & SR_T));
     this.sr = (this.sr & ~SR_T) | temp;
   }
@@ -928,7 +928,7 @@ export class Sh2 {
     this.charge(2);
   }
   private xtrct(m: number, n: number): void {
-    let temp = (this.r[m]! << 16) & 0xffff0000;
+    const temp = (this.r[m]! << 16) & 0xffff0000;
     this.r[n] = (this.r[n]! >>> 16) & 0x0000ffff;
     this.r[n] = s32(this.r[n]! | temp);
   }
