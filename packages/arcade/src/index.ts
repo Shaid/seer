@@ -54,3 +54,11 @@ export {
 } from './neogeo/gfx.js';
 
 export { cmcGfxDecrypt, sfixDecrypt } from './neogeo/cmc.js';
+
+export {
+  NEOGEO_PALETTE_SIZE,
+  NEOGEO_PALETTE_BASE,
+  decodeNeoGeoPaletteWord,
+  decodeNeoGeoPaletteWords,
+  scanNeoGeoPaletteBanks,
+} from './neogeo/palette.js';
