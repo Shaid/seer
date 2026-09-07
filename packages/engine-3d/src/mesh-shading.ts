@@ -85,6 +85,78 @@ function getIndexedRampGradient(): THREE.DataTexture {
 }
 
 /**
+ * FE3H's REAL toon-ramp LUT texture (`DATA0[552]` texture slot 0, a
+ * 256x256 RGBA8 image — see `docs/fe-threehouses.md`'s "Shading pipeline
+ * follow-up, part 3", 2026-09-07 `re-oracle` escalation, in the `chimera`
+ * project), registered once by the host viewer — this package has no
+ * asset-fetching of its own, so it's the caller's job to fetch/decode the
+ * shipped `toon_ramp_lut.png` and hand over raw pixel data via
+ * {@link setToonRampLutImage}. `null` until registered (or after
+ * `setToonRampLutImage(null)`), in which case `'indexedRamp'` falls back to
+ * `getIndexedRampGradient()`'s synthetic approximation exactly as before —
+ * every existing caller that never registers a LUT image gets byte-
+ * identical behavior to before this was added.
+ */
+interface ToonRampLutImage {
+  width: number;
+  height: number;
+  /** Tightly-packed RGBA8, row-major, length `width * height * 4`. */
+  data: Uint8ClampedArray | Uint8Array;
+}
+let toonRampLutImage: ToonRampLutImage | null = null;
+const toonRampRowTextureCache = new Map<number, THREE.DataTexture>();
+
+export function setToonRampLutImage(image: ToonRampLutImage | null): void {
+  toonRampLutImage = image;
+  for (const texture of toonRampRowTextureCache.values()) texture.dispose();
+  toonRampRowTextureCache.clear();
+}
+
+/**
+ * The real per-row toon-ramp curve for a G1M material's `SEER_toon_ramp_index`
+ * (1-based; the real shader's row is `rampIndex - 1` — see that extra's doc
+ * comment in `gltf-builder.ts`, `chimera` project), sliced from the
+ * registered LUT image and cached per row index (a corpus has at most a few
+ * dozen distinct real values, never one per material instance, so this
+ * cache stays small for the life of the page). `null` when no LUT is
+ * registered or `rampIndex` is out of the image's row range.
+ *
+ * Stores per-texel LUMINANCE (the mean of R/G/B) in a single-channel
+ * texture, not the LUT's real full-color RGB: three.js's stock toon shader
+ * (`gradientmap_pars_fragment.glsl.js`) only ever reads `gradientMap`'s `.r`
+ * channel — reproducing a colour-tinted row (e.g. a purple-tinted face-pack
+ * ramp) would need a custom fragment-shader patch this pass didn't add (see
+ * `addIndexedRampRimLight` for the technique, if a future pass wants it).
+ * This still recovers the real per-row shadow/highlight TRANSITION CURVE —
+ * the part that actually shapes a toon-shaded silhouette — which is a real,
+ * measured improvement over `getIndexedRampGradient()`'s 4 hand-picked
+ * band values, just not a full color reproduction.
+ */
+function getRealRampGradient(rampIndex: number): THREE.DataTexture | null {
+  if (!toonRampLutImage) return null;
+  const cached = toonRampRowTextureCache.get(rampIndex);
+  if (cached) return cached;
+  const row = rampIndex - 1;
+  if (row < 0 || row >= toonRampLutImage.height) return null;
+  const { width, data } = toonRampLutImage;
+  const luminance = new Uint8Array(width);
+  for (let x = 0; x < width; x++) {
+    const o = (row * width + x) * 4;
+    luminance[x] = Math.round((data[o]! + data[o + 1]! + data[o + 2]!) / 3);
+  }
+  const texture = new THREE.DataTexture(luminance, width, 1, THREE.RedFormat, THREE.UnsignedByteType);
+  // LinearFilter here (unlike the synthetic fallback's NearestFilter): the
+  // real LUT is a genuine smooth photographic ramp, not a stepped band set
+  // — see the visual dump cited in the docs section above.
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.needsUpdate = true;
+  toonRampRowTextureCache.set(rampIndex, texture);
+  return texture;
+}
+
+/**
  * Adds a view-dependent Fresnel rim-light term to an already-constructed
  * `MeshToonMaterial`, via `onBeforeCompile` (three.js's supported hook for
  * exactly this — no shader is hand-assembled from scratch). Approximates
@@ -136,12 +208,20 @@ function buildShadingMaterial(
   if (shading === 'normals') return new THREE.MeshNormalMaterial({ side: original.side, flatShading: !smooth });
   if (shading === 'depth') return new THREE.MeshDepthMaterial({ side: original.side });
   if (shading === 'indexedRamp') {
+    // `SEER_toon_ramp_index` — see `gltf-builder.ts` (`chimera` project) —
+    // is copied verbatim from the glTF material's `extras` into `userData`
+    // by `GLTFLoader.loadMaterial` (`assignExtrasToUserData`, confirmed
+    // against the vendored `three` source, not assumed). Real data wins
+    // over the synthetic fallback whenever both a rampIndex and a
+    // registered LUT image are available for this material.
+    const rampIndex = (original.userData as { SEER_toon_ramp_index?: number } | undefined)?.SEER_toon_ramp_index;
+    const gradientMap = (rampIndex !== undefined && getRealRampGradient(rampIndex)) || getIndexedRampGradient();
     const material = new THREE.MeshToonMaterial({
       ...common,
       map: materialMap(original),
       normalMap: materialNormalMap(original),
       aoMap: materialAoMap(original),
-      gradientMap: getIndexedRampGradient(),
+      gradientMap,
     });
     addIndexedRampRimLight(material);
     return material;

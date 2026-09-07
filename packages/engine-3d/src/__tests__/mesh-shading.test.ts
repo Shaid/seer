@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { describe, expect, it, vi } from 'vitest';
-import { applyMeshShading, clearGeneratedShadingMaterials, type GeneratedShadingMaterials } from '../mesh-shading.js';
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import { applyMeshShading, clearGeneratedShadingMaterials, setToonRampLutImage, type GeneratedShadingMaterials } from '../mesh-shading.js';
 import type { Model3D, ModelRepresentations } from '../types.js';
 
 function spyOnDispose(material: THREE.Material) {
@@ -114,6 +114,70 @@ describe('applyMeshShading — custom modes', () => {
     const gradientA = (meshA.material as THREE.MeshToonMaterial).gradientMap;
     const gradientB = (meshB.material as THREE.MeshToonMaterial).gradientMap;
     expect(gradientA).toBe(gradientB);
+  });
+
+  describe('"indexedRamp" with a registered real toon-ramp LUT image', () => {
+    afterEach(() => setToonRampLutImage(null)); // module-level state — never leak into other tests/files
+
+    it('uses a real per-row gradient sliced from the LUT when the material carries SEER_toon_ramp_index', () => {
+      // 2 rows x 4px, RGBA8: row 0 (rampIndex 1) ramps 0->255->0->255 in R
+      // (and duplicates it in G/B so luminance == the R value exactly);
+      // row 1 (rampIndex 2) is flat white, mirroring a real LUT's mostly-
+      // unpopulated rows.
+      const row0 = [0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 255, 255, 255, 255, 255];
+      const row1 = new Array(16).fill(255);
+      setToonRampLutImage({ width: 4, height: 2, data: new Uint8Array([...row0, ...row1]) });
+
+      const { model, mesh, originalMaterial } = makeGltfModel();
+      originalMaterial.userData.SEER_toon_ramp_index = 1; // row 0
+      const cache: GeneratedShadingMaterials = new Map();
+      applyMeshShading(model, cache, { shading: 'indexedRamp', smooth: false, renderMode: 'textured' });
+      const gradientMap = (mesh.material as THREE.MeshToonMaterial).gradientMap as THREE.DataTexture;
+      expect(gradientMap).toBeInstanceOf(THREE.DataTexture);
+      expect(gradientMap.image.width).toBe(4);
+      expect(gradientMap.image.height).toBe(1);
+      expect(Array.from(gradientMap.image.data as Uint8Array)).toEqual([0, 255, 0, 255]);
+      // LinearFilter for a real ramp, unlike the synthetic fallback's NearestFilter.
+      expect(gradientMap.magFilter).toBe(THREE.LinearFilter);
+    });
+
+    it('falls back to the synthetic gradient when SEER_toon_ramp_index is present but out of the registered image\'s row range', () => {
+      setToonRampLutImage({ width: 4, height: 2, data: new Uint8Array(4 * 2 * 4) });
+      const { model, mesh, originalMaterial } = makeGltfModel();
+      originalMaterial.userData.SEER_toon_ramp_index = 99; // row 98, way past height 2
+      const cache: GeneratedShadingMaterials = new Map();
+      applyMeshShading(model, cache, { shading: 'indexedRamp', smooth: false, renderMode: 'textured' });
+      const gradientMap = (mesh.material as THREE.MeshToonMaterial).gradientMap as THREE.DataTexture;
+      expect(gradientMap.image.width).toBe(4); // the synthetic fallback's 4-band width, not the (mismatched) LUT's
+      expect(gradientMap.magFilter).toBe(THREE.NearestFilter);
+    });
+
+    it('falls back to the synthetic gradient when no LUT image is registered, even with a real rampIndex', () => {
+      const { model, mesh, originalMaterial } = makeGltfModel();
+      originalMaterial.userData.SEER_toon_ramp_index = 1;
+      const cache: GeneratedShadingMaterials = new Map();
+      applyMeshShading(model, cache, { shading: 'indexedRamp', smooth: false, renderMode: 'textured' });
+      const gradientMap = (mesh.material as THREE.MeshToonMaterial).gradientMap as THREE.DataTexture;
+      expect(gradientMap.magFilter).toBe(THREE.NearestFilter);
+    });
+
+    it('two materials with different rampIndex values get distinct gradient textures', () => {
+      const row0 = new Array(16).fill(10);
+      const row1 = new Array(16).fill(200);
+      setToonRampLutImage({ width: 4, height: 2, data: new Uint8Array([...row0, ...row1]) });
+      const { model: modelA, mesh: meshA, originalMaterial: matA } = makeGltfModel();
+      matA.userData.SEER_toon_ramp_index = 1;
+      const { model: modelB, mesh: meshB, originalMaterial: matB } = makeGltfModel();
+      matB.userData.SEER_toon_ramp_index = 2;
+      const cache: GeneratedShadingMaterials = new Map();
+      applyMeshShading(modelA, cache, { shading: 'indexedRamp', smooth: false, renderMode: 'textured' });
+      applyMeshShading(modelB, cache, { shading: 'indexedRamp', smooth: false, renderMode: 'textured' });
+      const gradientA = (meshA.material as THREE.MeshToonMaterial).gradientMap as THREE.DataTexture;
+      const gradientB = (meshB.material as THREE.MeshToonMaterial).gradientMap as THREE.DataTexture;
+      expect(gradientA).not.toBe(gradientB);
+      expect((gradientA.image.data as Uint8Array)[0]).toBe(10);
+      expect((gradientB.image.data as Uint8Array)[0]).toBe(200);
+    });
   });
 });
 

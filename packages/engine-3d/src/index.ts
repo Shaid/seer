@@ -75,7 +75,7 @@ export type { ColorMode, ColorResolver, ColorResolverContext, HeightRange } from
 export { supportedRenderModes, defaultRenderMode, applyRenderMode } from './render-modes.js';
 export type { RenderMode } from './render-modes.js';
 
-export { applyMeshShading, clearGeneratedShadingMaterials } from './mesh-shading.js';
+export { applyMeshShading, clearGeneratedShadingMaterials, setToonRampLutImage } from './mesh-shading.js';
 export type { MeshShadingMode, GeneratedShadingMaterials } from './mesh-shading.js';
 
 export {
@@ -120,3 +120,5 @@ export type { MeshStats } from './stats.js';
 
 export { createMeshSession } from './session.js';
 export type { MeshSession, MeshSessionOptions, SetModelOptions, SpringBoneOptions } from './session.js';
+
+export { buildBoneCorrespondence, retargetClipsToSkeleton } from './retarget-animation.js';
