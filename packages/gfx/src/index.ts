@@ -9,3 +9,4 @@
 export * from './planar.js';
 export * from './palette.js';
 export * from './rgba.js';
+export * from './ham.js';
