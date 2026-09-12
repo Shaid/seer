@@ -46,6 +46,7 @@
     "lint": "eslint src/ bin/"
   },
   "dependencies": {
+    "@seer-project/core": "^0.1.0",
     "pngjs": "^7.0.0",
     "sharp": "^0.35.3"
   },

@@ -96,7 +96,7 @@ const results = await runPipeline(configs, { game: 'mygame', platform: 'amiga' }
 | `writeJson(path, data, pretty?)` | Write data as formatted JSON |
 | `writePNG(path, rgba, width, height)` | Write an RGBA PNG image |
 | `writeIndexedPNG(path, indices, width, height, opts?)` | Write a palette-indexed PNG (index value in the R channel — not resolved colors). `opts.transparentIndex` (default `0`) picks which index renders transparent; pass `null` to make every index opaque |
-| `writeWav(path, channels, opts)` | Write PCM samples as a RIFF/WAVE file. `channels` is one array per channel (`[mono]` or `[left, right]`); `opts.bits: 8` expects raw `Uint8Array` samples copied byte-for-byte, `opts.bits: 16` (default) expects normalized `Float32Array` samples in `[-1, 1]`, quantized to 16-bit PCM |
+| `writeWav(path, channels, opts)` | Write PCM samples as a RIFF/WAVE file (wraps `@seer-project/core`'s `encodeWav`). `channels` is one array per channel (`[mono]` or `[left, right]`); `opts.bits: 8` expects raw `Uint8Array` samples copied byte-for-byte, `opts.bits: 16` (default) accepts either already-quantized `Int16Array` PCM or normalized `Float32Array` samples in `[-1, 1]` (quantized here) |
 | `resolveDataFile(dataDir, candidates)` | First matching filename from a list of casing candidates, or the first candidate if none exist |
 | `scanFilesByExtension(dir, ext)` | Find files by extension, case-insensitive, sorted |
 
@@ -112,6 +112,33 @@ import { decompressLZEXE } from '@seer-project/pipeline';
 const compressed = readBinary('GAME.EXE');
 const { data, bodyOffset } = decompressLZEXE(compressed);
 ```
+
+### `ancient.ts` — `ancient` CLI wrapper
+
+A thin wrapper around the [`ancient`](https://github.com/temisu/ancient)
+CLI, for the retro compression containers it decompresses natively —
+RNC ProPack v1/v2, "IMP!" File Imploder, and PowerPacker/PP20 (including
+titles that rename the magic). Node-only: shells out via a temp-file round
+trip, so it only ever runs in the offline pipeline, never the browser
+runtime. Requires the `ancient` binary on `PATH` (or pass `ancientPath`).
+
+```ts
+import { detectAncientContainer, ancientDecompress, decrunchRenamedPp20 } from '@seer-project/pipeline';
+
+const container = detectAncientContainer(data.subarray(0, 4)); // 'rnc1' | 'rnc2' | 'imp' | 'pp20' | 'none'
+const decompressed = ancientDecompress(rncData);
+
+// A container whose magic was renamed (e.g. "LR88" for PowerPacker/PP20):
+const decompressed2 = decrunchRenamedPp20(lr88Data, [0x4c, 0x52, 0x38, 0x38]);
+```
+
+| Function | Description |
+| --- | --- |
+| `detectAncientContainer(header)` | Identify which container (if any) 4 header bytes match |
+| `ancientDecompress(data, opts?)` | Decompress an in-memory buffer via a temp-file round trip through `ancient decompress` |
+| `ancientDecompressFile(src, dst, opts?)` | Decompress `src` into `dst` on disk directly, returning the detected container |
+| `decompressRnc1(data, opts?)` / `decompressRnc2(data, opts?)` | Decompress an RNC1/RNC2 archive, throwing if `data` doesn't start with the matching magic |
+| `decrunchRenamedPp20(data, renamedMagic, opts?)` | Patch a renamed PowerPacker/PP20 magic back to `PP20` before decompressing |
 
 ## Testing
 

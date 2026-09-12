@@ -9,6 +9,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { PNG } from 'pngjs';
 import sharp from 'sharp';
+import { encodeWav, int16FromFloat32 } from '@seer-project/core';
 
 /** Read a file as a safe Uint8Array with its own ArrayBuffer (avoids Node.js Buffer pool sharing). */
 export function readBinary(path: string): Uint8Array {
@@ -62,11 +63,15 @@ export function writeIndexedPNG(
 
 /**
  * Write PCM samples as a minimal RIFF/WAVE file, one or two channels.
+ * Thin `writeFileSync` wrapper around `@seer-project/core`'s `encodeWav` —
+ * import that directly for the pure byte-buffer version (browser code, or
+ * anywhere else disk access isn't available/wanted).
  *
  * - `bits: 8` (unsigned): `channels` must already be raw unsigned 8-bit
  *   sample values (`Uint8Array`), copied byte-for-byte with no scaling.
- * - `bits: 16` (signed, default): `channels` must be normalized float
- *   samples in [-1, 1] (`Float32Array`), quantized to 16-bit PCM.
+ * - `bits: 16` (signed, default): `channels` may be either already-quantized
+ *   `Int16Array` PCM, or normalized float samples in [-1, 1] (`Float32Array`),
+ *   which get quantized here.
  *
  * One array per channel — `[mono]` or `[left, right]`.
  */
@@ -77,64 +82,29 @@ export function writeWav(
 ): void;
 export function writeWav(
   filepath: string,
+  channels: Int16Array[],
+  opts: { sampleRate: number; bits?: 16 },
+): void;
+export function writeWav(
+  filepath: string,
   channels: Float32Array[],
   opts: { sampleRate: number; bits?: 16 },
 ): void;
 export function writeWav(
   filepath: string,
-  channels: Uint8Array[] | Float32Array[],
+  channels: Uint8Array[] | Int16Array[] | Float32Array[],
   opts: { sampleRate: number; bits?: 8 | 16 },
 ): void {
   const { sampleRate, bits = 16 } = opts;
-  const numChannels = channels.length;
-  const numSamples = channels[0]?.length ?? 0;
-  const bytesPerSample = bits / 8;
-  const blockAlign = numChannels * bytesPerSample;
-  const dataSize = numSamples * blockAlign;
-  const buf = Buffer.alloc(44 + dataSize);
-
-  let off = 0;
-  buf.write('RIFF', off);
-  off += 4;
-  buf.writeUInt32LE(36 + dataSize, off);
-  off += 4;
-  buf.write('WAVE', off);
-  off += 4;
-  buf.write('fmt ', off);
-  off += 4;
-  buf.writeUInt32LE(16, off);
-  off += 4;
-  buf.writeUInt16LE(1, off); // PCM
-  off += 2;
-  buf.writeUInt16LE(numChannels, off);
-  off += 2;
-  buf.writeUInt32LE(sampleRate, off);
-  off += 4;
-  buf.writeUInt32LE(sampleRate * blockAlign, off);
-  off += 4;
-  buf.writeUInt16LE(blockAlign, off);
-  off += 2;
-  buf.writeUInt16LE(bits, off);
-  off += 2;
-  buf.write('data', off);
-  off += 4;
-  buf.writeUInt32LE(dataSize, off);
-  off += 4;
-
-  for (let i = 0; i < numSamples; i++) {
-    for (let ch = 0; ch < numChannels; ch++) {
-      if (bits === 8) {
-        buf.writeUInt8((channels[ch] as Uint8Array)[i] & 0xff, off);
-        off += 1;
-      } else {
-        const sample = (channels[ch] as Float32Array)[i];
-        const v = Math.round(Math.max(-1, Math.min(1, sample)) * 32767);
-        buf.writeInt16LE(v, off);
-        off += 2;
-      }
-    }
+  if (bits === 8) {
+    writeFileSync(filepath, encodeWav(channels as Uint8Array[], { sampleRate, bits: 8 }));
+    return;
   }
-  writeFileSync(filepath, buf);
+  const int16Channels =
+    channels.length > 0 && channels[0] instanceof Float32Array
+      ? (channels as Float32Array[]).map(int16FromFloat32)
+      : (channels as Int16Array[]);
+  writeFileSync(filepath, encodeWav(int16Channels, { sampleRate, bits: 16 }));
 }
 
 /** Write structured data as a JSON file with optional pretty-printing. */

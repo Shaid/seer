@@ -10,5 +10,6 @@ export * from './binary-reader.js';
 export * from './assets.js';
 export * from './palette.js';
 export * from './atlas.js';
+export * from './wav.js';
 export * from './playback.js';
 export * from './list-labels.js';

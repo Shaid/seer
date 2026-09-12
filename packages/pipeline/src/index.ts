@@ -29,6 +29,17 @@ export { hexDump } from './hex-dump.js';
 export { decompressLZEXE, type LZEXEResult } from './lzexe.js';
 
 export {
+  type AncientContainer,
+  type AncientDecompressOptions,
+  detectAncientContainer,
+  ancientDecompress,
+  ancientDecompressFile,
+  decompressRnc1,
+  decompressRnc2,
+  decrunchRenamedPp20,
+} from './ancient.js';
+
+export {
   type ShardableEntry,
   type GroupIndexEntry,
   type CategoryIndexEntry,

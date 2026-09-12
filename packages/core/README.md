@@ -119,6 +119,24 @@ const atlas: AtlasMeta = {
 | `AtlasFrame` | `{ name, x, y, w, h }` — one packed sprite's position/size |
 | `AtlasMeta` | `{ frames: AtlasFrame[], width, height }` — one atlas image |
 
+### `wav.ts` — RIFF/WAVE PCM encoding
+
+A pure byte-buffer WAV encoder with no filesystem access, so it runs in a
+browser viewer as well as offline pipeline code. `@seer-project/pipeline`'s
+`writeWav` wraps `encodeWav` with a `writeFileSync`.
+
+```ts
+import { encodeWav, int16FromFloat32 } from '@seer-project/core';
+
+const wavBytes = encodeWav([int16FromFloat32(floatSamples)], { sampleRate: 44100 });
+```
+
+| Function | Description |
+| --- | --- |
+| `encodeWav(channels, opts)` | One array per channel (`[mono]` or `[left, right]`); `opts.bits: 8` expects raw `Uint8Array` samples, `opts.bits: 16` (default) expects already-quantized `Int16Array` PCM |
+| `int16FromFloat32(samples)` | Quantizes normalized float samples in `[-1, 1]` (clamped) to signed 16-bit PCM |
+| `int16FromSigned8(data)` | Sign-extends raw signed 8-bit PCM (the Amiga sample convention) to 16-bit PCM |
+
 ### `palette.ts` — Palette-cycling utility
 
 `cyclePalette(colors, start, end, direction)` rotates a contiguous
