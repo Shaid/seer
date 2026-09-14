@@ -113,6 +113,11 @@ const compressed = readBinary('GAME.EXE');
 const { data, bodyOffset } = decompressLZEXE(compressed);
 ```
 
+LZEXE stays here rather than moving to `@seer-project/dos` — it's a
+different, third-party DOS-executable compressor (real LZSS back-reference
+compression, not EXEPACK's run/verbatim RLE scheme) with no shared code.
+See `@seer-project/dos`'s README for the EXEPACK/LZHUF vs. LZEXE breakdown.
+
 ### `ancient.ts` — `ancient` CLI wrapper
 
 A thin wrapper around the [`ancient`](https://github.com/temisu/ancient)
