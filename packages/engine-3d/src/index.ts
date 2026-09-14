@@ -122,3 +122,6 @@ export { createMeshSession } from './session.js';
 export type { MeshSession, MeshSessionOptions, SetModelOptions, SpringBoneOptions } from './session.js';
 
 export { buildBoneCorrespondence, retargetClipsToSkeleton } from './retarget-animation.js';
+
+export { validatePolygonObjects, hasIssues, describeIssues, MAX_COORD } from './polygon-validate.js';
+export type { PolygonObject, PolygonModelIssues } from './polygon-validate.js';
