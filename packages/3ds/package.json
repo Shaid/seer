@@ -1,0 +1,65 @@
+{
+  "name": "@seer-project/3ds",
+  "version": "0.1.0",
+  "description": "Nintendo 3DS asset-format primitives: CTPK texture packs, the CT SDK CTR texture tile/ETC1 decoder, the Nintendo LZ10/LZ11/LZ13 decompressors, BCSTM/BFSTM streamed-audio headers, and the BCH/CGFX 3D model containers — plus Node-only game-container access (NCSD/NCCH/CIA → RomFS, and NCCH AES key derivation) — optional, install only if your target is a 3DS title",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shaid/seer.git",
+    "directory": "packages/3ds"
+  },
+  "keywords": [
+    "3ds",
+    "ctr",
+    "ctpk",
+    "bch",
+    "cgfx",
+    "bcstm",
+    "romfs",
+    "emulation",
+    "reverse-engineering"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/**/__tests__",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run lint && npm test",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.0"
+  },
+  "homepage": "https://seer.shaid.net",
+  "bugs": {
+    "url": "https://github.com/Shaid/seer/issues"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
