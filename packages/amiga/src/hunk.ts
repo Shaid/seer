@@ -223,3 +223,68 @@ export function dataHunkPayloads(data: Uint8Array, hunks: Hunk[]): Uint8Array[] 
     .filter((h): h is Hunk & { fileOffset: number } => h.type === 'DATA' && h.fileOffset !== null)
     .map((h) => data.subarray(h.fileOffset, h.fileOffset + h.size));
 }
+
+/**
+ * One candidate resolution of a bare "absolute address" literal, as
+ * returned by {@link resolveHunkRelativeGlobal}.
+ */
+export interface ResolvedGlobal {
+  hunk: Hunk;
+  /** `hunk.fileOffset + value`, or `null` if `hunk` is BSS (a reserved-but-uninitialized runtime location only, populated by code at startup). */
+  fileOffset: number | null;
+  /**
+   * How many places across the whole module store `value` as the
+   * pre-relocation payload of a `HUNK_RELOC32` entry whose `targetHunk`
+   * equals `hunk.index` — i.e. how many real instructions in the binary
+   * actually reference this exact value as a pointer into this hunk. `0`
+   * means `value` merely happens to be smaller than `hunk.size` (a
+   * necessary but not sufficient condition) with no corroborating
+   * reference found — treat as a weak/coincidental candidate, not a
+   * confirmed one.
+   */
+  corroboratingSites: number;
+}
+
+/**
+ * Resolve a bare 32-bit "absolute address" literal — e.g. an instruction
+ * operand a disassembly session hand-cited as "the global's address"
+ * (`move.l #0,$18344.l`) — to its real file offset within one of `hunks`.
+ *
+ * For a HUNK-format binary not loaded via a fixed/deterministic base (the
+ * normal AmigaOS `LoadSeg` case), an absolute-long operand's *raw stored
+ * bytes* are only meaningful pre-relocation when the operand itself is
+ * covered by a `HUNK_RELOC32` entry — in which case the stored value is
+ * the referenced datum's *hunk-relative offset within its target hunk*,
+ * not a portable runtime address (the loader patches it to
+ * `targetHunk.runtimeBase + storedValue` at load time, and `runtimeBase`
+ * is exactly the thing no static parse of the file can know). This
+ * corroborates a candidate hunk by counting how many other `HUNK_RELOC32`
+ * entries in the file store that exact value as a pointer into it — a
+ * value with **no** hits at all across every hunk (checked, not just "no
+ * reloc block exists") is decisive evidence it is not relative to any hunk
+ * in this file, most likely a genuinely fixed absolute address belonging
+ * to a different, separately-loaded file.
+ */
+export function resolveHunkRelativeGlobal(hunks: Hunk[], data: Uint8Array, value: number): ResolvedGlobal[] {
+  const results: ResolvedGlobal[] = [];
+  for (const h of hunks) {
+    if (value < 0 || value >= h.size) continue;
+    let corroboratingSites = 0;
+    for (const owner of hunks) {
+      if (owner.fileOffset === null) continue;
+      for (const g of owner.relocs) {
+        if (g.targetHunk !== h.index) continue;
+        for (const relOff of g.offsets) {
+          const pos = owner.fileOffset + relOff;
+          if (pos + 4 <= data.length && r32(data, pos, 'be') === value) corroboratingSites++;
+        }
+      }
+    }
+    results.push({
+      hunk: h,
+      fileOffset: h.fileOffset !== null ? h.fileOffset + value : null,
+      corroboratingSites,
+    });
+  }
+  return results;
+}

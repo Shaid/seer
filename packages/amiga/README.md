@@ -47,6 +47,17 @@ silently truncating the hunk list.
 a hunk spec list — meant for tests that need known CODE/DATA/BSS layouts,
 relocations and symbols without committing binary fixtures.
 
+`resolveHunkRelativeGlobal(hunks, data, value)` resolves a bare 32-bit
+"absolute address" literal found in a disassembly (e.g. `move.l
+#$18344,d0`) to the real hunk/file-offset it's actually relative to, when
+that value is only meaningful pre-relocation — the loader patches such
+operands to `targetHunk.runtimeBase + storedValue` at load time, so no
+static parse can know the true runtime address. Each candidate result
+carries a `corroboratingSites` count: how many other `HUNK_RELOC32` entries
+in the file store that exact value as a pointer into the candidate hunk. A
+value with zero corroborating sites across every hunk is decisive evidence
+it's not relative to any hunk in this file at all.
+
 ## Disk images
 
 ```ts

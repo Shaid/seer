@@ -5,6 +5,7 @@ import {
   parseHunkFile,
   codeHunks,
   dataHunkPayloads,
+  resolveHunkRelativeGlobal,
   HUNK_HEADER,
 } from '../hunk.js';
 
@@ -123,6 +124,44 @@ describe('convenience accessors', () => {
 
   it('dataHunkPayloads returns payload bytes', () => {
     expect(dataHunkPayloads(exe, parseHunkFile(exe))).toEqual([data]);
+  });
+});
+
+describe('resolveHunkRelativeGlobal', () => {
+  it('resolves a value to the hunk it fits in, corroborated by a matching HUNK_RELOC32 entry', () => {
+    const dataPayload = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]); // size 8
+    const ptr = Uint8Array.from([0, 0, 0, 4]); // stores the "absolute" value 4, hunk-relative
+    const exe = buildHunkExe([
+      { type: 'DATA', payload: dataPayload }, // hunk 0, size 8
+      { type: 'CODE', payload: ptr, relocs: [{ targetHunk: 0, offsets: [0] }] }, // hunk 1, size 4
+    ]);
+    const hunks = parseHunkFile(exe);
+
+    const results = resolveHunkRelativeGlobal(hunks, exe, 4);
+
+    // hunk 1 (CODE, size 4) is excluded: 4 >= size, not a valid in-hunk offset.
+    expect(results).toHaveLength(1);
+    expect(results[0].hunk.index).toBe(0);
+    expect(results[0].fileOffset).toBe(hunks[0].fileOffset! + 4);
+    expect(results[0].corroboratingSites).toBe(1);
+  });
+
+  it('reports zero corroborating sites when no HUNK_RELOC32 entry stores the value', () => {
+    const dataPayload = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]);
+    const exe = buildHunkExe([{ type: 'DATA', payload: dataPayload }]);
+    const hunks = parseHunkFile(exe);
+
+    const results = resolveHunkRelativeGlobal(hunks, exe, 4);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].corroboratingSites).toBe(0);
+  });
+
+  it('returns no candidates for a value outside every hunk\'s size', () => {
+    const exe = buildHunkExe([{ type: 'DATA', payload: Uint8Array.from([1, 2, 3, 4]) }]);
+    const hunks = parseHunkFile(exe);
+
+    expect(resolveHunkRelativeGlobal(hunks, exe, 999)).toEqual([]);
   });
 });
 
