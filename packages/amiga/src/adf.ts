@@ -19,6 +19,8 @@ const BLOCK = 512;
 const HT_SIZE = 72;
 
 const T_HEADER = 2;
+/** Primary type of a file-list ("extension") block — chains a file's data-block pointers past the header block's own 72-entry table. */
+const T_LIST = 16;
 const ST_ROOT = 1;
 const ST_USERDIR = 2;
 const ST_FILE = -3;
@@ -78,6 +80,27 @@ function bcplName(data: Uint8Array, blockStart: number): string {
 function validHeader(data: Uint8Array, block: number, totalBlocks: number): boolean {
   if (block <= 0 || block >= totalBlocks) return false;
   return r32(data, blockOffset(block), 'be') === T_HEADER;
+}
+
+/**
+ * Like `validHeader`, but also accepts `T_LIST` ("file extension") blocks —
+ * used only when following a file's extension-block chain in
+ * `readAdfFile`. A file's *first* header block is always `T_HEADER`, but
+ * every subsequent block in the chain (holding the data-block pointers
+ * past the first block's own 72-entry table, needed once a file exceeds
+ * ~72 data blocks — roughly 35 KB on OFS, 36 KB on FFS) is `T_LIST`, not
+ * `T_HEADER`. Requiring `T_HEADER` unconditionally here silently truncated
+ * every file larger than that to just its first block's worth of data —
+ * caught reverse-engineering Chaos Strikes Back's 435,397-byte
+ * `Graphics.DAT` (crawl project): it decoded plausible image content for
+ * ~30 KB, then all-zero padding to EOF, even though the on-disk extension
+ * chain itself (12 more `T_LIST` blocks, verified by a raw walk) was
+ * completely intact.
+ */
+function validChainBlock(data: Uint8Array, block: number, totalBlocks: number): boolean {
+  if (block <= 0 || block >= totalBlocks) return false;
+  const t = r32(data, blockOffset(block), 'be');
+  return t === T_HEADER || t === T_LIST;
 }
 
 function secType(data: Uint8Array, block: number): number {
@@ -148,7 +171,7 @@ export function readAdfFile(data: Uint8Array, entry: AdfEntry): Uint8Array {
 
   let header = entry.headerBlock;
   const visited = new Set<number>();
-  while (header !== 0 && !visited.has(header) && validHeader(data, header, totalBlocks)) {
+  while (header !== 0 && !visited.has(header) && validChainBlock(data, header, totalBlocks)) {
     visited.add(header);
     const base = blockOffset(header);
     const highSeq = r32(data, base + 8, 'be');

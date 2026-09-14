@@ -63,21 +63,40 @@ function buildAdf(files: Spec[], ffs: boolean): Uint8Array {
     const header = alloc();
     const chunkSize = ffs ? BLOCK : BLOCK - 24;
     const nBlocks = Math.ceil(f.content.length / chunkSize);
-    w32(img, header * BLOCK, 2);
-    w32(img, header * BLOCK + 8, nBlocks); // high_seq
+    w32(img, header * BLOCK, 2); // T_HEADER
     w32(img, header * BLOCK + BLOCK - 47 * 4, f.content.length); // byte_size
     w32(img, header * BLOCK + BLOCK - 4, -3 >>> 0); // ST_FILE
     writeName(img, header * BLOCK, f.path.split('/').pop()!);
-    for (let i = 0; i < nBlocks; i++) {
-      const db = alloc();
-      w32(img, header * BLOCK + 24 + (HT - 1 - i) * 4, db); // reverse order
-      const chunk = f.content.subarray(i * chunkSize, (i + 1) * chunkSize);
-      if (ffs) {
-        img.set(chunk, db * BLOCK);
-      } else {
-        w32(img, db * BLOCK, 8); // T_DATA
-        w32(img, db * BLOCK + 12, chunk.length);
-        img.set(chunk, db * BLOCK + 24);
+
+    // Data-block pointers live in the header block's own 72-entry table;
+    // once a file needs more than that, chain through T_LIST ("file
+    // extension") blocks — each with its own 72-entry table and its own
+    // "next extension block" pointer at the same block-end offset. Assign
+    // pointers to blocks up front so each block's high_seq (its own valid
+    // entry count) is known before any field is written.
+    const chainBlocks: number[] = [header];
+    while (chainBlocks.length * HT < nBlocks) {
+      const ext = alloc();
+      w32(img, ext * BLOCK, 16); // T_LIST — extension blocks are NOT T_HEADER
+      w32(img, ext * BLOCK + BLOCK - 4, -3 >>> 0); // ST_FILE
+      w32(img, chainBlocks[chainBlocks.length - 1] * BLOCK + BLOCK - 2 * 4, ext); // prev's next-ext ptr
+      chainBlocks.push(ext);
+    }
+    let i = 0;
+    for (const blk of chainBlocks) {
+      const count = Math.min(HT, nBlocks - i);
+      w32(img, blk * BLOCK + 8, count); // high_seq: valid entries in this block
+      for (let slot = 0; slot < count; slot++, i++) {
+        const db = alloc();
+        w32(img, blk * BLOCK + 24 + (HT - 1 - slot) * 4, db); // reverse order
+        const chunk = f.content.subarray(i * chunkSize, (i + 1) * chunkSize);
+        if (ffs) {
+          img.set(chunk, db * BLOCK);
+        } else {
+          w32(img, db * BLOCK, 8); // T_DATA
+          w32(img, db * BLOCK + 12, chunk.length);
+          img.set(chunk, db * BLOCK + 24);
+        }
       }
     }
     hashInsert(dir, header);
@@ -87,6 +106,9 @@ function buildAdf(files: Spec[], ffs: boolean): Uint8Array {
 
 const small = new Uint8Array(300).map((_, i) => i & 0xff);
 const big = new Uint8Array(1500).map((_, i) => (i * 7) & 0xff);
+// Forces an OFS extension-block chain: 72 pointers/block * 488 B = 35,136 B
+// per block, so this needs 3 header/extension blocks.
+const huge = new Uint8Array(90000).map((_, i) => (i * 13 + 5) & 0xff);
 
 describe('adfBootblockType', () => {
   it('classifies DOS variants, NDOS and KICK', () => {
@@ -125,6 +147,13 @@ describe('listAdf / readAdfFile', () => {
       expect(readAdfFile(img, startup)).toEqual(small);
       expect(level.size).toBe(1500);
       expect(readAdfFile(img, level)).toEqual(big);
+    });
+
+    it(`follows the extension-block chain past the header block's 72-entry table (${label})`, () => {
+      const img = buildAdf([{ path: 'Big.dat', content: huge }], ffs);
+      const [entry] = listAdf(img)!;
+      expect(entry.size).toBe(huge.length);
+      expect(readAdfFile(img, entry)).toEqual(huge);
     });
   }
 
