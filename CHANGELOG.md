@@ -34,6 +34,134 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- `@seer-project/3ds` — new package: Nintendo 3DS asset-format primitives —
+  CTPK texture packs, the CTR texture tile/ETC1 decoder, Nintendo
+  LZ10/LZ11/LZ13 decompression, BCSTM/BFSTM streamed-audio headers, and the
+  BCH/CGFX 3D model containers (`bch.ts`/`cgfx.ts` share a consolidated
+  `mat4-ctr.ts` matrix-math module — except `accumulateBone`, which is kept
+  as two separate implementations since the two source files' versions had
+  genuinely diverged, not just drifted stylistically). RomFS container
+  access and NCCH AES key/ticket derivation (both genuinely Node-only) live
+  behind a `./node` subpath. Migrated off lucina, its sole consumer.
+- `@seer-project/cri` — new package: CRI Middleware CPK archive, ADX audio,
+  and ACB/AWB sound-bank readers (`cpk.ts`, `adx.ts`, `acb.ts`, `awb.ts`),
+  plus the shared `@UTF` table engine (`parseUtf`/`readUtfRow`/
+  `subUtfTable`) those containers are built on. Ported browser-safe from a
+  `Buffer`-based original — every read site now goes through `DataView`/
+  `Uint8Array`. Single consumer (vanille) so far.
+- `@seer-project/dos` — new package: Microsoft EXEPACK decompression
+  (`exepack.ts`) and the Okumura LZHUF codec (`lzhuf.ts`), both already
+  browser-safe as extracted. See the package's README for how EXEPACK and
+  LZHUF relate to (and differ from) `@seer-project/pipeline`'s existing,
+  unrelated LZEXE decompressor (`lzexe.ts`) — same DOS-executable-shrinking
+  era, different vendors, different algorithms, no shared code.
+- `@seer-project/gfx` — `packed-pixel.ts` (DOS CGA/Tandy chunky-pixel
+  decode: `decodePackedPixelLinear`, `decodeCgaBanked`,
+  `indicesToRGBAWithTransparency`), `raster.ts` (a generic even-odd
+  scanline polygon fill + Bresenham line rasterizer: `scanlineFillPolygon`,
+  `bresenhamLine`, consolidating two identical copies of the same
+  algorithm that had drifted into two separate output representations —
+  indexed-buffer and RGB-canvas — in the same consumer project),
+  `megadrive-vdp.ts` (Sega Genesis/Mega Drive VDP 4bpp tile decode + CRAM
+  palette), and a standalone `expandVga6` added to `palette.ts` (kept out
+  of the existing `ColorWordFormat`/`expandColorWord` API since VGA's
+  6-bit-per-channel DAC format isn't a packed color word).
+- `@seer-project/arcade` — OKI MSM6295 ADPCM (`capcom/oki-adpcm.ts`),
+  uPD7759 ADPCM (`sega/upd7759-adpcm.ts`), the QSound chip split from its
+  driver (`capcom/qsound.ts` — sample decode + register map — versus
+  `capcom/qsound-driver.ts` — Z80 note tables, envelope dispatch, and the
+  full CPS2 sequence/track/instrument/pitch grammar, ~90% of the original
+  file), and Sega System 16 tile/sprite/palette decode
+  (`sega/system16-gfx.ts`). First-time package adoption for its one
+  consumer (kolbold).
+- `@seer-project/snes` — `akao-dsp.ts` (`PITCH_TABLE`, `PITCH_UNITY`,
+  `noteToResampleStep`, `decodeBrrBlob`): AKAOSNES sound-driver-traced
+  pitch/BRR-blob helpers, promoted from byte-identical copies that had
+  independently accumulated in two sibling projects (ceres,
+  chronotrigger). The per-game AKAO sequence/sample/SPC-render files those
+  two projects also hold are deliberately *not* consolidated — each is
+  independently reverse-engineered against that game's own compiled sound
+  driver, with 85%+ pairwise divergence; see
+  `docs/common-tooling-candidates.md`.
+- `@seer-project/snes` — new package: SPC700 CPU interpreter
+  (`spc700-cpu.ts`), a register-driven S-DSP audio engine (`spc700-dsp.ts`:
+  ADSR/GAIN envelopes, BRR playback, echo, noise, pitch modulation),
+  standalone envelope helpers (`envelope.ts`), the BRR sample codec
+  (`brr.ts`), the echo unit (`echo.ts`), and PPU tile/CGRAM decoders
+  (`ppu.ts`) — consolidating a SPC700/S-DSP emulation stack that had
+  drifted, with real behavioral differences (GAIN mode, PMON), across
+  three sibling SNES projects. Driver-specific pitch/tuning conversion and
+  any BRR "blob" container framing are deliberately excluded — see the
+  package's own README.
+- `@seer-project/playstation` — new package: PlayStation-family (PSX/PS2/
+  PSP) disc and hardware primitives. `cd/sector.ts` (raw CD sector layout,
+  CD-XA subheaders, BCD/MSF/LBA math, `RawCdReader`/`PlainSectorReader`),
+  `cd/iso9660.ts` (a directory walker parameterized over any `DiscReader`,
+  replacing near-duplicate PSX-CD and PSP-UMD copies), `cd/cue-sheet.ts`
+  (`.cue`/`.bin` parsing and audio-sector decoding), `psx/tim.ts` (the
+  standard TIM texture container — ships two independently-verified BGR555
+  decode pipelines rather than merging them, since they disagree on channel
+  scaling), `psx/str-xa.ts` (STR MDEC video + CD-XA audio, one
+  `wrapAsCdxa` covering both the subheader-synthesized and
+  subheader-preserved on-disk shapes), `psx/lzs.ts` (the classic PSX LZSS
+  variant, unifying two sibling projects' divergent APIs for the same
+  codec), `psx/spu-reverb.ts` (the SPU's hardware reverb DSP + the 10
+  standard libspu presets), and `psp/atrac3p.ts` (PSMF ATRAC3+ elementary-
+  stream extraction + a minimal OMA/EA3 header writer). File-backed disc
+  I/O lives behind a separate `./node` subpath so the rest of the package
+  stays browser-safe.
+- `@seer-project/gltf` — new package: a byte-level glTF 2.0 / GLB read+write
+  pipeline for extraction tools. `builder.ts` (buffer/accessor bookkeeping,
+  skeleton matrix math, GLB packing — rewritten to use `TextEncoder`/
+  `DataView` instead of Node's `Buffer`, so the whole default barrel is
+  genuinely browser-safe, unlike the source this was extracted from),
+  `reader.ts` (the GLB read direction: accessors with `normalized`
+  denormalization and interleaved `byteStride`, node TRS matrix
+  decomposition, skins, primitives), and `mesh-shape-classifier.ts` (a
+  geometry-only "is this prop weapon-shaped" heuristic — its default
+  thresholds are calibrated against one game's corpus and documented as
+  such, not a universal constant). Embedded-PNG pixel decoding
+  (`readImage`/`readBaseColorImage`, which need `pngjs`) lives behind a
+  `./node` subpath, matching `@seer-project/playstation`'s split.
+- `@seer-project/gpu-textures` — new package: GPU texture codecs for modern
+  console decompilation. `swizzle.ts` (Tegra X1/Nintendo Switch
+  block-linear (de)swizzle, including `swizzledSurfaceSize` for the real
+  GOB-padded byte span a caller must slice up to), `bc.ts` (BC1-7/S3TC
+  block compression, including a full spec-conformant BC7 decoder ported
+  from Microsoft's DirectXTex — see the package's README for a known,
+  deliberately-not-fixed-here BC2/BC3 alpha-index decode bug carried
+  forward from the source this was extracted from), `astc.ts` (ASTC decode)
+  and `zstd.ts` (Zstandard decompression) — both now real npm dependencies
+  on `@tootallnate/astc-wasm`/`@tootallnate/zstd-wasm` (MIT) rather than
+  vendored WASM blobs of uncertain provenance, discovered to be
+  byte-identical to what was already being vendored. See
+  `THIRD-PARTY-LICENSES.md` for the `swizzle.ts` provenance chain, which
+  still needs a licensing review before a published release.
+- `@seer-project/engine-3d` — `polygon-validate.ts`
+  (`validatePolygonObjects`/`hasIssues`/`describeIssues`): mesh-integrity
+  checks (non-finite coordinates, out-of-range face indices, implausible
+  extents) for a `{verts, faces}` mesh about to be serialized as
+  polygon-json, catching format hypotheses that would otherwise ship a
+  file that looks fine and renders as nothing.
+- `@seer-project/core` — `atlas-pack.ts` (`shelfPack`/`packAtlasRgba`): the
+  shelf-packing atlas layout independently reimplemented byte-for-byte
+  identically in two sibling projects and near-identically in a third,
+  consolidated onto `atlas.ts`'s `AtlasFrame`/`AtlasMeta` shape.
+- `@seer-project/core` — `wav.ts` (`encodeWav`/`int16FromFloat32`/
+  `int16FromSigned8`): a pure, filesystem-free RIFF/WAVE PCM encoder usable
+  from browser code, not just the offline pipeline.
+- `@seer-project/pipeline` — `writeWav` gains an `Int16Array[]` overload
+  (most sibling projects hold already-quantized PCM, not normalized
+  `Float32Array` samples) and now delegates encoding to
+  `@seer-project/core`'s `encodeWav`.
+- `@seer-project/pipeline` — `ancient.ts`: a wrapper around the `ancient`
+  CLI for RNC ProPack v1/v2, IMP! File Imploder, and PowerPacker/PP20
+  (including renamed-magic variants), consolidating three sibling projects'
+  independent shell-out wrappers around the same tool.
+- `@seer-project/amiga` — `hunk.ts` gains `resolveHunkRelativeGlobal`,
+  resolving a bare "absolute address" literal from a disassembly to the
+  hunk/file-offset it's actually relative to pre-relocation, corroborated
+  by matching `HUNK_RELOC32` entries elsewhere in the file.
 - `@seer-project/mesh-viewer-ui` — new package: `MeshSettingsPanel`, a
   generic settings-popover controller collecting a mesh viewer's render
   mode, shading override, smooth/flat normals, subdivision, and texture
