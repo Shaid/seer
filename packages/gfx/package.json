@@ -1,7 +1,7 @@
 {
   "name": "@seer-project/gfx",
   "version": "0.1.0",
-  "description": "Retro bitmap pixel-format decoders (Amiga planar layouts, palette expansion) — optional, install only if your target uses planar graphics",
+  "description": "Retro bitmap pixel-format decoders (Amiga planar, DOS CGA/Tandy packed-pixel, Genesis/Mega Drive VDP) and a generic scanline/Bresenham rasteriser — optional, install only if your target needs these formats",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -12,6 +12,10 @@
     "amiga",
     "planar",
     "bitplane",
+    "cga",
+    "genesis",
+    "megadrive",
+    "rasterizer",
     "graphics",
     "reverse-engineering"
   ],

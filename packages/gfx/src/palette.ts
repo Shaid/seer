@@ -29,6 +29,18 @@ export function expandPalette(words: ArrayLike<number>, format: ColorWordFormat)
 }
 
 /**
+ * Expand one 6-bit VGA DAC channel value (0-63) to 8-bit (0-255).
+ *
+ * A separate, standalone function rather than a `ColorWordFormat` member:
+ * VGA's palette convention stores each channel as its own byte (0-63), not
+ * one packed word like `amiga12`/`amiga24` — `expandColorWord`'s signature
+ * (one `word` in, one `[r,g,b]` out) doesn't fit a per-channel input.
+ */
+export function expandVga6(component: number): number {
+  return Math.round((component * 255) / 63);
+}
+
+/**
  * Even greyscale ramp across `2 ** planes` levels as a flat RGB palette.
  *
  * A labelled **placeholder**, not a decoded palette — the default render
