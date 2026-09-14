@@ -1,0 +1,60 @@
+{
+  "name": "@seer-project/snes",
+  "version": "0.1.0",
+  "description": "SNES hardware primitives: SPC700 CPU interpreter, S-DSP voice/envelope/echo engine, BRR sample codec, PPU tile and CGRAM decoders — optional, install only if your target is a Super Famicom title",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shaid/seer.git",
+    "directory": "packages/snes"
+  },
+  "keywords": [
+    "snes",
+    "spc700",
+    "s-dsp",
+    "brr",
+    "emulation",
+    "reverse-engineering"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/__tests__",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run lint && npm test",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@seer-project/audio-dsp": "^0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.0"
+  },
+  "homepage": "https://seer.shaid.net",
+  "bugs": {
+    "url": "https://github.com/Shaid/seer/issues"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
