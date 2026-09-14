@@ -18,6 +18,8 @@
 export interface Sh2Bus {
   readByte(a: number): number;
   writeByte(a: number, v: number): void;
+  /** Optional instruction-fetch hook for emulators with an opcode/data view. */
+  readOpcode?(a: number): number;
   /** Optional faster word/long reads; defaults to assembling from readByte. */
   readWord?(a: number): number;
   readLong?(a: number): number;
@@ -79,6 +81,7 @@ export class Sh2 {
   // ---- byte/bus accessors ----
   private fetch(a: number): number {
     const b = this.bus;
+    if (b.readOpcode) return b.readOpcode(u32(a)) & 0xffff;
     if (b.readWord) return b.readWord(u32(a)) & 0xffff;
     return ((b.readByte(a) << 8) | b.readByte(a + 1)) & 0xffff;
   }
@@ -938,7 +941,7 @@ export class Sh2 {
     switch (op & 0x3f) {
       case 0x00: case 0x01: break; // nop
       case 0x02: this.stcsr(n); break;
-      case 0x03: this.bsrf(m); break;
+      case 0x03: this.bsrf(n); break;
       case 0x04: this.movbs0(m, n); break;
       case 0x05: this.movws0(m, n); break;
       case 0x06: this.movls0(m, n); break;
@@ -968,7 +971,7 @@ export class Sh2 {
       case 0x1f: this.mac_l(m, n); break;
       case 0x20: case 0x21: break;
       case 0x22: this.stcvbr(n); break;
-      case 0x23: this.braf(m); break;
+      case 0x23: this.braf(n); break;
       case 0x24: this.movbs0(m, n); break;
       case 0x25: this.movws0(m, n); break;
       case 0x26: this.movls0(m, n); break;
@@ -1040,8 +1043,8 @@ export class Sh2 {
     // Register-field placement per the SH-2 manual:
     //   - n (bits 11-8): shifts/rotates/div/DT/CMP/TAS/JMP/JSR and the
     //     decrement stores (STS.L */STC.L @-Rn).
-    //   - m (bits 7-4): the load-from-memory family — LDS.L @Rm+ / LDC.L
-    //     @Rm+ / LDS Rm / LDC Rm (e.g. LDC.L @Rm+,SR = 0100mmmm00000111).
+    //   - n (bits 11-8): the special-register load family — LDS.L @Rn+ /
+    //     LDC.L @Rn+ / LDS Rn / LDC Rn (e.g. LDS.L @R15+,PR = 0x4f26).
     switch (op & 0x3f) {
       case 0x00: this.shll(n); break;
       case 0x01: this.shlr(n); break;
@@ -1049,14 +1052,14 @@ export class Sh2 {
       case 0x03: this.stcmsr(n); break;
       case 0x04: this.rotl(n); break;
       case 0x05: this.rotr(n); break;
-      case 0x06: this.ldsmmach(m); break;
-      case 0x07: this.ldcmsr(m); break;
+      case 0x06: this.ldsmmach(n); break;
+      case 0x07: this.ldcmsr(n); break;
       case 0x08: this.shll2(n); break;
       case 0x09: this.shlr2(n); break;
-      case 0x0a: this.ldsmach(m); break;
+      case 0x0a: this.ldsmach(n); break;
       case 0x0b: this.jsr(n); break;
       case 0x0c: case 0x0d: break;
-      case 0x0e: this.ldcsr(m); break;
+      case 0x0e: this.ldcsr(n); break;
       case 0x0f: this.mac_w(m, n); break;
       case 0x10: this.dt(n); break;
       case 0x11: this.cmppz(n); break;
@@ -1064,14 +1067,14 @@ export class Sh2 {
       case 0x13: this.stcmgbr(n); break;
       case 0x14: break;
       case 0x15: this.cmppl(n); break;
-      case 0x16: this.ldsmmacl(m); break;
-      case 0x17: this.ldcmgbr(m); break;
+      case 0x16: this.ldsmmacl(n); break;
+      case 0x17: this.ldcmgbr(n); break;
       case 0x18: this.shll8(n); break;
       case 0x19: this.shlr8(n); break;
-      case 0x1a: this.ldsmacl(m); break;
+      case 0x1a: this.ldsmacl(n); break;
       case 0x1b: this.tas(n); break;
       case 0x1c: case 0x1d: break;
-      case 0x1e: this.ldcgbr(m); break;
+      case 0x1e: this.ldcgbr(n); break;
       case 0x1f: this.mac_w(m, n); break;
       case 0x20: this.shal(n); break;
       case 0x21: this.shar(n); break;
@@ -1079,14 +1082,14 @@ export class Sh2 {
       case 0x23: this.stcmvbr(n); break;
       case 0x24: this.rotcl(n); break;
       case 0x25: this.rotcr(n); break;
-      case 0x26: this.ldsmpr(m); break;
-      case 0x27: this.ldcmvbr(m); break;
+      case 0x26: this.ldsmpr(n); break;
+      case 0x27: this.ldcmvbr(n); break;
       case 0x28: this.shll16(n); break;
       case 0x29: this.shlr16(n); break;
-      case 0x2a: this.ldspr(m); break;
+      case 0x2a: this.ldspr(n); break;
       case 0x2b: this.jmp(n); break;
       case 0x2c: case 0x2d: break;
-      case 0x2e: this.ldcvbr(m); break;
+      case 0x2e: this.ldcvbr(n); break;
       case 0x2f: this.mac_w(m, n); break;
       case 0x30: case 0x31: case 0x32: case 0x33: break;
       case 0x34: case 0x35: case 0x36: case 0x37: break;

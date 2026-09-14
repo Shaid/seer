@@ -49,7 +49,16 @@ describe('Sh2 (FBNeo-port) targeted semantics', () => {
     expect(cpu.pr >>> 0).toBe(0x04000004);
   });
 
-  it('LDC.L @Rm+,SR uses bits 7-4: 0x4007 = ldc.l @r0+,sr', () => {
+  it('BRAF uses Rn (bits 11-8): 0x0323 branches through r3', () => {
+    const { cpu, mem } = makeCpu([0x0323, 0x0009, 0x0009, 0x0009]);
+    cpu.reset(0x04000000, 0x100);
+    cpu.r[3] = 0x10;
+    cpu.run(1);
+    expect(cpu.pc >>> 0).toBe(0x04000014);
+    void mem;
+  });
+
+  it('LDC.L @Rn+,SR uses bits 11-8: 0x4007 = ldc.l @r0+,sr', () => {
     const { cpu, mem } = makeCpu([0x4007]); // ldc.l @r0+,sr
     mem.ram.set([0x00, 0x00, 0x00, 0xf0], 0x4000); // SR dword at 0x08004000
     cpu.reset(0x04000000, 0x100);
@@ -57,6 +66,15 @@ describe('Sh2 (FBNeo-port) targeted semantics', () => {
     cpu.run(1);
     expect(cpu.sr & 0xfff).toBe(0xf0);
     expect(cpu.r[0] >>> 0).toBe(0x08004004);
+  });
+
+  it('LDS.L @Rn+,PR uses bits 11-8: 0x4f26 restores PR from the stack', () => {
+    const { cpu, mem } = makeCpu([0x4f26]); // lds.l @r15+,pr
+    mem.ram.set([0x04, 0x00, 0x00, 0x10], 0x4000);
+    cpu.reset(0x04000000, 0x08004000);
+    cpu.run(1);
+    expect(cpu.pr >>> 0).toBe(0x04000010);
+    expect(cpu.r[15] >>> 0).toBe(0x08004004);
   });
 
   it('delay slot executes before the branch takes effect (rts to pr)', () => {
