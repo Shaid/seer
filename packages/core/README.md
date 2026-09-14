@@ -119,6 +119,28 @@ const atlas: AtlasMeta = {
 | `AtlasFrame` | `{ name, x, y, w, h }` — one packed sprite's position/size |
 | `AtlasMeta` | `{ frames: AtlasFrame[], width, height }` — one atlas image |
 
+### `atlas-pack.ts` — Shelf-packing layout
+
+Builds the `AtlasMeta`/`AtlasFrame[]` shape above from a list of rectangles
+or already-decoded RGBA images, so build-assets pipelines don't each
+reimplement the same packer.
+
+```ts
+import { shelfPack, packAtlasRgba } from '@seer-project/core';
+
+const layout = shelfPack(
+  [{ name: 'a', width: 32, height: 32 }, { name: 'b', width: 16, height: 16 }],
+  256,
+);
+
+const atlas = packAtlasRgba(decodedSprites, 1024); // { frames, width, height, rgba }
+```
+
+| Function | Description |
+| --- | --- |
+| `shelfPack(items, maxWidth, padding = 1)` | Pure layout — computes `(x, y)` for each named rectangle, wrapping to a new row once `maxWidth` would be exceeded |
+| `packAtlasRgba(images, maxWidth = 1024, padding = 1)` | Layout + blit — composites already-decoded RGBA images into one atlas buffer |
+
 ### `wav.ts` — RIFF/WAVE PCM encoding
 
 A pure byte-buffer WAV encoder with no filesystem access, so it runs in a
