@@ -76,3 +76,73 @@ export {
   decodeNeoGeoPaletteWords,
   scanNeoGeoPaletteBanks,
 } from './neogeo/palette.js';
+
+export {
+  OkiAdpcmState,
+  decodeOkiAdpcm,
+  CPS1_OKI_SAMPLE_RATE,
+  CPS1_OKI_GAIN,
+  type OkiPhrase,
+  parseOkiPhraseTable,
+} from './capcom/oki-adpcm.js';
+
+export {
+  decodeQsoundSample,
+  decodeQsoundPcm,
+  QSOUND_REG,
+  QSOUND_PORT,
+} from './capcom/qsound.js';
+
+export {
+  type QsoundNoteRecord,
+  parseQsoundNoteTable,
+  readQsoundNoteTableBase,
+  qsoundNoteByteRange,
+  type QsoundEnvelopeDispatchEntry,
+  parseQsoundEnvelopeDispatch,
+  type Cps2SongPointer,
+  resolveCps2SeqTableLength,
+  parseCps2SeqTable,
+  type Cps2SeqHeader,
+  parseCps2SeqHeader,
+  type Cps2TrackEvent,
+  type Cps2TrackDecodeResult,
+  decodeCps2TrackV1,
+  type QsoundSampleInfoRecord,
+  parseQsoundSampleInfoTable,
+  type Cps2InstrumentV115,
+  cps2InstrumentAddressV115,
+  parseCps2InstrumentV115,
+  CPS2_DRIVER_RATE_HZ,
+  CPS2_PPQN,
+  cps2TempoToSecondsPerTick,
+  CPS2_DEFAULT_SECONDS_PER_TICK,
+  type Cps2EnvelopeRateTables,
+  parseCps2EnvelopeRateTables,
+  type Cps2EnvelopeTimes,
+  computeCps2EnvelopeTimes,
+  type Cps2PitchTables,
+  parseCps2PitchTables,
+  clampCps2PitchIndex,
+  computeCps2PitchDelta,
+} from './capcom/qsound-driver.js';
+
+export {
+  Upd7759AdpcmState,
+  UPD7759_SLAVE_PREAMBLE_BYTES,
+  UPD7759_STANDARD_CLOCK,
+  UPD7759_NATIVE_RATE,
+  UPD7759_DEFAULT_GAIN,
+  type Upd7759DecodeResult,
+  decodeUpd7759Slave,
+} from './sega/upd7759-adpcm.js';
+
+export {
+  type DecodedTileSheet,
+  decodeSega16Tiles8x8,
+  decodeSega16Sprites4bpp,
+  type RGB,
+  computeResistorWeights,
+  combineWeights,
+  decodeSega16PaletteWord,
+} from './sega/system16-gfx.js';
