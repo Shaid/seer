@@ -1,0 +1,67 @@
+{
+  "name": "@seer-project/switch",
+  "version": "0.1.0",
+  "description": "Nintendo Switch container primitives: the PFS0 partition table an NSP is laid out as, retail ticket Rights-ID/title-key extraction, and the NSO0 executable's segment table plus its flat decompressed image — plus Node-only on-disk NSP listing and range carving — optional, install only if your target is a Switch title",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shaid/seer.git",
+    "directory": "packages/switch"
+  },
+  "keywords": [
+    "switch",
+    "nx",
+    "nsp",
+    "pfs0",
+    "nso",
+    "lz4",
+    "emulation",
+    "reverse-engineering"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/**/__tests__",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run lint && npm test",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@seer-project/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.0"
+  },
+  "homepage": "https://seer.shaid.net",
+  "bugs": {
+    "url": "https://github.com/Shaid/seer/issues"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

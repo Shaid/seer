@@ -34,6 +34,43 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- `@seer-project/switch` — new package: Nintendo Switch container
+  primitives, filling the gap left by `@seer-project/gpu-textures` already
+  billing itself as a Tegra X1 (Switch) block-linear deswizzler with no
+  package to get from a title to the textures. Browser-safe parsers over
+  `Uint8Array`: `parsePfs0` (the partition table an NSP is laid out as,
+  with every entry offset made *absolute* — the stored value is relative to
+  the data base, and treating it as a file offset carves the wrong bytes
+  out of a multi-gigabyte NSP with no error at all), `parseTicket` (a
+  retail `.tik`'s Rights ID and its title key, returned **raw** — still
+  titlekek-encrypted, because the tool that decrypts the NCA unwraps it
+  itself against the *NCA header's* Master Key Revision, which really does
+  disagree with the ticket's own revision byte in the wild), and
+  `buildNsoImage` (the `NSO0` executable's segment table, laid out flat at
+  its `memoryOffset`s so a pointer out of the module's own tables indexes
+  the image directly) with `readCString`, a deliberately strict pointer
+  *oracle* that answers `null` rather than mojibake. A `./node` subpath
+  carries the two routines that need the disk — `listPfs0File` reads a
+  30 GB NSP's header region and nothing else, `extractFileRange` carves a
+  range out in bounded chunks — kept out of the main barrel so a viewer can
+  import the parsers. Deliberately **no** key derivation, no AES, no keyset
+  format and no decryption-tool driving: a framework package has no
+  business hardcoding a user's keyset path or a `hactool` location, so it
+  stops at handing those the right byte range and the right raw key. Scope
+  is PFS0 (not XCI's HFS0), the NSO header (not MOD0), and ticket layout
+  (not signature verification). Migrated out of chimera, its first
+  consumer.
+- `@seer-project/core` — `decompressLz4Block`, the LZ4 **block** format (no
+  frame header, no checksums) that `NSO0` segments, Unity bundle blocks and
+  most "LZ4 at a known size" middleware payloads use. It is here rather than
+  beside `@seer-project/pipeline`'s other decompressors (`decompressLZEXE`,
+  `ancientDecompress`, the RNC/PP20 pair) because that barrel reaches
+  `node:fs` through `config.js`/`io.js`; LZ4 is a pure byte transform that
+  platform packages need, so it belongs on the zero-dependency side. The
+  result is trimmed to what the stream actually produced rather than
+  zero-padded to the declared size, so `result.length === outSize` stays a
+  usable correctness assertion, and all three overrun conditions throw
+  instead of returning a partial buffer indistinguishable from a good one.
 - `@seer-project/skeleton` — new package: engine-agnostic skeleton
   retargeting for offline rig conversion — structural humanoid core-bone
   labelling from hierarchy and bind-pose geometry alone

@@ -1,0 +1,11 @@
+{
+  "extends": [
+    "./tsconfig.json",
+    "../tsconfig.build.base.json"
+  ],
+  // The base config excludes `src/__tests__` only. This package also has
+  // `src/node/__tests__`, and its container test imports the shared PFS0
+  // fixture out of `src/__tests__`, so both directories have to leave the
+  // build together or `tsc -b` pulls one in and then cannot see the other.
+  "exclude": ["src/**/__tests__"]
+}
