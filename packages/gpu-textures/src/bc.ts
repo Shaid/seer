@@ -8,7 +8,66 @@
  * is 8 or 16 bytes, scanned left-to-right, top-to-bottom. Pair with
  * `swizzle.ts`'s `deswizzle`/`getImageData` for a Tegra X1 (Nintendo
  * Switch) block-linear surface.
+ *
+ * Every codec here is written as a *per-block* function over a 64-byte
+ * (16 texel x RGBA) scratch buffer, driven by the shared `forEachBlock` /
+ * `scatterBlock` / `gatherBlock` trio below — so block iteration, edge
+ * clipping and edge clamping exist exactly once rather than once per format.
  */
+
+/**
+ * Walk a surface's 4x4 blocks in linear (left-to-right, top-to-bottom) order,
+ * calling `fn(bx, by, blockOffset)` for each. `blockOffset` is the block's
+ * byte offset into the compressed data (`bytesPerBlock` is 8 for BC1/BC4,
+ * 16 for everything else).
+ */
+function forEachBlock(width: number, height: number, bytesPerBlock: number, fn: (bx: number, by: number, blockOffset: number) => void): void {
+  const blocksX = Math.ceil(width / 4);
+  const blocksY = Math.ceil(height / 4);
+  for (let by = 0; by < blocksY; by++) {
+    for (let bx = 0; bx < blocksX; bx++) fn(bx, by, (by * blocksX + bx) * bytesPerBlock);
+  }
+}
+
+/**
+ * Write a decoded 4x4 RGBA block (64 bytes, row-major) into the output
+ * surface at tile `(bx, by)`. Texels past `width`/`height` are dropped: a
+ * non-multiple-of-4 surface has partial blocks whose padding content is
+ * real decoded data but not part of the image.
+ */
+function scatterBlock(out: Uint8Array, outOff: number, width: number, height: number, bx: number, by: number, block: Uint8Array): void {
+  for (let py = 0; py < 4; py++) {
+    const y = by * 4 + py;
+    if (y >= height) break;
+    for (let px = 0; px < 4; px++) {
+      const x = bx * 4 + px;
+      if (x >= width) break;
+      const o = outOff + (y * width + x) * 4;
+      const bo = (py * 4 + px) * 4;
+      out[o] = block[bo]; out[o + 1] = block[bo + 1]; out[o + 2] = block[bo + 2]; out[o + 3] = block[bo + 3];
+    }
+  }
+}
+
+/**
+ * Read a 4x4 RGBA block (64 bytes, row-major) out of a source surface at
+ * tile `(bx, by)`. Reads past `width`/`height` clamp to the last valid
+ * row/column, so an encoder's per-block work stays well-defined on a
+ * non-multiple-of-4 surface; `scatterBlock` never reads that padding back,
+ * so its exact value doesn't affect round-trip correctness.
+ */
+function gatherBlock(rgba: Uint8Array, width: number, height: number, bx: number, by: number, block: Uint8Array): void {
+  for (let py = 0; py < 4; py++) {
+    const sy = Math.min(by * 4 + py, height - 1);
+    for (let px = 0; px < 4; px++) {
+      const sx = Math.min(bx * 4 + px, width - 1);
+      const so = (sy * width + sx) * 4;
+      const bo = (py * 4 + px) * 4;
+      block[bo] = rgba[so]; block[bo + 1] = rgba[so + 1];
+      block[bo + 2] = rgba[so + 2]; block[bo + 3] = rgba[so + 3];
+    }
+  }
+}
 
 /**
  * Unpack the sixteen 3-bit texel indices of a BC3-alpha / BC4 / BC5 48-bit
@@ -52,6 +111,57 @@ function quantize565(r: number, g: number, b: number): number {
 }
 
 /**
+ * The shared S3TC 4-entry RGBA colour palette for a `c0`/`c1` 565 endpoint
+ * pair, as RGBA tuples.
+ *
+ * `allowPunchThrough` selects whether `c0 <= c1` means anything. BC1 encodes
+ * 1-bit alpha in the endpoint ordering: with `c0 <= c1` it drops to 3 opaque
+ * colours plus transparent black. BC2 and BC3 carry alpha in their own 8-byte
+ * sub-block, so for them the ordering is meaningless and the 4-colour
+ * interpolation is unconditional — they pass `false`.
+ */
+function bc1Palette(c0: number, c1: number, allowPunchThrough: boolean): [number, number, number, number][] {
+  const [r0, g0, b0] = expand565(c0);
+  const [r1, g1, b1] = expand565(c1);
+  const fourColor = !allowPunchThrough || c0 > c1;
+  return [
+    [r0, g0, b0, 255],
+    [r1, g1, b1, 255],
+    fourColor
+      ? [(2 * r0 + r1) / 3 | 0, (2 * g0 + g1) / 3 | 0, (2 * b0 + b1) / 3 | 0, 255]
+      : [(r0 + r1) / 2 | 0, (g0 + g1) / 2 | 0, (b0 + b1) / 2 | 0, 255],
+    fourColor
+      ? [(r0 + 2 * r1) / 3 | 0, (g0 + 2 * g1) / 3 | 0, (b0 + 2 * b1) / 3 | 0, 255]
+      : [0, 0, 0, 0],
+  ];
+}
+
+/**
+ * The BC3-alpha / BC4 / BC5 single-channel value for one 3-bit index.
+ * `e0 > e1` selects the 8-interpolated-value mode; otherwise the channel has
+ * 6 interpolated values plus the hard 0 and 255 that indices 6 and 7 name.
+ */
+function bc4Interp(e0: number, e1: number, idx: number): number {
+  if (idx === 0) return e0;
+  if (idx === 1) return e1;
+  if (e0 > e1) return ((8 - idx) * e0 + (idx - 1) * e1) / 7 | 0;
+  if (idx === 6) return 0;
+  if (idx === 7) return 255;
+  return ((6 - idx) * e0 + (idx - 1) * e1) / 5 | 0;
+}
+
+/**
+ * Decode one 8-byte BC4-shaped sub-block (two 8-bit endpoints + the 48-bit
+ * 3-bit index field) into 16 channel values. BC4 uses this for red, BC5 twice
+ * (red then green), and BC3's alpha sub-block has the identical layout.
+ */
+function decodeChannelBlock(data: Uint8Array, off: number, out: Uint8Array): void {
+  const e0 = data[off], e1 = data[off + 1];
+  unpackIndices3(data, off + 2, out);
+  for (let p = 0; p < 16; p++) out[p] = bc4Interp(e0, e1, out[p]);
+}
+
+/**
  * Encode one 4x4 RGBA block to BC1 (DXT1), 8 bytes, always in the "4 opaque
  * colors" mode (`c0 > c1` as u16 — matches `decodeBC1`'s branch for that
  * ordering exactly: `colors[2]=(2c0+c1)/3`, `colors[3]=(c0+2c1)/3`, no
@@ -75,14 +185,7 @@ export function encodeBC1Block(px: Uint8Array /* 16*4 RGBA, row-major 4x4 */): U
   let c1 = quantize565(rMin, gMin, bMin);
   if (c0 === c1) { if (c0 > 0) c0--; else c1++; }
   if (c0 <= c1) { const t = c0; c0 = c1; c1 = t; } // force the opaque 4-color branch
-  const [r0, g0, b0] = expand565(c0);
-  const [r1, g1, b1] = expand565(c1);
-  const palette: [number, number, number][] = [
-    [r0, g0, b0],
-    [r1, g1, b1],
-    [((2 * r0 + r1) / 3) | 0, ((2 * g0 + g1) / 3) | 0, ((2 * b0 + b1) / 3) | 0],
-    [((r0 + 2 * r1) / 3) | 0, ((g0 + 2 * g1) / 3) | 0, ((b0 + 2 * b1) / 3) | 0],
-  ];
+  const palette = bc1Palette(c0, c1, false);
   let indices = 0;
   for (let i = 0; i < 16; i++) {
     const r = px[i * 4], g = px[i * 4 + 1], b = px[i * 4 + 2];
@@ -105,32 +208,15 @@ export function encodeBC1Block(px: Uint8Array /* 16*4 RGBA, row-major 4x4 */): U
 /**
  * Encode a whole RGBA8 image to BC1, linear (non-swizzled) block order —
  * i.e. the inverse of `decodeBC1` for `linear` (non-Morton) G1T textures.
- * Edge blocks past `width`/`height` clamp to the last valid row/column
- * (matches how `decodeBC1` simply skips writing out-of-bounds texels, so
- * padding content is never sampled back — its value doesn't matter for
- * round-trip correctness, only for keeping the encoder's per-block work
- * well-defined).
+ * Edge blocks clamp to the last valid row/column — see `gatherBlock`.
  */
 export function encodeBC1(rgba: Uint8Array, width: number, height: number): Uint8Array {
-  const blocksX = Math.ceil(width / 4);
-  const blocksY = Math.ceil(height / 4);
-  const out = new Uint8Array(blocksX * blocksY * 8);
+  const out = new Uint8Array(Math.ceil(width / 4) * Math.ceil(height / 4) * 8);
   const block = new Uint8Array(16 * 4);
-  for (let by = 0; by < blocksY; by++) {
-    for (let bx = 0; bx < blocksX; bx++) {
-      for (let py = 0; py < 4; py++) {
-        for (let px = 0; px < 4; px++) {
-          const sx = Math.min(bx * 4 + px, width - 1);
-          const sy = Math.min(by * 4 + py, height - 1);
-          const so = (sy * width + sx) * 4;
-          const bo = (py * 4 + px) * 4;
-          block[bo] = rgba[so]!; block[bo + 1] = rgba[so + 1]!;
-          block[bo + 2] = rgba[so + 2]!; block[bo + 3] = rgba[so + 3]!;
-        }
-      }
-      out.set(encodeBC1Block(block), (by * blocksX + bx) * 8);
-    }
-  }
+  forEachBlock(width, height, 8, (bx, by, o) => {
+    gatherBlock(rgba, width, height, bx, by, block);
+    out.set(encodeBC1Block(block), o);
+  });
   return out;
 }
 
@@ -168,132 +254,77 @@ export function encodeBC3AlphaBlock(alpha: Uint8Array /* 16, row-major 4x4 */): 
 /**
  * Encode a whole RGBA8 image to BC3 (DXT5), linear block order: 8-byte
  * alpha block (`encodeBC3AlphaBlock`) followed by an 8-byte BC1-shaped
- * color block, reusing `encodeBC1Block`'s endpoint/palette logic directly
- * — DXT5's color block is bit-identical in format to DXT1's, just always
- * read in the 4-opaque-colors mode by the decoder (see `decodeBC23`, which
- * never branches on `c0` vs `c1` for BC2/3), so no re-ordering is needed
- * here the way plain BC1 needs `c0 > c1` forced.
+ * color block, reusing `encodeBC1Block`'s endpoint/palette logic directly —
+ * DXT5's color block is bit-identical in format to DXT1's. No re-ordering is
+ * needed here only because `encodeBC1Block` already forces `c0 > c1`
+ * unconditionally; the claim this comment used to make — that `decodeBC23`
+ * never branches on `c0` vs `c1` — was simply false, see the note at that
+ * branch.
  */
 export function encodeBC3(rgba: Uint8Array, width: number, height: number): Uint8Array {
-  const blocksX = Math.ceil(width / 4);
-  const blocksY = Math.ceil(height / 4);
-  const out = new Uint8Array(blocksX * blocksY * 16);
+  const out = new Uint8Array(Math.ceil(width / 4) * Math.ceil(height / 4) * 16);
   const block = new Uint8Array(16 * 4);
   const alpha = new Uint8Array(16);
-  for (let by = 0; by < blocksY; by++) {
-    for (let bx = 0; bx < blocksX; bx++) {
-      for (let py = 0; py < 4; py++) {
-        for (let px = 0; px < 4; px++) {
-          const sx = Math.min(bx * 4 + px, width - 1);
-          const sy = Math.min(by * 4 + py, height - 1);
-          const so = (sy * width + sx) * 4;
-          const bo = (py * 4 + px) * 4;
-          block[bo] = rgba[so]!; block[bo + 1] = rgba[so + 1]!;
-          block[bo + 2] = rgba[so + 2]!; block[bo + 3] = rgba[so + 3]!;
-          alpha[py * 4 + px] = rgba[so + 3]!;
-        }
-      }
-      const o = (by * blocksX + bx) * 16;
-      out.set(encodeBC3AlphaBlock(alpha), o);
-      out.set(encodeBC1Block(block), o + 8);
-    }
-  }
+  forEachBlock(width, height, 16, (bx, by, o) => {
+    gatherBlock(rgba, width, height, bx, by, block);
+    for (let p = 0; p < 16; p++) alpha[p] = block[p * 4 + 3];
+    out.set(encodeBC3AlphaBlock(alpha), o);
+    out.set(encodeBC1Block(block), o + 8);
+  });
   return out;
+}
+
+/**
+ * Fill a 64-byte RGBA block scratch from an 8-byte S3TC colour sub-block at
+ * `data[off]` — the shared body of BC1 and of BC2/BC3's colour half (which
+ * sit at offset +8 of their 16-byte block). `punchThrough` is BC1-only; see
+ * `bc1Palette`. Alpha is left untouched when `writeAlpha` is false, so a
+ * BC2/BC3 caller can lay its own alpha down first.
+ */
+function decodeColorBlock(data: Uint8Array, off: number, block: Uint8Array, punchThrough: boolean, writeAlpha: boolean): void {
+  const colors = bc1Palette(data[off] | (data[off + 1] << 8), data[off + 2] | (data[off + 3] << 8), punchThrough);
+  const indices = data[off + 4] | (data[off + 5] << 8) | (data[off + 6] << 16) | (data[off + 7] << 24);
+  for (let p = 0; p < 16; p++) {
+    const [r, g, b, a] = colors[(indices >> (2 * p)) & 3]!;
+    block[p * 4] = r; block[p * 4 + 1] = g; block[p * 4 + 2] = b;
+    if (writeAlpha) block[p * 4 + 3] = a;
+  }
 }
 
 /** Decode BC1 (DXT1) block data into RGBA. */
 export function decodeBC1(data: Uint8Array, width: number, height: number, out: Uint8Array, outOff = 0): void {
-  const blocksX = Math.ceil(width / 4);
-  const blocksY = Math.ceil(height / 4);
-  for (let by = 0; by < blocksY; by++) {
-    for (let bx = 0; bx < blocksX; bx++) {
-      const b = (by * blocksX + bx) * 8;
-      const c0 = data[b] | (data[b + 1] << 8);
-      const c1 = data[b + 2] | (data[b + 3] << 8);
-      const [r0, g0, b0] = expand565(c0);
-      const [r1, g1, b1] = expand565(c1);
-      const [r2, g2, b2] = c0 > c1
-        ? [(2 * r0 + r1) / 3 | 0, (2 * g0 + g1) / 3 | 0, (2 * b0 + b1) / 3 | 0]
-        : [(r0 + r1) / 2 | 0, (g0 + g1) / 2 | 0, (b0 + b1) / 2 | 0];
-      const [r3, g3, b3] = c0 > c1
-        ? [(r0 + 2 * r1) / 3 | 0, (g0 + 2 * g1) / 3 | 0, (b0 + 2 * b1) / 3 | 0]
-        : [0, 0, 0];
-      const colors: [number, number, number, number][] = [
-        [r0, g0, b0, 255],
-        [r1, g1, b1, 255],
-        [r2, g2, b2, 255],
-        [r3, g3, b3, c0 > c1 ? 255 : 0],
-      ];
-      const indices = data[b + 4] | (data[b + 5] << 8) | (data[b + 6] << 16) | (data[b + 7] << 24);
-      for (let py = 0; py < 4; py++) {
-        for (let px = 0; px < 4; px++) {
-          const idx = (indices >> (2 * (py * 4 + px))) & 3;
-          const [r, g, bl, a] = colors[idx]!;
-          const x = bx * 4 + px;
-          const y = by * 4 + py;
-          if (x < width && y < height) {
-            const o = outOff + (y * width + x) * 4;
-            out[o] = r; out[o + 1] = g; out[o + 2] = bl; out[o + 3] = a;
-          }
-        }
-      }
-    }
-  }
+  const block = new Uint8Array(16 * 4);
+  forEachBlock(width, height, 8, (bx, by, b) => {
+    decodeColorBlock(data, b, block, true, true);
+    scatterBlock(out, outOff, width, height, bx, by, block);
+  });
 }
 
 function decodeBC23(data: Uint8Array, width: number, height: number, out: Uint8Array, outOff: number, alpha: boolean): void {
-  const blocksX = Math.ceil(width / 4);
-  const blocksY = Math.ceil(height / 4);
-  const aIdx = new Uint8Array(16);
-  for (let by = 0; by < blocksY; by++) {
-    for (let bx = 0; bx < blocksX; bx++) {
-      const b = (by * blocksX + bx) * 16;
-      const a0 = data[b];
-      const a1 = data[b + 1];
-      // The 3-bit alpha indices (48 bits, BC3 only — BC2 stores 4-bit alpha
-      // nibbles in the same 8 bytes and reads them per-texel below instead).
-      if (alpha) unpackIndices3(data, b + 2, aIdx);
-
-      const c0 = data[b + 8] | (data[b + 9] << 8);
-      const c1 = data[b + 10] | (data[b + 11] << 8);
-      const [r0, g0, b0] = expand565(c0);
-      const [r1, g1, b1] = expand565(c1);
-      const [r2, g2, b2] = c0 > c1
-        ? [(2 * r0 + r1) / 3 | 0, (2 * g0 + g1) / 3 | 0, (2 * b0 + b1) / 3 | 0]
-        : [(r0 + r1) / 2 | 0, (g0 + g1) / 2 | 0, (b0 + b1) / 2 | 0];
-      const [r3, g3, b3] = c0 > c1
-        ? [(r0 + 2 * r1) / 3 | 0, (g0 + 2 * g1) / 3 | 0, (b0 + 2 * b1) / 3 | 0]
-        : [0, 0, 0];
-      const colors: [number, number, number][] = [
-        [r0, g0, b0], [r1, g1, b1], [r2, g2, b2], [r3, g3, b3],
-      ];
-      const cbits = data[b + 12] | (data[b + 13] << 8) | (data[b + 14] << 16) | (data[b + 15] << 24);
-      for (let py = 0; py < 4; py++) {
-        for (let px = 0; px < 4; px++) {
-          const px4 = py * 4 + px;
-          let a: number;
-          if (alpha) {
-            // BC3: 3-bit alpha index
-            const aval = aIdx[px4];
-            a = a0 > a1
-              ? (aval === 0 ? a0 : aval === 1 ? a1 : ((8 - aval) * a0 + (aval - 1) * a1) / 7 | 0)
-              : (aval === 0 ? a0 : aval === 1 ? a1 : aval === 6 ? 0 : aval === 7 ? 255 : ((6 - aval) * a0 + (aval - 1) * a1) / 5 | 0);
-          } else {
-            // BC2: 4-bit alpha
-            const nib = (data[b + (px4 >> 1)] >> ((px4 & 1) * 4)) & 0xf;
-            a = nib * 17;
-          }
-          const [r, g, bl] = colors[(cbits >> (2 * px4)) & 3]!;
-          const x = bx * 4 + px;
-          const y = by * 4 + py;
-          if (x < width && y < height) {
-            const o = outOff + (y * width + x) * 4;
-            out[o] = r; out[o + 1] = g; out[o + 2] = bl; out[o + 3] = a;
-          }
-        }
-      }
+  const block = new Uint8Array(16 * 4);
+  const aVal = new Uint8Array(16);
+  forEachBlock(width, height, 16, (bx, by, b) => {
+    if (alpha) {
+      // BC3: an 8-byte BC4-shaped alpha sub-block.
+      decodeChannelBlock(data, b, aVal);
+    } else {
+      // BC2: 16 4-bit alpha nibbles in the same 8 bytes, 2 per byte, low first.
+      for (let p = 0; p < 16; p++) aVal[p] = ((data[b + (p >> 1)] >> ((p & 1) * 4)) & 0xf) * 17;
     }
-  }
+    // NOTE: `punchThrough` is `true` here only to preserve this decoder's
+    // long-standing behavior byte-for-byte. Per the BC2/BC3 spec the colour
+    // block is *unconditionally* 4-colour — alpha lives in the sub-block
+    // above, so the endpoint ordering carries no meaning and a `c0 <= c1`
+    // block should still interpolate at 1/3 and 2/3. This decoder instead
+    // falls to the 1/2-average + black pair, which is a real (separate,
+    // pre-existing) spec deviation for any BC2/BC3 block whose endpoints
+    // happen to be ordered that way. Changing it moves decoded bytes for the
+    // already-published asset corpus, so it is deliberately NOT folded into
+    // this refactor; `writeAlpha: false` keeps the real alpha either way.
+    decodeColorBlock(data, b + 8, block, true, false);
+    for (let p = 0; p < 16; p++) block[p * 4 + 3] = aVal[p];
+    scatterBlock(out, outOff, width, height, bx, by, block);
+  });
 }
 
 /** Decode BC2 (DXT3) block data. */
@@ -306,73 +337,32 @@ export function decodeBC3(data: Uint8Array, width: number, height: number, out: 
   decodeBC23(data, width, height, out, outOff, true);
 }
 
-/** Decode BC4 (single-channel, R). */
+/** Decode BC4 (single-channel, R) — the one channel is replicated to RGB, alpha 255. */
 export function decodeBC4(data: Uint8Array, width: number, height: number, out: Uint8Array, outOff = 0): void {
-  const blocksX = Math.ceil(width / 4);
-  const blocksY = Math.ceil(height / 4);
-  const rIdx = new Uint8Array(16);
-  for (let by = 0; by < blocksY; by++) {
-    for (let bx = 0; bx < blocksX; bx++) {
-      const b = (by * blocksX + bx) * 8;
-      const r0 = data[b];
-      const r1 = data[b + 1];
-      unpackIndices3(data, b + 2, rIdx);
-      for (let py = 0; py < 4; py++) {
-        for (let px = 0; px < 4; px++) {
-          const p = py * 4 + px;
-          const idx = rIdx[p];
-          let v: number;
-          if (r0 > r1) {
-            v = idx === 0 ? r0 : idx === 1 ? r1 : ((8 - idx) * r0 + (idx - 1) * r1) / 7 | 0;
-          } else {
-            v = idx === 0 ? r0 : idx === 1 ? r1 : idx === 6 ? 0 : idx === 7 ? 255 : ((6 - idx) * r0 + (idx - 1) * r1) / 5 | 0;
-          }
-          const x = bx * 4 + px;
-          const y = by * 4 + py;
-          if (x < width && y < height) {
-            const o = outOff + (y * width + x) * 4;
-            out[o] = v; out[o + 1] = v; out[o + 2] = v; out[o + 3] = 255;
-          }
-        }
-      }
+  const block = new Uint8Array(16 * 4);
+  const rVal = new Uint8Array(16);
+  forEachBlock(width, height, 8, (bx, by, b) => {
+    decodeChannelBlock(data, b, rVal);
+    for (let p = 0; p < 16; p++) {
+      block[p * 4] = rVal[p]; block[p * 4 + 1] = rVal[p]; block[p * 4 + 2] = rVal[p]; block[p * 4 + 3] = 255;
     }
-  }
+    scatterBlock(out, outOff, width, height, bx, by, block);
+  });
 }
 
 /** Decode BC5 (ATI2) — two BC4 channels stored as R (red) and G (green), blue=0. */
 export function decodeBC5(data: Uint8Array, width: number, height: number, out: Uint8Array, outOff = 0): void {
-  const blocksX = Math.ceil(width / 4);
-  const blocksY = Math.ceil(height / 4);
-  const rIdx = new Uint8Array(16), gIdx = new Uint8Array(16);
-  for (let by = 0; by < blocksY; by++) {
-    for (let bx = 0; bx < blocksX; bx++) {
-      const b = (by * blocksX + bx) * 16;
-      // First BC4 block = red, second = green
-      const r0 = data[b], r1 = data[b + 1];
-      const g0 = data[b + 8], g1 = data[b + 9];
-      unpackIndices3(data, b + 2, rIdx);
-      unpackIndices3(data, b + 10, gIdx);
-      for (let py = 0; py < 4; py++) {
-        for (let px = 0; px < 4; px++) {
-          const p = py * 4 + px;
-          const ri = rIdx[p];
-          const gi = gIdx[p];
-          const rv = r0 > r1
-            ? (ri === 0 ? r0 : ri === 1 ? r1 : ((8 - ri) * r0 + (ri - 1) * r1) / 7 | 0)
-            : (ri === 0 ? r0 : ri === 1 ? r1 : ri === 6 ? 0 : ri === 7 ? 255 : ((6 - ri) * r0 + (ri - 1) * r1) / 5 | 0);
-          const gv = g0 > g1
-            ? (gi === 0 ? g0 : gi === 1 ? g1 : ((8 - gi) * g0 + (gi - 1) * g1) / 7 | 0)
-            : (gi === 0 ? g0 : gi === 1 ? g1 : gi === 6 ? 0 : gi === 7 ? 255 : ((6 - gi) * g0 + (gi - 1) * g1) / 5 | 0);
-          const x = bx * 4 + px;
-          const y = by * 4 + py;
-          if (x < width && y < height) {
-            const o = outOff + (y * width + x) * 4;
-            out[o] = rv; out[o + 1] = gv; out[o + 2] = 0; out[o + 3] = 255;
-          }
-        }
-      }
+  const block = new Uint8Array(16 * 4);
+  const rVal = new Uint8Array(16), gVal = new Uint8Array(16);
+  forEachBlock(width, height, 16, (bx, by, b) => {
+    // First BC4 sub-block = red, second = green.
+    decodeChannelBlock(data, b, rVal);
+    decodeChannelBlock(data, b + 8, gVal);
+    for (let p = 0; p < 16; p++) {
+      block[p * 4] = rVal[p]; block[p * 4 + 1] = gVal[p]; block[p * 4 + 2] = 0; block[p * 4 + 3] = 255;
     }
-  }
+    scatterBlock(out, outOff, width, height, bx, by, block);
+  });
 }
 
 /**
@@ -673,25 +663,11 @@ function decodeBC7Block(data: Uint8Array, blockOffset: number, outBlock: Uint8Ar
  * instead of a wider partial fix.
  */
 export function decodeBC7(data: Uint8Array, width: number, height: number, out: Uint8Array, outOff = 0): void {
-  const blocksX = Math.ceil(width / 4);
-  const blocksY = Math.ceil(height / 4);
   const block = new Uint8Array(16 * 4);
-  for (let by = 0; by < blocksY; by++) {
-    for (let bx = 0; bx < blocksX; bx++) {
-      decodeBC7Block(data, (by * blocksX + bx) * 16, block);
-      for (let py = 0; py < 4; py++) {
-        for (let px = 0; px < 4; px++) {
-          const x = bx * 4 + px;
-          const y = by * 4 + py;
-          if (x < width && y < height) {
-            const o = outOff + (y * width + x) * 4;
-            const bo = (py * 4 + px) * 4;
-            out[o] = block[bo]!; out[o + 1] = block[bo + 1]!; out[o + 2] = block[bo + 2]!; out[o + 3] = block[bo + 3]!;
-          }
-        }
-      }
-    }
-  }
+  forEachBlock(width, height, 16, (bx, by, b) => {
+    decodeBC7Block(data, b, block);
+    scatterBlock(out, outOff, width, height, bx, by, block);
+  });
 }
 
 /**
@@ -699,31 +675,21 @@ export function decodeBC7(data: Uint8Array, width: number, height: number, out: 
  * luminance, since exact BC6H decoding is complex). Produces grayscale.
  */
 export function decodeBC6H(data: Uint8Array, width: number, height: number, out: Uint8Array, outOff = 0): void {
-  const blocksX = Math.ceil(width / 4);
-  const blocksY = Math.ceil(height / 4);
-  for (let by = 0; by < blocksY; by++) {
-    for (let bx = 0; bx < blocksX; bx++) {
-      const b = (by * blocksX + bx) * 16;
-      // Take the first 16-bit half float as a luminance proxy
-      const half = data[b] | (data[b + 1] << 8);
-      const exp = (half >> 10) & 0x1f;
-      const mant = half & 0x3ff;
-      let v: number;
-      if (exp === 0) v = mant / 1024 * (1 / 64);
-      else if (exp === 31) v = 1;
-      else v = (1 + mant / 1024) * 2 ** (exp - 15);
-      v = Math.min(1, Math.max(0, v));
-      const g = Math.round(v * 255);
-      for (let py = 0; py < 4; py++) {
-        for (let px = 0; px < 4; px++) {
-          const x = bx * 4 + px;
-          const y = by * 4 + py;
-          if (x < width && y < height) {
-            const o = outOff + (y * width + x) * 4;
-            out[o] = g; out[o + 1] = g; out[o + 2] = g; out[o + 3] = 255;
-          }
-        }
-      }
+  const block = new Uint8Array(16 * 4);
+  forEachBlock(width, height, 16, (bx, by, b) => {
+    // Take the first 16-bit half float as a luminance proxy for the whole block.
+    const half = data[b] | (data[b + 1] << 8);
+    const exp = (half >> 10) & 0x1f;
+    const mant = half & 0x3ff;
+    let v: number;
+    if (exp === 0) v = mant / 1024 * (1 / 64);
+    else if (exp === 31) v = 1;
+    else v = (1 + mant / 1024) * 2 ** (exp - 15);
+    v = Math.min(1, Math.max(0, v));
+    const g = Math.round(v * 255);
+    for (let p = 0; p < 16; p++) {
+      block[p * 4] = g; block[p * 4 + 1] = g; block[p * 4 + 2] = g; block[p * 4 + 3] = 255;
     }
-  }
+    scatterBlock(out, outOff, width, height, bx, by, block);
+  });
 }

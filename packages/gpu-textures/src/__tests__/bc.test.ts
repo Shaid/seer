@@ -134,6 +134,90 @@ describe('decodeBC5 (two-channel)', () => {
   });
 });
 
+describe('block scatter/gather refactor: byte-identical decode output', () => {
+  // `forEachBlock`/`scatterBlock`/`gatherBlock` replaced eight hand-written
+  // copies of the same block-iteration + edge-clipping loop. These digests
+  // were captured from the pre-refactor decoders (the 2026-10-25 48-bit-index
+  // fix already applied) and must not move: they pin every format's output on
+  // pseudo-random block data at six surface shapes, four of which are not a
+  // multiple of 4 in one or both axes and so exercise the clipping path.
+  const GOLDEN: Record<string, readonly string[]> = {
+    BC1: ['600d9045', '6e1f7084', '7bb53a9e', '983d2b44', 'abb052fb', '6b8050f7'],
+    BC2: ['156d77b4', 'ed7f8fb3', 'b3f8414d', 'ae438a2c', 'dc6b3bd6', 'a5efced2'],
+    BC3: ['4ab69ac8', 'e61bce8a', 'dbd844c6', 'a2ede7a8', 'b2ab1e52', '473c99ac'],
+    BC4: ['6764580c', 'f8eb18c6', '83882f35', '603c2a4b', '643f8c86', 'b8ee81d5'],
+    BC5: ['8e661a36', 'ee25139f', '4dcf8624', '73becd5c', '71f952e4', '8931a96f'],
+    BC6H: ['35598445', 'a0e0de05', 'bbfb2359', '1bef5297', 'b7238265', 'f3991765'],
+    BC7: ['c17f6f53', 'f955af99', '633afdda', 'f50e8e2e', '0a0ac46c', 'ecefa5ec'],
+  };
+  const DIMS: readonly [number, number][] = [[4, 4], [8, 8], [5, 3], [13, 7], [16, 1], [1, 16]];
+  const DECODERS: readonly [string, (d: Uint8Array, w: number, h: number, o: Uint8Array, outOff?: number) => void, number][] = [
+    ['BC1', decodeBC1, 8], ['BC2', decodeBC2, 16], ['BC3', decodeBC3, 16], ['BC4', decodeBC4, 8],
+    ['BC5', decodeBC5, 16], ['BC6H', decodeBC6H, 16], ['BC7', decodeBC7, 16],
+  ];
+
+  function bytes(seed: number, length: number): Uint8Array {
+    let s = seed >>> 0;
+    const out = new Uint8Array(length);
+    for (let i = 0; i < length; i++) { s = (s * 1664525 + 1013904223) >>> 0; out[i] = (s >>> 16) & 0xff; }
+    return out;
+  }
+  function fnv1a(b: Uint8Array): string {
+    let h = 0x811c9dc5;
+    for (const v of b) { h ^= v; h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(16).padStart(8, '0');
+  }
+
+  for (const [name, decode, bytesPerBlock] of DECODERS) {
+    it(`${name} output is unchanged at every surface shape`, () => {
+      const digests = DIMS.map(([w, h]) => {
+        const blocks = Math.ceil(w / 4) * Math.ceil(h / 4);
+        const out = new Uint8Array(w * h * 4);
+        decode(bytes(0xc0ffee ^ (w * 131 + h), blocks * bytesPerBlock), w, h, out);
+        return fnv1a(out);
+      });
+      expect(digests).toEqual(GOLDEN[name]);
+    });
+  }
+
+  it('encodeBC1/encodeBC3 output is unchanged at every surface shape', () => {
+    // `gatherBlock` replaced the two copies of the edge-clamping 16-texel
+    // read; these digests are likewise from the pre-refactor encoders.
+    const ENCODE_GOLDEN = {
+      BC1: ['5f23b487', '746e8dde', '5a905bdc', 'f6e77fd6', 'b94a2b80', '5313b8ca'],
+      BC3: ['2451a3ec', '65b68b5f', 'c9de79e8', '9179d545', '615e5d0c', 'b6ccddcd'],
+    };
+    for (const [name, encode] of [['BC1', encodeBC1], ['BC3', encodeBC3]] as const) {
+      const digests = DIMS.map(([w, h]) => fnv1a(encode(bytes(0xbeef ^ (w * 977 + h), w * h * 4), w, h)));
+      expect(digests, name).toEqual(ENCODE_GOLDEN[name]);
+    }
+  });
+
+  it('writes nothing outside the requested surface (clipped blocks leave the tail alone)', () => {
+    // 5x3 occupies 2x1 blocks = 8x4 texels; everything past index 5*3*4 in a
+    // deliberately oversized output buffer must stay at its sentinel value.
+    const w = 5, h = 3, pad = 64;
+    for (const [name, decode, bytesPerBlock] of DECODERS) {
+      const out = new Uint8Array(w * h * 4 + pad).fill(0xcd);
+      decode(bytes(1, 2 * bytesPerBlock), w, h, out);
+      expect(Array.from(out.subarray(w * h * 4)), name).toEqual(new Array(pad).fill(0xcd));
+    }
+  });
+
+  it('honours outOff, packing consecutive surfaces back to back', () => {
+    const w = 6, h = 6, surface = w * h * 4;
+    for (const [name, decode, bytesPerBlock] of DECODERS) {
+      const data = bytes(7, 4 * bytesPerBlock);
+      const alone = new Uint8Array(surface);
+      decode(data, w, h, alone);
+      const offset = new Uint8Array(surface * 2).fill(0xab);
+      decode(data, w, h, offset, surface);
+      expect(Array.from(offset.subarray(surface)), name).toEqual(Array.from(alone));
+      expect(Array.from(offset.subarray(0, surface)), name).toEqual(new Array(surface).fill(0xab));
+    }
+  });
+});
+
 describe('the 48-bit 3-bit-index field (BC3 alpha / BC4 / BC5)', () => {
   /**
    * Pack 16 3-bit indices into the 6-byte index field exactly as the format
