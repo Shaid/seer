@@ -21,23 +21,28 @@ GPU texture codecs used by modern console decompilation:
 - **`zstd.ts`** — one-shot Zstandard decompression via
   `@tootallnate/zstd-wasm` (MIT).
 
-## A known, deliberately-not-fixed decoder bug
+## Fixed 2026-10-25: the 48-bit index-field shift bug
 
-`decodeBC2`/`decodeBC3`'s shared alpha-index unpacking (`decodeBC23`) has a
-pre-existing bug: it builds a 48-bit index field with `aBits |= data[b+2+i]
-<< (i*8)` for `i` up to 5, and JS's `<<` masks its shift count to 5 bits, so
-`i=4`/`i=5` (shifts 32 and 40) silently wrap to shifts 0 and 8 instead —
-corrupting roughly the last 5 texels' alpha index per block. This is a
-correctness bug in real, already-shipped extraction output for every game
-using BC2/BC3 textures through this decoder, carried forward unfixed
-because fixing it is a behavior change to an already-shipped asset corpus
-that needs its own dedicated regression pass, not something to fold into an
-unrelated package extraction. See `bc.ts`'s `encodeBC3AlphaBlock` doc
-comment for the full detail — that function writes spec-correct bytes
-despite this, since real Switch hardware (not this decoder) is the actual
-consumer of an encoded/modded texture.
+`decodeBC3`, `decodeBC4` and `decodeBC5` each used to build their 48-bit
+3-bit-index field with `bits |= data[b+2+i] << (i*8)` for `i` up to 5. JS's
+`<<` coerces to int32 and masks its shift count to 5 bits, so `i=4`/`i=5`
+(shifts 32 and 40) silently wrapped to shifts 0 and 8 — OR'ing the top two
+bytes back over the bottom two. The damage was *not* confined to the high
+texels: a hand-built BC4 block with indices `0..7,0..7` decoded with texels
+0, 2, 3, 4, 10, 11 and 14 all wrong.
 
-`decodeBC6H` is also approximate (unpacked to grayscale luminance, not a
+All four decode sites now share `unpackIndices3`, which splits the field at
+its natural midpoint — texels 0-7 are exactly bytes 0-2 and texels 8-15 are
+exactly bytes 3-5, so no index straddles the halves and no shift exceeds 31
+(no BigInt in the hot loop). `decodeBC2` was never affected: it reads 4-bit
+alpha nibbles directly and ignores the index field entirely.
+
+**This changes decoded bytes.** Any PNG/atlas previously extracted from a
+BC3/BC4/BC5 source through this decoder is wrong and should be regenerated.
+`encodeBC3AlphaBlock` always wrote spec-correct bytes, so encoded output is
+unaffected.
+
+`decodeBC6H` is approximate (unpacked to grayscale luminance, not a
 real BC6H decode) — flagged the same way `decodeBC7` used to be before it
 was replaced with a full conformant decoder; BC6H hasn't had that pass yet.
 

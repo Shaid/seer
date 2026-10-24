@@ -10,6 +10,32 @@
  * Switch) block-linear surface.
  */
 
+/**
+ * Unpack the sixteen 3-bit texel indices of a BC3-alpha / BC4 / BC5 48-bit
+ * index field (the 6 bytes at `data[off]`) into `out` (16 entries, row-major
+ * texel order, values 0-7).
+ *
+ * The obvious `bits |= data[off + i] << (i * 8)` accumulation is **wrong** in
+ * JS: `<<` coerces to int32 and masks its shift count to 5 bits, so `i=4` and
+ * `i=5` (shifts 32 and 40) wrap to shifts 0 and 8 — the top two bytes get
+ * OR'd back over the bottom two, corrupting most of the block (texels
+ * 0,2,3,4,10,11,14 for an all-distinct-index block, not just the high
+ * texels). That was this decoder's behavior until 2026-10-25.
+ *
+ * Splitting the field at its natural midpoint avoids both BigInt and any
+ * shift over 31: texels 0-7 occupy bits 0-23 (= bytes 0-2) and texels 8-15
+ * occupy bits 24-47 (= bytes 3-5) exactly, so no index straddles the two
+ * 24-bit halves and each half is read with plain 32-bit ops.
+ */
+function unpackIndices3(data: Uint8Array, off: number, out: Uint8Array): void {
+  const lo = data[off] | (data[off + 1] << 8) | (data[off + 2] << 16);
+  const hi = data[off + 3] | (data[off + 4] << 8) | (data[off + 5] << 16);
+  for (let p = 0; p < 8; p++) {
+    out[p] = (lo >>> (p * 3)) & 7;
+    out[p + 8] = (hi >>> (p * 3)) & 7;
+  }
+}
+
 function expand565(v: number): [number, number, number] {
   return [
     ((v >> 11) & 0x1f) << 3,
@@ -112,20 +138,11 @@ export function encodeBC1(rgba: Uint8Array, width: number, height: number): Uint
  * Encode one 4x4 block's alpha channel to BC3/DXT5's 8-byte alpha block —
  * always the "8 interpolated values" mode (`a0 > a1` as u8), matching real
  * DXT5 hardware decode exactly (the *true* spec, per Microsoft's BC3
- * reference and every GPU decoder — **not** `decodeBC3`'s own in-repo alpha
- * unpacking, which has an independent, pre-existing bug: it builds the
- * 48-bit index field with `aBits |= data[b+2+i] << (i*8)` for `i` up to 5,
- * and JS's `<<` masks its shift count to 5 bits, so `i=4`/`i=5` (shifts 32
- * and 40) silently wrap to shifts 0 and 8 instead — corrupting roughly the
- * last 5 pixels' (`px4` 11-15, the block's bottom-right) alpha index
- * per block for every BC3/BC4 texture this project has ever decoded. Not
- * fixed here (shared decoder, used by every game's already-shipped asset
- * corpus — needs its own dedicated regression pass, out of scope for this
- * encoder); flagged in docs. This function writes spec-correct bytes via
- * BigInt (safe: only 48 bits, never near `2^53`) so real Switch hardware —
- * the actual consumer of a modded texture — decodes it correctly even
- * though this repo's own `decodeBC3` would misread the last few pixels of
- * each block if it round-tripped this file back through itself.
+ * reference and every GPU decoder). Writes the index field via BigInt
+ * (safe and clear: only 48 bits, never near `2^53`, and this is not a hot
+ * loop); the decode side reads it back with `unpackIndices3`, which splits
+ * the field into two 24-bit halves instead — see that function for why the
+ * naive single-accumulator version was wrong for years.
  */
 export function encodeBC3AlphaBlock(alpha: Uint8Array /* 16, row-major 4x4 */): Uint8Array {
   let a0 = 0, a1 = 255;
@@ -227,14 +244,15 @@ export function decodeBC1(data: Uint8Array, width: number, height: number, out: 
 function decodeBC23(data: Uint8Array, width: number, height: number, out: Uint8Array, outOff: number, alpha: boolean): void {
   const blocksX = Math.ceil(width / 4);
   const blocksY = Math.ceil(height / 4);
+  const aIdx = new Uint8Array(16);
   for (let by = 0; by < blocksY; by++) {
     for (let bx = 0; bx < blocksX; bx++) {
       const b = (by * blocksX + bx) * 16;
       const a0 = data[b];
       const a1 = data[b + 1];
-      // Build the 3-bit alpha indices (48 bits, BC3)
-      let aBits = 0;
-      for (let i = 0; i < 6; i++) aBits |= data[b + 2 + i] << (i * 8);
+      // The 3-bit alpha indices (48 bits, BC3 only — BC2 stores 4-bit alpha
+      // nibbles in the same 8 bytes and reads them per-texel below instead).
+      if (alpha) unpackIndices3(data, b + 2, aIdx);
 
       const c0 = data[b + 8] | (data[b + 9] << 8);
       const c1 = data[b + 10] | (data[b + 11] << 8);
@@ -256,8 +274,7 @@ function decodeBC23(data: Uint8Array, width: number, height: number, out: Uint8A
           let a: number;
           if (alpha) {
             // BC3: 3-bit alpha index
-            const shift = px4 * 3;
-            const aval = (aBits >> shift) & 7;
+            const aval = aIdx[px4];
             a = a0 > a1
               ? (aval === 0 ? a0 : aval === 1 ? a1 : ((8 - aval) * a0 + (aval - 1) * a1) / 7 | 0)
               : (aval === 0 ? a0 : aval === 1 ? a1 : aval === 6 ? 0 : aval === 7 ? 255 : ((6 - aval) * a0 + (aval - 1) * a1) / 5 | 0);
@@ -293,17 +310,17 @@ export function decodeBC3(data: Uint8Array, width: number, height: number, out: 
 export function decodeBC4(data: Uint8Array, width: number, height: number, out: Uint8Array, outOff = 0): void {
   const blocksX = Math.ceil(width / 4);
   const blocksY = Math.ceil(height / 4);
+  const rIdx = new Uint8Array(16);
   for (let by = 0; by < blocksY; by++) {
     for (let bx = 0; bx < blocksX; bx++) {
       const b = (by * blocksX + bx) * 8;
       const r0 = data[b];
       const r1 = data[b + 1];
-      let bits = 0;
-      for (let i = 0; i < 6; i++) bits |= data[b + 2 + i] << (i * 8);
+      unpackIndices3(data, b + 2, rIdx);
       for (let py = 0; py < 4; py++) {
         for (let px = 0; px < 4; px++) {
           const p = py * 4 + px;
-          const idx = (bits >> (p * 3)) & 7;
+          const idx = rIdx[p];
           let v: number;
           if (r0 > r1) {
             v = idx === 0 ? r0 : idx === 1 ? r1 : ((8 - idx) * r0 + (idx - 1) * r1) / 7 | 0;
@@ -326,19 +343,20 @@ export function decodeBC4(data: Uint8Array, width: number, height: number, out: 
 export function decodeBC5(data: Uint8Array, width: number, height: number, out: Uint8Array, outOff = 0): void {
   const blocksX = Math.ceil(width / 4);
   const blocksY = Math.ceil(height / 4);
+  const rIdx = new Uint8Array(16), gIdx = new Uint8Array(16);
   for (let by = 0; by < blocksY; by++) {
     for (let bx = 0; bx < blocksX; bx++) {
       const b = (by * blocksX + bx) * 16;
       // First BC4 block = red, second = green
       const r0 = data[b], r1 = data[b + 1];
       const g0 = data[b + 8], g1 = data[b + 9];
-      let rBits = 0, gBits = 0;
-      for (let i = 0; i < 6; i++) { rBits |= data[b + 2 + i] << (i * 8); gBits |= data[b + 10 + i] << (i * 8); }
+      unpackIndices3(data, b + 2, rIdx);
+      unpackIndices3(data, b + 10, gIdx);
       for (let py = 0; py < 4; py++) {
         for (let px = 0; px < 4; px++) {
           const p = py * 4 + px;
-          const ri = (rBits >> (p * 3)) & 7;
-          const gi = (gBits >> (p * 3)) & 7;
+          const ri = rIdx[p];
+          const gi = gIdx[p];
           const rv = r0 > r1
             ? (ri === 0 ? r0 : ri === 1 ? r1 : ((8 - ri) * r0 + (ri - 1) * r1) / 7 | 0)
             : (ri === 0 ? r0 : ri === 1 ? r1 : ri === 6 ? 0 : ri === 7 ? 255 : ((6 - ri) * r0 + (ri - 1) * r1) / 5 | 0);

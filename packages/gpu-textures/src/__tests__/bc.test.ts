@@ -134,6 +134,131 @@ describe('decodeBC5 (two-channel)', () => {
   });
 });
 
+describe('the 48-bit 3-bit-index field (BC3 alpha / BC4 / BC5)', () => {
+  /**
+   * Pack 16 3-bit indices into the 6-byte index field exactly as the format
+   * specifies (texel 0 at bit 0), via BigInt so the packer itself can't share
+   * a shift bug with the decoder under test.
+   */
+  function packIndices(indices: readonly number[]): Uint8Array {
+    let bits = 0n;
+    for (let i = 15; i >= 0; i--) bits = (bits << 3n) | BigInt(indices[i]!);
+    const out = new Uint8Array(6);
+    for (let i = 0; i < 6; i++) out[i] = Number((bits >> BigInt(i * 8)) & 0xffn);
+    return out;
+  }
+
+  /**
+   * Independent reference for one BC4-style channel: unpack the 6 index bytes
+   * with BigInt (no 32-bit truncation possible) and apply the spec's 8- or
+   * 6-value interpolation. BC3's alpha channel uses this identical math.
+   */
+  function refChannel(e0: number, e1: number, field: Uint8Array): number[] {
+    let bits = 0n;
+    for (let i = 0; i < 6; i++) bits |= BigInt(field[i]!) << BigInt(i * 8);
+    const out: number[] = [];
+    for (let p = 0; p < 16; p++) {
+      const i = Number((bits >> BigInt(p * 3)) & 7n);
+      out.push(e0 > e1
+        ? (i === 0 ? e0 : i === 1 ? e1 : ((8 - i) * e0 + (i - 1) * e1) / 7 | 0)
+        : (i === 0 ? e0 : i === 1 ? e1 : i === 6 ? 0 : i === 7 ? 255 : ((6 - i) * e0 + (i - 1) * e1) / 5 | 0));
+    }
+    return out;
+  }
+
+  /** Deterministic PRNG so a failure is reproducible from the seed alone. */
+  function rng(seed: number): () => number {
+    let s = seed >>> 0;
+    return () => { s = (s * 1664525 + 1013904223) >>> 0; return s; };
+  }
+
+  // The regression case. Until 2026-10-25 every decoder accumulated this
+  // field with `bits |= data[b+2+i] << (i*8)`, and JS masks shift counts to 5
+  // bits, so bytes 4 and 5 wrapped back over bytes 0 and 1. With all-distinct
+  // indices the old code returned 6,1,3,7,7,5,6,7,0,1,6,7,4,5,7,7 — i.e. it
+  // corrupted texels 0, 2, 3, 4, 10, 11 and 14, not merely the high texels.
+  const DISTINCT = [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7];
+  // endpoints 255/0 take the 8-value branch: idx 2..7 -> round((8-i)*255/7).
+  const DISTINCT_255_0 = [255, 0, 218, 182, 145, 109, 72, 36, 255, 0, 218, 182, 145, 109, 72, 36];
+
+  it('decodeBC4 reads all 16 indices of an all-distinct block (not just the low 11)', () => {
+    const block = new Uint8Array(8);
+    block[0] = 255; block[1] = 0;
+    block.set(packIndices(DISTINCT), 2);
+    const out = new Uint8Array(4 * 4 * 4);
+    decodeBC4(block, 4, 4, out);
+    for (let p = 0; p < 16; p++) {
+      expect(out[p * 4]).toBe(DISTINCT_255_0[p]);
+      expect(out[p * 4 + 1]).toBe(DISTINCT_255_0[p]);
+      expect(out[p * 4 + 2]).toBe(DISTINCT_255_0[p]);
+      expect(out[p * 4 + 3]).toBe(255);
+    }
+  });
+
+  it('decodeBC5 reads both channels independently across all 16 texels', () => {
+    const reversed = [...DISTINCT].reverse();
+    const block = new Uint8Array(16);
+    block[0] = 255; block[1] = 0; block.set(packIndices(DISTINCT), 2);
+    block[8] = 255; block[9] = 0; block.set(packIndices(reversed), 10);
+    const out = new Uint8Array(4 * 4 * 4);
+    decodeBC5(block, 4, 4, out);
+    const expectedG = [...DISTINCT_255_0].reverse();
+    for (let p = 0; p < 16; p++) {
+      expect(out[p * 4]).toBe(DISTINCT_255_0[p]);
+      expect(out[p * 4 + 1]).toBe(expectedG[p]);
+      expect(out[p * 4 + 2]).toBe(0);
+      expect(out[p * 4 + 3]).toBe(255);
+    }
+  });
+
+  it('decodeBC3 reads all 16 alpha indices of an all-distinct block', () => {
+    const block = new Uint8Array(16);
+    block[0] = 255; block[1] = 0; block.set(packIndices(DISTINCT), 2);
+    block[8] = 0xff; block[9] = 0xff; // c0 = white, c1 = 0, all color indices 0
+    const out = new Uint8Array(4 * 4 * 4);
+    decodeBC3(block, 4, 4, out);
+    for (let p = 0; p < 16; p++) expect(out[p * 4 + 3]).toBe(DISTINCT_255_0[p]);
+  });
+
+  it('matches a BigInt reference decode over random BC4/BC5/BC3 blocks', () => {
+    const next = rng(0x5eed);
+    const out = new Uint8Array(4 * 4 * 4);
+    for (let trial = 0; trial < 400; trial++) {
+      const e0 = next() & 0xff, e1 = next() & 0xff;
+      const field = new Uint8Array(6);
+      for (let i = 0; i < 6; i++) field[i] = next() & 0xff;
+      const expected = refChannel(e0, e1, field);
+
+      const bc4 = new Uint8Array(8);
+      bc4[0] = e0; bc4[1] = e1; bc4.set(field, 2);
+      decodeBC4(bc4, 4, 4, out);
+      for (let p = 0; p < 16; p++) expect(out[p * 4]).toBe(expected[p]);
+
+      // Second channel of BC5 — a different endpoint pair and field, to prove
+      // the green sub-block is read from offset +10 and not aliased to red.
+      const g0 = next() & 0xff, g1 = next() & 0xff;
+      const gField = new Uint8Array(6);
+      for (let i = 0; i < 6; i++) gField[i] = next() & 0xff;
+      const expectedG = refChannel(g0, g1, gField);
+      const bc5 = new Uint8Array(16);
+      bc5[0] = e0; bc5[1] = e1; bc5.set(field, 2);
+      bc5[8] = g0; bc5[9] = g1; bc5.set(gField, 10);
+      decodeBC5(bc5, 4, 4, out);
+      for (let p = 0; p < 16; p++) {
+        expect(out[p * 4]).toBe(expected[p]);
+        expect(out[p * 4 + 1]).toBe(expectedG[p]);
+      }
+
+      // BC3's alpha block has the same layout and interpolation as BC4's.
+      const bc3 = new Uint8Array(16);
+      bc3[0] = e0; bc3[1] = e1; bc3.set(field, 2);
+      for (let i = 8; i < 16; i++) bc3[i] = next() & 0xff;
+      decodeBC3(bc3, 4, 4, out);
+      for (let p = 0; p < 16; p++) expect(out[p * 4 + 3]).toBe(expected[p]);
+    }
+  });
+});
+
 describe('decodeBC7', () => {
   /** Bit-packs a BC7 mode-6 block: mode select, then endpoints read *plane-by-plane*
    * (all R's across every endpoint, then all G's, then all B's, then all A's) — not
