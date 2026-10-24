@@ -7,6 +7,7 @@
  */
 export * from './binary.js';
 export * from './binary-reader.js';
+export * from './zip.js';
 export * from './assets.js';
 export * from './palette.js';
 export * from './atlas.js';

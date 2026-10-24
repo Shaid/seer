@@ -14,7 +14,16 @@
  */
 
 import { inflateRawSync } from 'node:zlib';
-import { asciiAt, r16 as rd16, r32 as rd32 } from '@seer-project/core';
+import {
+  asciiAt,
+  findEocdOffset,
+  readZipCentralEntry,
+  readZipEocd,
+  zipEntryPayloadStart,
+  ZIP_EOCD_BYTES,
+  ZIP_LOCAL_HEADER_BYTES,
+  ZIP_MAX_COMMENT_BYTES,
+} from '@seer-project/core';
 import { bufferSource, type ByteSource } from './source.js';
 
 export interface ZipEntry {
@@ -30,12 +39,8 @@ export interface ZipEntry {
   localHeaderOffset: number;
 }
 
-const EOCD_SIG = 0x06054b50;
-const CENTRAL_SIG = 0x02014b50;
-const LOCAL_SIG = 0x04034b50;
-
 /** EOCD is 22 bytes plus a comment of at most 64 KB. */
-const MAX_EOCD_SEARCH = 22 + 0xffff;
+const MAX_EOCD_SEARCH = ZIP_EOCD_BYTES + ZIP_MAX_COMMENT_BYTES;
 
 export function isZipFile(data: Uint8Array): boolean {
   return (
@@ -47,25 +52,31 @@ export function isZipFile(data: Uint8Array): boolean {
   );
 }
 
-/** Parse central-directory bytes that start at absolute offset `cdOffset`. */
+/**
+ * Parse central-directory bytes. Record layout comes from
+ * `@seer-project/core`'s `readZipCentralEntry`; the policy here is this
+ * reader's own — stop at the first malformed record rather than throw
+ * (a triage corpus contains damaged archives), decode names one byte per
+ * code point, and drop directory entries.
+ */
 function parseCentralDirectory(cd: Uint8Array, count: number): ZipEntry[] {
   const entries: ZipEntry[] = [];
   let off = 0;
   for (let i = 0; i < count; i++) {
-    if (off + 46 > cd.length || rd32(cd, off, 'le') !== CENTRAL_SIG) break;
-    const method = rd16(cd, off + 10, 'le');
-    const crc32Value = rd32(cd, off + 16, 'le');
-    const compressedSize = rd32(cd, off + 20, 'le');
-    const size = rd32(cd, off + 24, 'le');
-    const nameLen = rd16(cd, off + 28, 'le');
-    const extraLen = rd16(cd, off + 30, 'le');
-    const commentLen = rd16(cd, off + 32, 'le');
-    const localHeaderOffset = rd32(cd, off + 42, 'le');
-    const name = asciiAt(cd, off + 46, nameLen);
+    const rec = readZipCentralEntry(cd, off);
+    if (!rec) break;
+    const name = asciiAt(cd, rec.nameOffset, rec.nameLength);
     if (!name.endsWith('/')) {
-      entries.push({ name, size, compressedSize, crc32: crc32Value, compressionMethod: method, localHeaderOffset });
+      entries.push({
+        name,
+        size: rec.uncompressedSize,
+        compressedSize: rec.compressedSize,
+        crc32: rec.crc32,
+        compressionMethod: rec.compressionMethod,
+        localHeaderOffset: rec.localHeaderOffset,
+      });
     }
-    off += 46 + nameLen + extraLen + commentLen;
+    off = rec.nextOffset;
   }
   return entries;
 }
@@ -75,7 +86,7 @@ function parseCentralDirectory(cd: Uint8Array, count: number): ZipEntry[] {
  * directory) — never the compressed payloads.
  */
 export function listZipFromSource(src: ByteSource): ZipEntry[] | null {
-  if (src.size < 22) return null;
+  if (src.size < ZIP_EOCD_BYTES) return null;
 
   // The EOCD sits at the end, behind a comment of up to 64 KB. A first
   // probe of 22 bytes would only catch comment-less archives — and real
@@ -86,10 +97,8 @@ export function listZipFromSource(src: ByteSource): ZipEntry[] | null {
   // every human-written comment; the full 64 KB scan remains as the
   // rare-case fallback.
   const searchTail = (tail: Uint8Array): Uint8Array | null => {
-    for (let i = tail.length - 22; i >= 0; i--) {
-      if (rd32(tail, i, 'le') === EOCD_SIG) return tail.subarray(i, i + 22);
-    }
-    return null;
+    const at = findEocdOffset(tail);
+    return at < 0 ? null : tail.subarray(at, at + ZIP_EOCD_BYTES);
   };
   const probeLen = Math.min(src.size, 1024);
   let eocd = searchTail(src.read(src.size - probeLen, probeLen));
@@ -99,9 +108,7 @@ export function listZipFromSource(src: ByteSource): ZipEntry[] | null {
   }
   if (!eocd) return null;
 
-  const count = rd16(eocd, 10, 'le');
-  const cdSize = rd32(eocd, 12, 'le');
-  const cdOffset = rd32(eocd, 16, 'le');
+  const { entryCount: count, centralDirSize: cdSize, centralDirOffset: cdOffset } = readZipEocd(eocd);
   if (cdOffset + cdSize > src.size) return null;
 
   const entries = parseCentralDirectory(src.read(cdOffset, cdSize), count);
@@ -115,15 +122,13 @@ export function listZip(data: Uint8Array): ZipEntry[] | null {
 
 /** Decompress one member, reading only its own byte range from `src`. */
 export function readZipEntryFromSource(src: ByteSource, entry: ZipEntry): Uint8Array {
-  const header = src.read(entry.localHeaderOffset, 30);
-  if (header.length < 30 || rd32(header, 0, 'le') !== LOCAL_SIG) {
+  const header = src.read(entry.localHeaderOffset, ZIP_LOCAL_HEADER_BYTES);
+  // The local header repeats name/extra with its OWN lengths, which can
+  // differ from the central directory's — see `zipEntryPayloadStart`.
+  const start = zipEntryPayloadStart(header, entry.localHeaderOffset);
+  if (start < 0) {
     throw new Error(`zip: bad local header for ${entry.name}`);
   }
-  // The local header repeats name/extra with its OWN lengths, which can
-  // differ from the central directory's.
-  const nameLen = rd16(header, 26, 'le');
-  const extraLen = rd16(header, 28, 'le');
-  const start = entry.localHeaderOffset + 30 + nameLen + extraLen;
 
   if (entry.compressionMethod === 0) {
     return src.read(start, entry.size);

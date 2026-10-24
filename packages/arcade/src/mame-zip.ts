@@ -11,9 +11,15 @@
  * uses to detect a canonicalized set), and a central directory listing
  * every entry's compressed/uncompressed size and its local-header offset.
  *
- * No project dependency ships a ZIP reader, and the two compression
- * methods MAME/TorrentZip ever emit (0 = stored, 8 = deflate) are both
- * handled by Node's built-in `node:zlib`, so this avoids adding one.
+ * The container's structural layer — signatures, record sizes, the backward
+ * EOCD scan, the central-directory and local-header field offsets — comes
+ * from `@seer-project/core`'s `zip.ts`, shared with `@seer-project/probe`'s
+ * tail-reading triage reader (this file and that one had independently
+ * written the same field offsets). What stays here is this reader's own
+ * policy: whole file in memory, UTF-8 member names, every entry kept, and a
+ * throw on anything malformed — a broken ROM set is an error, not a data
+ * point. The two compression methods MAME/TorrentZip ever emit (0 = stored,
+ * 8 = deflate) are both handled by Node's built-in `node:zlib`.
  *
  * Confirmed: `readMameZip()` output CRC32s match every file's CRC32 as
  * reported by `unzip -v`, which themselves match the CRCs MAME's own
@@ -22,10 +28,12 @@
  */
 import { readFileSync } from 'node:fs';
 import { inflateRawSync } from 'node:zlib';
-
-const EOCD_SIGNATURE = 0x06054b50;
-const CENTRAL_DIR_SIGNATURE = 0x02014b50;
-const LOCAL_HEADER_SIGNATURE = 0x04034b50;
+import {
+  findEocdOffset,
+  readZipCentralEntry,
+  readZipEocd,
+  zipEntryPayloadStart,
+} from '@seer-project/core';
 
 interface CentralDirEntry {
   name: string;
@@ -35,38 +43,27 @@ interface CentralDirEntry {
   localHeaderOffset: number;
 }
 
-/** Locate the EOCD record by scanning backward from EOF (it may be followed by a comment of arbitrary length, e.g. TorrentZip's 22-byte marker). */
-function findEndOfCentralDirectory(buf: Buffer): number {
-  const maxCommentLength = 65535;
-  const minPos = Math.max(0, buf.length - 22 - maxCommentLength);
-  for (let i = buf.length - 22; i >= minPos; i--) {
-    if (buf.readUInt32LE(i) === EOCD_SIGNATURE) return i;
-  }
-  throw new Error('Not a ZIP file (no End Of Central Directory record found)');
-}
-
 function readCentralDirectory(buf: Buffer): CentralDirEntry[] {
-  const eocd = findEndOfCentralDirectory(buf);
-  const entryCount = buf.readUInt16LE(eocd + 10);
-  const centralDirOffset = buf.readUInt32LE(eocd + 16);
+  const eocd = findEocdOffset(buf);
+  if (eocd < 0) throw new Error('Not a ZIP file (no End Of Central Directory record found)');
+  const { entryCount, centralDirOffset } = readZipEocd(buf, eocd);
 
   const entries: CentralDirEntry[] = [];
   let pos = centralDirOffset;
   for (let i = 0; i < entryCount; i++) {
-    if (buf.readUInt32LE(pos) !== CENTRAL_DIR_SIGNATURE) {
-      throw new Error(`Bad central directory entry at offset 0x${pos.toString(16)}`);
-    }
-    const compressionMethod = buf.readUInt16LE(pos + 10);
-    const compressedSize = buf.readUInt32LE(pos + 20);
-    const uncompressedSize = buf.readUInt32LE(pos + 24);
-    const nameLength = buf.readUInt16LE(pos + 28);
-    const extraLength = buf.readUInt16LE(pos + 30);
-    const commentLength = buf.readUInt16LE(pos + 32);
-    const localHeaderOffset = buf.readUInt32LE(pos + 42);
-    const name = buf.toString('utf8', pos + 46, pos + 46 + nameLength);
-
-    entries.push({ name, compressionMethod, compressedSize, uncompressedSize, localHeaderOffset });
-    pos += 46 + nameLength + extraLength + commentLength;
+    const rec = readZipCentralEntry(buf, pos);
+    if (!rec) throw new Error(`Bad central directory entry at offset 0x${pos.toString(16)}`);
+    entries.push({
+      // UTF-8, not one-byte-per-code-point: MAME set names are ASCII in
+      // practice, but the ZIP spec's flag bit 11 says UTF-8 and the
+      // original reader decoded them that way.
+      name: buf.toString('utf8', rec.nameOffset, rec.nameOffset + rec.nameLength),
+      compressionMethod: rec.compressionMethod,
+      compressedSize: rec.compressedSize,
+      uncompressedSize: rec.uncompressedSize,
+      localHeaderOffset: rec.localHeaderOffset,
+    });
+    pos = rec.nextOffset;
   }
   return entries;
 }
@@ -74,12 +71,10 @@ function readCentralDirectory(buf: Buffer): CentralDirEntry[] {
 /** Read one entry's decompressed bytes, given its central-directory record. */
 function readEntryData(buf: Buffer, entry: CentralDirEntry): Uint8Array {
   const lh = entry.localHeaderOffset;
-  if (buf.readUInt32LE(lh) !== LOCAL_HEADER_SIGNATURE) {
+  const dataStart = zipEntryPayloadStart(buf, lh, lh);
+  if (dataStart < 0) {
     throw new Error(`Bad local file header for "${entry.name}" at offset 0x${lh.toString(16)}`);
   }
-  const nameLength = buf.readUInt16LE(lh + 26);
-  const extraLength = buf.readUInt16LE(lh + 28);
-  const dataStart = lh + 30 + nameLength + extraLength;
   const compressed = buf.subarray(dataStart, dataStart + entry.compressedSize);
 
   if (entry.compressionMethod === 0) {
