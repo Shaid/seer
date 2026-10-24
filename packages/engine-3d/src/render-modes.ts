@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Model3D } from './types.js';
+import { isMesh, materialBaseColor } from './three-utils.js';
 
 /**
  * The four ways a `Model3D` can be drawn. This is where the glTF/polygon
@@ -74,10 +75,6 @@ interface GeneratedMaterialCache {
  */
 const generatedMaterialCache = new WeakMap<THREE.Object3D, GeneratedMaterialCache>();
 
-function isMesh(obj: THREE.Object3D): obj is THREE.Mesh {
-  return (obj as { isMesh?: boolean }).isMesh === true;
-}
-
 /**
  * Disposes every material this module has ever generated and cached for
  * `model`'s meshes (both `'faces'` and `'wireframe'`'s flat materials —
@@ -103,12 +100,6 @@ export function disposeGeneratedRenderModeMaterials(model: Model3D): void {
   });
 }
 
-function originalColorOf(material: THREE.Material | THREE.Material[] | undefined): THREE.Color {
-  const mat = Array.isArray(material) ? material[0] : material;
-  const color = (mat as { color?: THREE.Color } | undefined)?.color;
-  return color ? color.clone() : new THREE.Color(0xffffff);
-}
-
 function cacheFor(mesh: THREE.Mesh): GeneratedMaterialCache {
   let cache = generatedMaterialCache.get(mesh);
   if (!cache) {
@@ -124,7 +115,7 @@ function facesMaterialFor(
 ): THREE.MeshLambertMaterial {
   const cache = cacheFor(mesh);
   if (!cache.faces)
-    cache.faces = new THREE.MeshLambertMaterial({ color: originalColorOf(original) });
+    cache.faces = new THREE.MeshLambertMaterial({ color: materialBaseColor(original) });
   return cache.faces;
 }
 
@@ -135,7 +126,7 @@ function wireframeMaterialFor(
   const cache = cacheFor(mesh);
   if (!cache.wireframe)
     cache.wireframe = new THREE.MeshBasicMaterial({
-      color: originalColorOf(original),
+      color: materialBaseColor(original),
       wireframe: true,
     });
   return cache.wireframe;

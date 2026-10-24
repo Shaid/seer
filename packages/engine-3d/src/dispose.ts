@@ -1,6 +1,6 @@
 import * as THREE from 'three';
+import { texturesOf } from './three-utils.js';
 
-type Disposable = { dispose(): void };
 type DisposableRenderable = (THREE.Mesh | THREE.SkinnedMesh | THREE.Points | THREE.LineSegments) & {
   geometry: THREE.BufferGeometry;
   material: THREE.Material | THREE.Material[];
@@ -25,28 +25,15 @@ function isDisposableRenderable(obj: THREE.Object3D): obj is DisposableRenderabl
   return !!(o.isMesh || o.isPoints || o.isLineSegments || o.isLine);
 }
 
-function isTexture(value: unknown): value is THREE.Texture & Disposable {
-  return (
-    !!value && typeof value === 'object' && (value as { isTexture?: boolean }).isTexture === true
-  );
-}
-
 /**
- * Disposes every texture referenced by `material`'s own properties. Unlike
- * flower's original fixed list (`map`/`normalMap`/`emissiveMap`/
- * `metalnessMap`/`roughnessMap`/`aoMap`, and only for
- * `MeshStandardMaterial`), this walks all own enumerable properties of
- * *any* material class and disposes whichever ones turn out to be textures
- * (`.isTexture === true`) — so a `MeshBasicMaterial`'s `map`, a
- * `MeshPhysicalMaterial`'s `clearcoatMap`/`sheenColorMap`/etc, or any other
- * material's texture slots all get released without this file needing to
- * know every material class's field names.
+ * Disposes every texture referenced by `material`'s own properties, then
+ * the material itself. Unlike flower's original fixed list
+ * (`map`/`normalMap`/`emissiveMap`/`metalnessMap`/`roughnessMap`/`aoMap`,
+ * and only for `MeshStandardMaterial`), `texturesOf` walks every own
+ * enumerable property of *any* material class — see its doc comment.
  */
 function disposeMaterial(material: THREE.Material): void {
-  for (const key of Object.keys(material)) {
-    const value = (material as unknown as Record<string, unknown>)[key];
-    if (isTexture(value)) value.dispose();
-  }
+  for (const texture of texturesOf(material)) texture.dispose();
   material.dispose();
 }
 

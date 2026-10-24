@@ -1,17 +1,16 @@
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import type { Model3D, ModelRepresentations } from './types.js';
+import { isMesh, isTexture } from './three-utils.js';
 
-function isMesh(obj: THREE.Object3D): obj is THREE.Mesh | THREE.SkinnedMesh {
-  return (obj as { isMesh?: boolean }).isMesh === true;
-}
-
+/**
+ * Whether `material` has a real base-colour texture bound. Not every
+ * material class even has a `.map` (`MeshBasicMaterial` does,
+ * `LineBasicMaterial` doesn't), so this duck-types the slot's value rather
+ * than branching on the material class.
+ */
 function materialHasMap(material: THREE.Material): boolean {
-  // Not every material class has a `.map` (e.g. `MeshBasicMaterial` does,
-  // `LineBasicMaterial` doesn't) — duck-type rather than checking specific
-  // material classes, same rationale as `dispose.ts`'s texture walk.
-  const map = (material as { map?: unknown }).map;
-  return !!map && typeof map === 'object' && (map as { isTexture?: boolean }).isTexture === true;
+  return isTexture((material as { map?: unknown }).map);
 }
 
 /**

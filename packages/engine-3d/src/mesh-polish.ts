@@ -1,11 +1,8 @@
 import * as THREE from 'three';
 import type { Model3D } from './types.js';
+import { isMesh } from './three-utils.js';
 
 const POSITION_WELD_EPSILON = 1e-5;
-
-function isMesh(obj: THREE.Object3D): obj is THREE.Mesh {
-  return (obj as { isMesh?: boolean }).isMesh === true;
-}
 
 /**
  * Whether `geometry` carries skinning data (`skinIndex`/`skinWeight`

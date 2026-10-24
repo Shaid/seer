@@ -1,8 +1,5 @@
 import * as THREE from 'three';
-
-function isMesh(obj: THREE.Object3D): obj is THREE.Mesh {
-  return (obj as { isMesh?: boolean }).isMesh === true;
-}
+import { isMesh } from './three-utils.js';
 
 /**
  * Shadow-map quality knobs for a single shadow-casting light. Meaningless

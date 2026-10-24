@@ -1,12 +1,9 @@
 import * as THREE from 'three';
+import { isMesh } from './three-utils.js';
 
 export interface MeshStats {
   verts: number;
   tris: number;
-}
-
-function isMesh(obj: THREE.Object3D): obj is THREE.Mesh {
-  return (obj as { isMesh?: boolean }).isMesh === true;
 }
 
 /**

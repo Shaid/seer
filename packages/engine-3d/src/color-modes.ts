@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { clamp01 } from './three-utils.js';
 
 /**
  * The four ways a polygon model's faces can be tinted. `'palette'` and
@@ -57,10 +58,6 @@ export function createPaletteResolver(
 
 const FALLBACK_HEX = 0x888888;
 const DEFAULT_HEIGHT_RANGE: HeightRange = { min: -2000, max: 2000 };
-
-function clamp01(t: number): number {
-  return Math.max(0, Math.min(1, t));
-}
 
 /**
  * Resolves one face/vertex's color for `mode`, matching hunter's

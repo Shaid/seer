@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Model3D } from './types.js';
+import { texturesOf } from './three-utils.js';
 
 /**
  * How a GPU samples a texture that doesn't map 1:1 to screen pixels.
@@ -33,25 +34,6 @@ const FILTER_PARAMS: Record<
   linear: { mag: THREE.LinearFilter, min: THREE.LinearFilter, mipmaps: false },
   trilinear: { mag: THREE.LinearFilter, min: THREE.LinearMipmapLinearFilter, mipmaps: true },
 };
-
-function isTexture(value: unknown): value is THREE.Texture {
-  return !!value && typeof value === 'object' && (value as { isTexture?: boolean }).isTexture === true;
-}
-
-/**
- * Every texture referenced by any of `material`'s own properties, duck-typed
- * the same way `dispose.ts`'s `disposeMaterial` walks a material's texture
- * slots — works across material classes without a fixed
- * `map`/`normalMap`/`roughnessMap`/... field list.
- */
-function texturesOf(material: THREE.Material): THREE.Texture[] {
-  const found: THREE.Texture[] = [];
-  for (const key of Object.keys(material)) {
-    const value = (material as unknown as Record<string, unknown>)[key];
-    if (isTexture(value)) found.push(value);
-  }
-  return found;
-}
 
 /**
  * Applies `options` to every texture referenced by `model`'s *original*

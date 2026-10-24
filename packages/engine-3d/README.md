@@ -307,6 +307,16 @@ does this automatically — see `session.ts` below).
 | --- | --- |
 | `disposeObject3D(obj)` | Disposes geometry + every material + every texture referenced by any material property (not a fixed key list) under `obj`, duck-typed to `Mesh`/`SkinnedMesh`/`Points`/`LineSegments` rather than a hard `instanceof THREE.Mesh`. |
 
+### `three-utils.ts` (internal — deliberately not exported from the barrel)
+
+The small three.js guards that nine other modules in this package would
+otherwise each re-declare: `isMesh`, `isTexture`, `texturesOf(material)`
+(the walk-every-own-property texture-slot scan `dispose.ts` and
+`texture-filter.ts` share), `materialBaseColor(material | material[] |
+undefined)` and `clamp01`. All duck-type on three.js's own `is*` flags
+rather than `instanceof`, so they keep working across a differently-bundled
+copy of three and for subclasses (`SkinnedMesh` sets `isMesh`).
+
 ### `polygon.ts`
 
 The `{verts,edges,faces}` → `Object3D` adapter.

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Model3D } from './types.js';
 import type { RenderMode } from './render-modes.js';
+import { isMesh, materialBaseColor } from './three-utils.js';
 
 /**
  * A shading override applied on top of whichever `RenderMode` is active.
@@ -29,14 +30,6 @@ export type MeshShadingMode = 'lit' | 'unlit' | 'normals' | 'depth' | 'toon' | '
  * every entry, which a `WeakMap` can't do.
  */
 export type GeneratedShadingMaterials = Map<THREE.Mesh, THREE.Material[]>;
-
-function isMesh(obj: THREE.Object3D): obj is THREE.Mesh {
-  return (obj as { isMesh?: boolean }).isMesh === true;
-}
-
-function materialColor(material: THREE.Material): THREE.Color {
-  return (material as THREE.MeshStandardMaterial).color?.clone() ?? new THREE.Color(0xffffff);
-}
 
 function materialMap(material: THREE.Material): THREE.Texture | null {
   return (material as THREE.MeshStandardMaterial).map ?? null;
@@ -198,7 +191,7 @@ function buildShadingMaterial(
   smooth: boolean,
 ): THREE.Material {
   const common = {
-    color: materialColor(original),
+    color: materialBaseColor(original),
     side: original.side,
     transparent: original.transparent,
     opacity: original.opacity,

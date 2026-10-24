@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { clamp01 } from './three-utils.js';
 
 /**
  * Per-joint physics parameters. `node` names a bone in the rig (a glTF joint
@@ -88,10 +89,6 @@ const DEFAULTS = {
   gravityDir: [0, -1, 0] as [number, number, number],
   radius: 0.02,
 };
-
-function clamp01(x: number): number {
-  return x < 0 ? 0 : x > 1 ? 1 : x;
-}
 
 function isBoneLike(o: THREE.Object3D): boolean {
   return (o as unknown as { isBone?: boolean }).isBone === true || o.type === 'Bone';
