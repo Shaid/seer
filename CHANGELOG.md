@@ -34,6 +34,26 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- `@seer-project/skeleton` — new package: engine-agnostic skeleton
+  retargeting for offline rig conversion — structural humanoid core-bone
+  labelling from hierarchy and bind-pose geometry alone
+  (`labelHumanoidCoreBones`, no bone names required), three ways to build a
+  `BoneCorrespondence` (core-label matching with a Kuhn-Munkres per-fork
+  assignment, name-keyed, and a purely geometric pass that reports rather
+  than accepts), ancestor-fallback resolution, skin-weight transfer, and
+  bind-pose reconciliation (T-pose vs A-pose, differing proportions and
+  units). Everything works on plain TRS bone arrays — `{ parent, rotation,
+  position, scale }` — so an engine's own skeleton type is *structurally*
+  assignable with no adapter and no conversion copy; no DOM, no `node:*`,
+  and no dependency beyond `@seer-project/gltf`'s matrix helpers. This is
+  the offline counterpart to `@seer-project/engine-3d`'s runtime
+  `retargetClipsToSkeleton`, not a replacement for it. Migrated out of
+  chimera, its first consumer; the two repos' golden-hash tables are
+  deliberately the same numbers for the same case names, which is what
+  pins the two sides together. Engine-specific bone remap tables (a
+  format's own compact bone-index table, a global bone-id namespace) stay
+  in the consuming project by design — this package matches bones, not
+  file-format side tables.
 - `@seer-project/3ds` — new package: Nintendo 3DS asset-format primitives —
   CTPK texture packs, the CTR texture tile/ETC1 decoder, Nintendo
   LZ10/LZ11/LZ13 decompression, BCSTM/BFSTM streamed-audio headers, and the
