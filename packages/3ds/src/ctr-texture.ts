@@ -46,25 +46,32 @@ type FormatName =
   | 'etc1'
   | 'etc1a4';
 
-/** Map a CT SDK format id (see CTPK_TEXTURE_FORMATS) to a decodeable format. */
+/**
+ * CT SDK `GPU_FORMAT_*` ids to format names. The single source of truth for
+ * this table: `ctpk.ts` re-exports it as `CTPK_TEXTURE_FORMATS`, which used
+ * to be a value-identical second copy (and a third copy was rebuilt inside
+ * `ctrFormatName` on every call — including once per texture from `bch.ts`).
+ */
+export const CTR_FORMAT_NAMES: Readonly<Record<number, FormatName>> = {
+  0: 'rgba8',
+  1: 'rgb8',
+  2: 'rgba5551',
+  3: 'rgb565',
+  4: 'rgba4',
+  5: 'la8',
+  6: 'hilo8',
+  7: 'l8',
+  8: 'a8',
+  9: 'la4',
+  10: 'l4',
+  11: 'a4',
+  12: 'etc1',
+  13: 'etc1a4',
+};
+
+/** Map a CT SDK format id (see `CTR_FORMAT_NAMES`) to a decodeable format. */
 export function ctrFormatName(format: number): FormatName | undefined {
-  const names: Record<number, FormatName> = {
-    0: 'rgba8',
-    1: 'rgb8',
-    2: 'rgba5551',
-    3: 'rgb565',
-    4: 'rgba4',
-    5: 'la8',
-    6: 'hilo8',
-    7: 'l8',
-    8: 'a8',
-    9: 'la4',
-    10: 'l4',
-    11: 'a4',
-    12: 'etc1',
-    13: 'etc1a4',
-  };
-  return names[format];
+  return CTR_FORMAT_NAMES[format];
 }
 
 /**

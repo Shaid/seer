@@ -8,10 +8,19 @@ import {
   fitShadowCamera,
   createShadowCatcher,
   updateShadowCatcher,
+  footprintOf,
   type ShadowOptions,
 } from './shadows.js';
 
 export type { ShadowOptions } from './shadows.js';
+
+// `'auto'` grid sizing. The grid spans twice the model's ground footprint
+// (the same factor `shadows.ts`'s shadow catcher defaults to) and gets one
+// division per ~10 world units, clamped to a legible range.
+const GRID_SIZE_FACTOR = 2;
+const GRID_UNITS_PER_DIVISION = 10;
+const GRID_MIN_DIVISIONS = 4;
+const GRID_MAX_DIVISIONS = 40;
 
 export interface LightConfig {
   color?: THREE.ColorRepresentation;
@@ -290,6 +299,20 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
   let shadowCatcher: THREE.Mesh | null = null;
   let lastBounds: THREE.Box3 | null = null;
 
+  /**
+   * Removes and frees the shadow-catcher plane, if one exists — the catcher's
+   * counterpart to `disposeGrid`, shared by `applyShadows(false)` and
+   * `dispose()`. (`dispose()`'s own copy used to skip the `scene.remove`,
+   * harmless only because the whole scene was being dropped with it.)
+   */
+  const disposeCatcher = (): void => {
+    if (!shadowCatcher) return;
+    scene.remove(shadowCatcher);
+    shadowCatcher.geometry.dispose();
+    (shadowCatcher.material as THREE.Material).dispose();
+    shadowCatcher = null;
+  };
+
   /** Fits the shadow-camera frustum and (re)builds the catcher plane to `box` — the shared tail end of both `updateSceneBounds()` (a new model changed the bounds) and `applyShadows(true)` (shadows just turned on, against whatever bounds are already known). No-op if shadows are off, there's no key light, or `box` is empty/unknown. */
   const fitShadowsToBounds = (box: THREE.Box3 | null): void => {
     if (!shadowsEnabled || !keyLight || !box || box.isEmpty()) return;
@@ -305,10 +328,10 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
   const updateSceneBounds = (box: THREE.Box3): void => {
     lastBounds = box;
     if (gridOption === 'auto' && !box.isEmpty()) {
-      const size = box.getSize(new THREE.Vector3());
-      const footprint = Math.max(size.x, size.z, 0.001);
-      const gridSize = footprint * 2;
-      const divisions = Math.max(4, Math.min(40, Math.round(gridSize / 10)) || 4);
+      const gridSize = footprintOf(box) * GRID_SIZE_FACTOR;
+      // One division per ~10 world units, clamped to a legible 4..40 — the
+      // `|| 4` catches a `Math.round` of 0 on a sub-10-unit model.
+      const divisions = Math.max(GRID_MIN_DIVISIONS, Math.min(GRID_MAX_DIVISIONS, Math.round(gridSize / GRID_UNITS_PER_DIVISION)) || GRID_MIN_DIVISIONS);
       if (gridHelper) disposeGrid(scene, gridHelper);
       gridHelper = buildGrid({ size: gridSize, divisions, y: box.min.y });
       scene.add(gridHelper);
@@ -330,11 +353,8 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
     }
     if (enabled) {
       fitShadowsToBounds(lastBounds);
-    } else if (shadowCatcher) {
-      scene.remove(shadowCatcher);
-      shadowCatcher.geometry.dispose();
-      (shadowCatcher.material as THREE.Material).dispose();
-      shadowCatcher = null;
+    } else {
+      disposeCatcher();
     }
   };
   if (opts.shadows) applyShadows(opts.shadows);
@@ -457,11 +477,7 @@ export function createViewport(container: HTMLElement, opts: ViewportOptions = {
       running = false;
       cancelAnimationFrame(animId);
       resizeObserver?.disconnect();
-      if (shadowCatcher) {
-        shadowCatcher.geometry.dispose();
-        (shadowCatcher.material as THREE.Material).dispose();
-        shadowCatcher = null;
-      }
+      disposeCatcher();
       if (gridHelper) {
         disposeGrid(scene, gridHelper);
         gridHelper = null;

@@ -95,9 +95,25 @@ export interface GltfBuilder {
 // likewise only exported from `reader.ts`; this module doesn't use them
 // internally.
 import { FLOAT } from './reader.js';
+import {
+  GLB_MAGIC,
+  GLB_VERSION,
+  GLB_HEADER_BYTES,
+  GLB_CHUNK_HEADER_BYTES,
+  GLB_CHUNK_JSON,
+  GLB_CHUNK_BIN,
+  GLB_JSON_PAD,
+} from './glb-container.js';
 
 export const ARRAY_BUFFER = 34962;
 export const ELEMENT_ARRAY_BUFFER = 34963;
+
+// glTF sampler enums are raw GL constants. Named here so `addEmbeddedTexture`'s
+// default sampler reads as a choice ("bilinear, trilinear mips, repeat") rather
+// than four unexplained integers.
+const GL_LINEAR = 9729;
+const GL_LINEAR_MIPMAP_LINEAR = 9987;
+const GL_REPEAT = 10497;
 
 export function align4(n: number): number {
   return (n + 3) & ~3;
@@ -167,7 +183,9 @@ export function addEmbeddedTexture(builder: GltfBuilder, image: EmbeddedTexture)
   const textures = (builder.json.textures ??= []);
   const samplers = (builder.json.samplers ??= []);
   const imageIndex = images.push({ name: image.name, bufferView: view, mimeType: 'image/png' }) - 1;
-  if (samplers.length === 0) samplers.push({ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 });
+  if (samplers.length === 0) {
+    samplers.push({ magFilter: GL_LINEAR, minFilter: GL_LINEAR_MIPMAP_LINEAR, wrapS: GL_REPEAT, wrapT: GL_REPEAT });
+  }
   return textures.push({ sampler: 0, source: imageIndex }) - 1;
 }
 
@@ -299,25 +317,21 @@ export function mat4Inverse(m: Float32Array): Float32Array {
   return out;
 }
 
+/**
+ * Append a typed array's bytes as a bufferView: `pushBytes` over the array's
+ * own backing store, no copy. These used to be two line-for-line identical
+ * function bodies — wrapping the typed array is the only thing that ever
+ * differed between them.
+ */
 export function pushView(
   builder: GltfBuilder,
   typedArr: Float32Array | Uint32Array | Uint16Array,
   target: number,
 ): number {
-  const bytes = new Uint8Array(typedArr.buffer, typedArr.byteOffset, typedArr.byteLength);
-  const byteOffset = builder.binOffset;
-  builder.binOffset += align4(bytes.length);
-  const view: { buffer: number; byteOffset: number; byteLength: number; target?: number } = {
-    buffer: 0,
-    byteOffset,
-    byteLength: bytes.length,
-  };
-  if (target > 0) view.target = target;
-  builder.json.bufferViews.push(view);
-  builder.chunks.push(bytes);
-  return builder.json.bufferViews.length - 1;
+  return pushBytes(builder, new Uint8Array(typedArr.buffer, typedArr.byteOffset, typedArr.byteLength), target);
 }
 
+/** Append raw bytes as a bufferView, returning its index. `target` 0 means "omit the field" (glTF's `target` is only meaningful for vertex/index data). */
 export function pushBytes(builder: GltfBuilder, bytes: Uint8Array, target = 0): number {
   const byteOffset = builder.binOffset;
   builder.binOffset += align4(bytes.length);
@@ -418,7 +432,7 @@ export function assembleGLB(builder: GltfBuilder): ArrayBuffer {
   const jsonBytes = new TextEncoder().encode(JSON.stringify(builder.json));
   const jsonPaddedLen = align4(jsonBytes.length);
   const binPaddedLen = align4(total);
-  const totalLen = 12 + 8 + jsonPaddedLen + 8 + binPaddedLen;
+  const totalLen = GLB_HEADER_BYTES + GLB_CHUNK_HEADER_BYTES + jsonPaddedLen + GLB_CHUNK_HEADER_BYTES + binPaddedLen;
 
   const out = new ArrayBuffer(totalLen);
   const view = new DataView(out);
@@ -426,20 +440,20 @@ export function assembleGLB(builder: GltfBuilder): ArrayBuffer {
   let p = 0;
 
   // GLB header
-  view.setUint32(p, 0x46546c67, true); p += 4;
-  view.setUint32(p, 2, true); p += 4;
+  view.setUint32(p, GLB_MAGIC, true); p += 4;
+  view.setUint32(p, GLB_VERSION, true); p += 4;
   view.setUint32(p, totalLen, true); p += 4;
 
-  // JSON chunk header + data (padded with 0x20)
+  // JSON chunk header + data (space-padded)
   view.setUint32(p, jsonPaddedLen, true); p += 4;
-  view.setUint32(p, 0x4e4f534a, true); p += 4;
+  view.setUint32(p, GLB_CHUNK_JSON, true); p += 4;
   bytes.set(jsonBytes, p);
-  bytes.fill(0x20, p + jsonBytes.length, p + jsonPaddedLen);
+  bytes.fill(GLB_JSON_PAD, p + jsonBytes.length, p + jsonPaddedLen);
   p += jsonPaddedLen;
 
-  // Binary chunk header + data (padded with 0x00)
+  // Binary chunk header + data (zero-padded, which a fresh ArrayBuffer already is)
   view.setUint32(p, binPaddedLen, true); p += 4;
-  view.setUint32(p, 0x004e4942, true); p += 4;
+  view.setUint32(p, GLB_CHUNK_BIN, true); p += 4;
   for (const c of builder.chunks) {
     bytes.set(c, p);
     p += align4(c.length);

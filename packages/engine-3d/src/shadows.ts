@@ -161,10 +161,21 @@ function catcherYOffset(box: THREE.Box3): number {
   return Math.max(size.x, size.y, size.z, 0.001) * 0.001;
 }
 
-function catcherSize(box: THREE.Box3, sizeFactor: number): number {
+/**
+ * A box's ground footprint: the larger of its X and Z extents, floored at
+ * `0.001` so an empty or degenerate box still yields a usable size rather
+ * than zero. Both the shadow catcher and `viewport.ts`'s `'auto'` grid size
+ * themselves from this (each `footprint * 2` by default) and used to compute
+ * it independently — `viewport.ts`'s copy is what this file's `sizeFactor`
+ * doc already pointed at.
+ */
+export function footprintOf(box: THREE.Box3): number {
   const size = box.getSize(new THREE.Vector3());
-  const footprint = Math.max(size.x, size.z, 0.001);
-  return footprint * sizeFactor;
+  return Math.max(size.x, size.z, 0.001);
+}
+
+function catcherSize(box: THREE.Box3, sizeFactor: number): number {
+  return footprintOf(box) * sizeFactor;
 }
 
 /** A flat, shadow-only plane (`THREE.ShadowMaterial` — invisible except where a shadow falls on it) sized and positioned to sit just under `box`. No-op-safe to call with an empty `box`: sizes to the `0.001` floor rather than throwing or producing a zero-size plane. */

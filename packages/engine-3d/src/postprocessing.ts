@@ -173,6 +173,19 @@ function applyDOFOptions(pass: BokehPass, opts: DOFOptions): void {
  * `setCamera()` call flows through this path's own `setCamera()` (below),
  * which is what keeps every pass holding a camera reference in sync.
  */
+/**
+ * The composer's effective pixel ratio. GTAO's depth/normal passes are the
+ * single most expensive thing in the stack, so with AO on the composer is
+ * clamped to 1x regardless of the display's device ratio; everything else
+ * renders at the renderer's own ratio. Written out in four places before
+ * this — `createCinematicPath`'s construction, FXAA's resolution uniform,
+ * `setSize()` and `setOptions()` — which is four chances for them to
+ * disagree about what the composer is actually rendering at.
+ */
+function composerPixelRatio(opts: CinematicOptions, pixelRatio: number): number {
+  return opts.ao ? Math.min(pixelRatio, 1) : pixelRatio;
+}
+
 export function createCinematicPath(
   renderer: THREE.WebGLRenderer,
   scene: THREE.Scene,
@@ -206,7 +219,7 @@ export function createCinematicPath(
     : undefined;
 
   const composer = new EffectComposer(renderer, renderTarget);
-  composer.setPixelRatio(current.ao ? Math.min(pixelRatio, 1) : pixelRatio);
+  composer.setPixelRatio(composerPixelRatio(current, pixelRatio));
 
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
@@ -244,7 +257,7 @@ export function createCinematicPath(
     // AO on, the composer actually renders at the clamped ratio, and
     // FXAA's shader needs its resolution uniform to match the real
     // per-pixel size it's sampling, not the display's.
-    const effectivePixelRatio = current.ao ? Math.min(pixelRatio, 1) : pixelRatio;
+    const effectivePixelRatio = composerPixelRatio(current, pixelRatio);
     fxaaPass.setSize(size.x * effectivePixelRatio, size.y * effectivePixelRatio);
     composer.addPass(fxaaPass);
   }
@@ -254,7 +267,7 @@ export function createCinematicPath(
       composer.render(delta);
     },
     setSize(w, h, pr) {
-      composer.setPixelRatio(current.ao ? Math.min(pr, 1) : pr);
+      composer.setPixelRatio(composerPixelRatio(current, pr));
       composer.setSize(w, h);
     },
     setCamera(next) {
@@ -275,7 +288,7 @@ export function createCinematicPath(
       if (bokehPass && next.dof) applyDOFOptions(bokehPass, next.dof);
       if (bloomPass && next.bloom) applyBloomOptions(bloomPass, next.bloom);
       applyToneMapping(renderer, next.toneMapping ?? false);
-      composer.setPixelRatio(next.ao ? Math.min(renderer.getPixelRatio(), 1) : renderer.getPixelRatio());
+      composer.setPixelRatio(composerPixelRatio(next, renderer.getPixelRatio()));
     },
     dispose() {
       gtaoPass?.dispose();

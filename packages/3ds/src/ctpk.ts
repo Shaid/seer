@@ -19,24 +19,14 @@
  * 3DS hardware enums — so 12 = ETC1 and 13 = ETC1A4.
  */
 import { u32At, u16At } from './le.js';
+import { CTR_FORMAT_NAMES } from './ctr-texture.js';
 
-/** Raw data offsets inside the file are relative to `textureSectionOffset`. */
-export const CTPK_TEXTURE_FORMATS: Record<number, string> = {
-  0: 'rgba8',
-  1: 'rgb8',
-  2: 'rgba5551',
-  3: 'rgb565',
-  4: 'rgba4',
-  5: 'la8',
-  6: 'hilo8',
-  7: 'l8',
-  8: 'a8',
-  9: 'la4',
-  10: 'l4',
-  11: 'a4',
-  12: 'etc1',
-  13: 'etc1a4',
-};
+/**
+ * CT SDK pixel-format ids. Re-exported from `ctr-texture.ts` (the decoder
+ * that has to agree with it) rather than kept as a second, value-identical
+ * copy here.
+ */
+export const CTPK_TEXTURE_FORMATS: Readonly<Record<number, string>> = CTR_FORMAT_NAMES;
 
 export interface CtpkTexture {
   name: string;
@@ -77,8 +67,7 @@ export function parseCtpk(data: Uint8Array): Ctpk {
   const textures: CtpkTexture[] = [];
   for (let i = 0; i < count; i++) {
     const base = 0x20 * (i + 1);
-    const pathOff =
-      data[base] | (data[base + 1] << 8) | (data[base + 2] << 16) | (data[base + 3] << 24);
+    const pathOff = u32At(data, base);
     textures.push({
       name: readCString(data, pathOff),
       format: u32At(data, base + 12),

@@ -15,6 +15,15 @@
  * `readBaseColorImage`) needs `pngjs` and lives in `./node.js` instead.
  */
 
+import {
+  GLB_MAGIC,
+  GLB_VERSION,
+  GLB_HEADER_BYTES,
+  GLB_CHUNK_HEADER_BYTES,
+  GLB_CHUNK_JSON,
+  GLB_CHUNK_BIN,
+} from './glb-container.js';
+
 // ---------------------------------------------------------------------------
 // Container
 // ---------------------------------------------------------------------------
@@ -129,9 +138,6 @@ export interface GlbFile {
   resolveUri?: (uri: string) => Uint8Array;
 }
 
-const GLB_MAGIC = 0x46546c67; // "glTF"
-const CHUNK_JSON = 0x4e4f534a; // "JSON"
-const CHUNK_BIN = 0x004e4942; // "BIN\0"
 
 /** Extension names this reader can actually decode. A GLB whose `extensionsRequired` names anything else is refused up front, rather than silently decoding to all-zero/wrong data (e.g. a Draco- or meshopt-compressed accessor has no `bufferView` at all, which would otherwise silently read back as zeros — see `readAccessor`'s `sparse`/no-`bufferView` handling). */
 const SUPPORTED_EXTENSIONS = new Set<string>();
@@ -140,34 +146,34 @@ const SUPPORTED_EXTENSIONS = new Set<string>();
 export function parseGLB(input: Uint8Array | ArrayBuffer): GlbFile {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (bytes.length < 12 || view.getUint32(0, true) !== GLB_MAGIC) {
+  if (bytes.length < GLB_HEADER_BYTES || view.getUint32(0, true) !== GLB_MAGIC) {
     throw new Error('parseGLB: not a GLB container (bad magic)');
   }
   const version = view.getUint32(4, true);
-  if (version !== 2) throw new Error(`parseGLB: unsupported GLB version ${version} (only 2 is supported)`);
+  if (version !== GLB_VERSION) throw new Error(`parseGLB: unsupported GLB version ${version} (only 2 is supported)`);
   const totalLength = view.getUint32(8, true);
   if (totalLength > bytes.length) {
     throw new Error(`parseGLB: header declares ${totalLength} bytes but the input is only ${bytes.length} (truncated file)`);
   }
-  let p = 12;
+  let p = GLB_HEADER_BYTES;
   let json: GltfJsonIn | null = null;
   let bin = new Uint8Array(0);
   const decoder = new TextDecoder('utf-8');
-  while (p + 8 <= totalLength) {
+  while (p + GLB_CHUNK_HEADER_BYTES <= totalLength) {
     const chunkLength = view.getUint32(p, true);
     const chunkType = view.getUint32(p + 4, true);
-    const chunkStart = p + 8;
+    const chunkStart = p + GLB_CHUNK_HEADER_BYTES;
     if (chunkStart + chunkLength > totalLength) {
       throw new Error(`parseGLB: chunk at offset ${p} overruns the declared file length (truncated or corrupt file)`);
     }
-    if (chunkType === CHUNK_JSON) {
+    if (chunkType === GLB_CHUNK_JSON) {
       const text = decoder.decode(bytes.subarray(chunkStart, chunkStart + chunkLength));
       try {
         json = JSON.parse(text) as GltfJsonIn;
       } catch (err) {
         throw new Error(`parseGLB: JSON chunk is not valid JSON (${err instanceof Error ? err.message : String(err)})`);
       }
-    } else if (chunkType === CHUNK_BIN) {
+    } else if (chunkType === GLB_CHUNK_BIN) {
       bin = bytes.slice(chunkStart, chunkStart + chunkLength);
     }
     p = chunkStart + chunkLength;
@@ -316,7 +322,6 @@ export interface DecomposedNode {
   skin?: number;
 }
 
-/** Decompose a column-major 4x4 TRS matrix (no shear) into translation/rotation/scale. */
 /**
  * Decompose a column-major 4x4 TRS matrix (no shear) into translation/rotation/scale.
  * Handles a mirrored (negative-determinant) matrix by folding the sign into `sx`

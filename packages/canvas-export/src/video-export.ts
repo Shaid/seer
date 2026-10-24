@@ -1,5 +1,6 @@
 import type { CaptureSource } from './capture-source.js';
 import { drawWatermark, type WatermarkOptions } from './screenshot.js';
+import { createCanvas2D, downloadBlob } from './dom-download.js';
 
 /**
  * Picks the best supported video mime type from a fixed preference order —
@@ -61,11 +62,7 @@ export function createCaptureSurface(
     };
   }
 
-  const out = document.createElement('canvas');
-  out.width = source.canvas.width;
-  out.height = source.canvas.height;
-  const ctx = out.getContext('2d');
-  if (!ctx) throw new Error('createCaptureSurface: 2D context unavailable');
+  const { canvas: out, ctx } = createCanvas2D(source.canvas.width, source.canvas.height, 'createCaptureSurface');
   const watermark = opts.watermark;
 
   return {
@@ -237,12 +234,5 @@ export async function recordClip(
  */
 export function downloadClip(result: RecordClipResult, filename: string): void {
   const ext = result.mimeType.includes('mp4') ? 'mp4' : 'webm';
-  const url = URL.createObjectURL(result.blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename.endsWith(`.${ext}`) ? filename : `${filename}.${ext}`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  downloadBlob(result.blob, filename.endsWith(`.${ext}`) ? filename : `${filename}.${ext}`);
 }

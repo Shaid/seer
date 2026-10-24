@@ -1,4 +1,5 @@
 import type { CaptureSource } from './capture-source.js';
+import { createCanvas2D, downloadBlob } from './dom-download.js';
 
 /**
  * Watermark text is entirely host-supplied — this package never builds the
@@ -122,11 +123,7 @@ export function composeCaptureCanvas(
 
   const width = Math.round(source.canvas.width * scale);
   const height = Math.round(source.canvas.height * scale);
-  const out = document.createElement('canvas');
-  out.width = width;
-  out.height = height;
-  const ctx = out.getContext('2d');
-  if (!ctx) throw new Error('composeCaptureCanvas: 2D context unavailable');
+  const { canvas: out, ctx } = createCanvas2D(width, height, 'composeCaptureCanvas');
 
   ctx.drawImage(source.canvas, 0, 0, width, height);
   if (watermark) {
@@ -158,12 +155,5 @@ export async function downloadScreenshot(
   opts: CaptureOptions = {},
 ): Promise<void> {
   const blob = await captureBlob(source, opts);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename.endsWith('.png') ? filename : `${filename}.png`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  downloadBlob(blob, filename.endsWith('.png') ? filename : `${filename}.png`);
 }

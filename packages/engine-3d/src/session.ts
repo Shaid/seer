@@ -324,6 +324,29 @@ export function createMeshSession(
   };
 
   /**
+   * Frees everything this session derived from the *current* model — the
+   * animation mixer, the spring-bone solver and its config, every tracked
+   * three.js resource, the generated shading materials, and the original
+   * geometry snapshot.
+   *
+   * Shared by `setModel()` (before adopting the next model) and `dispose()`,
+   * which each carried their own line-for-line copy. One place is the point:
+   * the next per-model resource someone adds is otherwise one easy-to-miss
+   * edit away from leaking on every model switch. Deliberately does not
+   * clear `model` itself — the two callers want different things there
+   * (`setModel` assigns the next one, `dispose` nulls it).
+   */
+  const releaseModelState = () => {
+    animation?.dispose();
+    animation = null;
+    teardownSpringBones();
+    springBoneOptions = false;
+    clearTracked();
+    clearGeneratedShadingMaterials(shadingCache);
+    disposeOriginalGeometry(originalGeometry);
+  };
+
+  /**
    * (Re)builds the spring-bone solver from `springBoneOptions` against the
    * current `model`/`animation` — called on `setSpringBones` itself, and
    * again from `setExternalAnimations` (whose new clips can change which
@@ -417,14 +440,7 @@ export function createMeshSession(
     setModel(next, setOpts = {}) {
       if (disposed) return;
 
-      animation?.dispose();
-      animation = null;
-      teardownSpringBones();
-      springBoneOptions = false;
-
-      clearTracked();
-      clearGeneratedShadingMaterials(shadingCache);
-      disposeOriginalGeometry(originalGeometry);
+      releaseModelState();
 
       model = next;
       shading = 'lit';
@@ -664,13 +680,7 @@ export function createMeshSession(
     dispose() {
       if (disposed) return;
       disposed = true;
-      animation?.dispose();
-      animation = null;
-      teardownSpringBones();
-      springBoneOptions = false;
-      clearTracked();
-      clearGeneratedShadingMaterials(shadingCache);
-      disposeOriginalGeometry(originalGeometry);
+      releaseModelState();
       model = null;
       renderMode = null;
       // Explicit, ahead of viewport.dispose() — PhotoModeController.dispose()
