@@ -19,6 +19,14 @@
  *   `[refBit i32][left u16][right u16][nameOffset][dataOffset]`.
  * - Offsets are stored relative to their own field position.
  */
+import {
+  sampleCtrSkeletalAnimation,
+  type CtrAnimAxis,
+  type CtrAnimVec4,
+  type CtrAnimBoneTrack,
+  type CtrSampledAnimation,
+  type CtrSampledJointAnimation,
+} from './ctr-anim.js';
 import { u32At, u16At } from './le.js';
 import {
   matApply,
@@ -27,7 +35,6 @@ import {
   matRotY,
   matRotZ,
   matScale,
-  matToQuaternion,
   matTranslate,
   type Mat4,
 } from './mat4-ctr.js';
@@ -155,29 +162,14 @@ export interface CgfxModel {
   bindMatrices: number[][];
 }
 
+// Aliases of the shared CTR animation shapes — see `ctr-anim.ts`. CGFX and
+// BCH wrap the same CTR SDK structures; only the containers differ. Kept
+// exported under their original names (published surface).
 /** A single float channel's keyframes, already scaled to (frame, value). */
-export interface CgfxAnimAxis {
-  constant?: number;
-  keys?: { frame: number; value: number }[];
-}
-
+export type CgfxAnimAxis = CtrAnimAxis;
 /** A vec3/vec4 channel (transformQuaternion segment) — constant or a dense per-frame array. */
-export interface CgfxAnimVec4 {
-  constant?: [number, number, number, number];
-  keys?: { frame: number; value: [number, number, number, number] }[];
-}
-
-export interface CgfxAnimBoneTrack {
-  boneName: string;
-  /** 'transform' segment: independent Euler-angle rotation, one track per axis (X,Y,Z). */
-  rotation?: [CgfxAnimAxis | undefined, CgfxAnimAxis | undefined, CgfxAnimAxis | undefined];
-  /** 'transform' segment: independent translation, one track per axis (X,Y,Z). */
-  translation?: [CgfxAnimAxis | undefined, CgfxAnimAxis | undefined, CgfxAnimAxis | undefined];
-  /** 'transformQuaternion' segment. */
-  scaleQuat?: CgfxAnimVec4;
-  rotationQuat?: CgfxAnimVec4;
-  translationQuat?: CgfxAnimVec4;
-}
+export type CgfxAnimVec4 = CtrAnimVec4;
+export type CgfxAnimBoneTrack = CtrAnimBoneTrack;
 
 export interface CgfxSkeletalAnimation {
   name: string;
@@ -959,105 +951,26 @@ function readCgfxSkeletalAnimations(data: Uint8Array, dataStart: number): CgfxSk
   return animations;
 }
 
-function sampleAxis(axis: CgfxAnimAxis | undefined, frame: number, fallback: number): number {
-  if (!axis) return fallback;
-  if (axis.constant !== undefined) return axis.constant;
-  const keys = axis.keys;
-  if (!keys || keys.length === 0) return fallback;
-  if (frame <= keys[0]!.frame) return keys[0]!.value;
-  const last = keys[keys.length - 1]!;
-  if (frame >= last.frame) return last.value;
-  for (let i = 0; i < keys.length - 1; i++) {
-    const a = keys[i]!,
-      b = keys[i + 1]!;
-    if (frame >= a.frame && frame <= b.frame) {
-      const t = b.frame === a.frame ? 0 : (frame - a.frame) / (b.frame - a.frame);
-      return a.value + (b.value - a.value) * t;
-    }
-  }
-  return last.value;
-}
+export type CgfxSampledJointAnimation = CtrSampledJointAnimation;
+export type CgfxSampledAnimation = CtrSampledAnimation;
 
-export interface CgfxSampledJointAnimation {
-  boneName: string;
-  rotationKeys?: { time: number; quat: [number, number, number, number] }[];
-  translationKeys?: { time: number; value: [number, number, number] }[];
-}
-
-export interface CgfxSampledAnimation {
-  name: string;
-  loopMode: number;
-  duration: number;
-  joints: CgfxSampledJointAnimation[];
-}
-
-/** Resample a `CgfxSkeletalAnimation` onto a uniform 30fps-assumed time grid — see bch.ts's `sampleBchSkeletalAnimation` for the full rationale (identical here). Renamed from the original `sampleSkeletalAnimation` (both bch.ts and cgfx.ts independently used that name) to avoid a barrel export collision — see mat4-ctr.ts's doc comment for the sibling collision this package's extraction also fixed. */
+/**
+ * Resample a `CgfxSkeletalAnimation` onto a uniform 30fps-assumed time grid.
+ *
+ * The body is `sampleCtrSkeletalAnimation`, shared with
+ * `sampleBchSkeletalAnimation`: the two used to be byte-identical apart from
+ * five type-name lines, which is also why this one carries the longer name
+ * (both files originally called it `sampleSkeletalAnimation` and collided at
+ * the barrel). See `ctr-anim.ts` for the rationale, and `mat4-ctr.ts` for
+ * the sibling extraction this follows.
+ */
 export function sampleCgfxSkeletalAnimation(
   animation: CgfxSkeletalAnimation,
   bindBones: CgfxBone[],
   fps = 30,
   maxSamples = 120,
 ): CgfxSampledAnimation {
-  const totalFrames = Math.max(animation.frameSize, 1);
-  const sampleCount = Math.max(2, Math.min(Math.ceil(totalFrames) + 1, maxSamples));
-  const bindByName = new Map(bindBones.map((b) => [b.name, b]));
-
-  const joints: CgfxSampledJointAnimation[] = [];
-  for (const bone of animation.bones) {
-    const bind = bindByName.get(bone.boneName);
-    const rotationKeys: { time: number; quat: [number, number, number, number] }[] = [];
-    const translationKeys: { time: number; value: [number, number, number] }[] = [];
-
-    if (bone.rotation && bone.rotation.some((a) => a)) {
-      for (let i = 0; i < sampleCount; i++) {
-        const frame = (i / (sampleCount - 1)) * totalFrames;
-        const rx = sampleAxis(bone.rotation[0], frame, bind?.rotation[0] ?? 0);
-        const ry = sampleAxis(bone.rotation[1], frame, bind?.rotation[1] ?? 0);
-        const rz = sampleAxis(bone.rotation[2], frame, bind?.rotation[2] ?? 0);
-        const m = matMul(matMul(matRotX(rx), matRotY(ry)), matRotZ(rz));
-        rotationKeys.push({ time: frame / fps, quat: matToQuaternion(m) });
-      }
-    } else if (bone.rotationQuat) {
-      if (bone.rotationQuat.constant) {
-        rotationKeys.push({ time: 0, quat: bone.rotationQuat.constant });
-      } else if (bone.rotationQuat.keys) {
-        for (const k of bone.rotationQuat.keys) rotationKeys.push({ time: k.frame / fps, quat: k.value });
-      }
-    }
-
-    if (bone.translation && bone.translation.some((a) => a)) {
-      for (let i = 0; i < sampleCount; i++) {
-        const frame = (i / (sampleCount - 1)) * totalFrames;
-        translationKeys.push({
-          time: frame / fps,
-          value: [
-            sampleAxis(bone.translation[0], frame, bind?.translation[0] ?? 0),
-            sampleAxis(bone.translation[1], frame, bind?.translation[1] ?? 0),
-            sampleAxis(bone.translation[2], frame, bind?.translation[2] ?? 0),
-          ],
-        });
-      }
-    } else if (bone.translationQuat) {
-      if (bone.translationQuat.constant) {
-        const c = bone.translationQuat.constant;
-        translationKeys.push({ time: 0, value: [c[0], c[1], c[2]] });
-      } else if (bone.translationQuat.keys) {
-        for (const k of bone.translationQuat.keys) {
-          translationKeys.push({ time: k.frame / fps, value: [k.value[0], k.value[1], k.value[2]] });
-        }
-      }
-    }
-
-    if (rotationKeys.length > 0 || translationKeys.length > 0) {
-      joints.push({
-        boneName: bone.boneName,
-        ...(rotationKeys.length > 0 ? { rotationKeys } : {}),
-        ...(translationKeys.length > 0 ? { translationKeys } : {}),
-      });
-    }
-  }
-
-  return { name: animation.name, loopMode: animation.loopMode, duration: totalFrames / fps, joints };
+  return sampleCtrSkeletalAnimation(animation, bindBones, fps, maxSamples);
 }
 
 // ---------------------------------------------------------------------------

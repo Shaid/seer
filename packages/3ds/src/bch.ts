@@ -27,6 +27,14 @@
  * ~65% of decoded UVs landing in [-0.2, 1.2] with clean-looking extremes near
  * ±1/±2 rather than random noise — a real-but-imperfect result).
  */
+import {
+  sampleCtrSkeletalAnimation,
+  type CtrAnimAxis,
+  type CtrAnimVec4,
+  type CtrAnimBoneTrack,
+  type CtrSampledAnimation,
+  type CtrSampledJointAnimation,
+} from './ctr-anim.js';
 import { u16At } from './le.js';
 import { ctrTextureByteSize } from './ctr-texture.js';
 import {
@@ -37,7 +45,6 @@ import {
   matRotY,
   matRotZ,
   matScale,
-  matToQuaternion,
   matTranslate,
   type Mat4,
 } from './mat4-ctr.js';
@@ -84,29 +91,15 @@ export interface BchModel {
   bindMatrices: number[][];
 }
 
+// BCH and CGFX wrap the *same* CTR SDK animation structures, so these are
+// aliases of the shared shapes in `ctr-anim.ts` rather than a second
+// declaration of them. Kept exported under their original names: they are
+// part of this package's published surface.
 /** A single float channel's keyframes, already scaled to (frame, value). */
-export interface BchAnimAxis {
-  constant?: number;
-  keys?: { frame: number; value: number }[];
-}
-
+export type BchAnimAxis = CtrAnimAxis;
 /** A vec3/vec4 channel (transformQuaternion segment) — constant or a dense per-frame array. */
-export interface BchAnimVec4 {
-  constant?: [number, number, number, number];
-  keys?: { frame: number; value: [number, number, number, number] }[];
-}
-
-export interface BchAnimBoneTrack {
-  boneName: string;
-  /** 'transform' segment: independent Euler-angle rotation, one track per axis (X,Y,Z). */
-  rotation?: [BchAnimAxis | undefined, BchAnimAxis | undefined, BchAnimAxis | undefined];
-  /** 'transform' segment: independent translation, one track per axis (X,Y,Z). */
-  translation?: [BchAnimAxis | undefined, BchAnimAxis | undefined, BchAnimAxis | undefined];
-  /** 'transformQuaternion' segment (rare in practice — most real bone tracks use 'transform' above). */
-  scaleQuat?: BchAnimVec4;
-  rotationQuat?: BchAnimVec4;
-  translationQuat?: BchAnimVec4;
-}
+export type BchAnimVec4 = CtrAnimVec4;
+export type BchAnimBoneTrack = CtrAnimBoneTrack;
 
 export interface BchSkeletalAnimation {
   name: string;
@@ -1004,51 +997,19 @@ export function bchFileStem(): string {
 // glTF exporter can turn directly into LINEAR animation samplers.
 // ---------------------------------------------------------------------------
 
-export interface BchSampledJointAnimation {
-  boneName: string;
-  /** Present whenever the bone's rotation is animated at all (any axis, or a transformQuaternion rotation channel). */
-  rotationKeys?: { time: number; quat: [number, number, number, number] }[];
-  /** Present only when translation is actually animated — most bones keep their static bind translation. */
-  translationKeys?: { time: number; value: [number, number, number] }[];
-}
-
-export interface BchSampledAnimation {
-  name: string;
-  loopMode: number;
-  duration: number;
-  joints: BchSampledJointAnimation[];
-}
-
-function sampleAxis(axis: BchAnimAxis | undefined, frame: number, fallback: number): number {
-  if (!axis) return fallback;
-  if (axis.constant !== undefined) return axis.constant;
-  const keys = axis.keys;
-  if (!keys || keys.length === 0) return fallback;
-  if (frame <= keys[0]!.frame) return keys[0]!.value;
-  const last = keys[keys.length - 1]!;
-  if (frame >= last.frame) return last.value;
-  for (let i = 0; i < keys.length - 1; i++) {
-    const a = keys[i]!,
-      b = keys[i + 1]!;
-    if (frame >= a.frame && frame <= b.frame) {
-      const t = b.frame === a.frame ? 0 : (frame - a.frame) / (b.frame - a.frame);
-      return a.value + (b.value - a.value) * t;
-    }
-  }
-  return last.value;
-}
+export type BchSampledJointAnimation = CtrSampledJointAnimation;
+export type BchSampledAnimation = CtrSampledAnimation;
 
 /**
- * Resample one `BchSkeletalAnimation` onto a uniform time grid (assumed
- * 30fps — the format doesn't carry an explicit frame rate, but the 3DS's
- * fixed 60Hz/2 vsync-locked engines conventionally animate at 30; this
- * matches the plausible-duration check used to verify the decode, not an
- * independently-sourced constant) so every bone's samples share the same
- * timestamps, which LINEAR-interpolation glTF samplers need.
+ * Resample one `BchSkeletalAnimation` onto a uniform time grid so every
+ * bone's samples share the same timestamps, which LINEAR-interpolation glTF
+ * samplers need. `bindBones` supplies each animated bone's bind-pose
+ * rotation/translation, so an axis this clip doesn't animate still
+ * contributes its resting value instead of 0.
  *
- * `bindBones` supplies each animated bone's bind-pose rotation/translation so
- * an axis with no track for this particular clip (e.g. a bone whose Y
- * rotation never changes) still contributes its resting value instead of 0.
+ * The body is `sampleCtrSkeletalAnimation` — BCH and CGFX had two copies of
+ * it that differed in nothing but five type-name lines. See `ctr-anim.ts`
+ * for the 30fps assumption and the rest of the rationale.
  */
 export function sampleBchSkeletalAnimation(
   animation: BchSkeletalAnimation,
@@ -1056,64 +1017,5 @@ export function sampleBchSkeletalAnimation(
   fps = 30,
   maxSamples = 120,
 ): BchSampledAnimation {
-  const totalFrames = Math.max(animation.frameSize, 1);
-  const sampleCount = Math.max(2, Math.min(Math.ceil(totalFrames) + 1, maxSamples));
-  const bindByName = new Map(bindBones.map((b) => [b.name, b]));
-
-  const joints: BchSampledJointAnimation[] = [];
-  for (const bone of animation.bones) {
-    const bind = bindByName.get(bone.boneName);
-    const rotationKeys: { time: number; quat: [number, number, number, number] }[] = [];
-    const translationKeys: { time: number; value: [number, number, number] }[] = [];
-
-    if (bone.rotation && bone.rotation.some((a) => a)) {
-      for (let i = 0; i < sampleCount; i++) {
-        const frame = (i / (sampleCount - 1)) * totalFrames;
-        const rx = sampleAxis(bone.rotation[0], frame, bind?.rotation[0] ?? 0);
-        const ry = sampleAxis(bone.rotation[1], frame, bind?.rotation[1] ?? 0);
-        const rz = sampleAxis(bone.rotation[2], frame, bind?.rotation[2] ?? 0);
-        const m = matMul(matMul(matRotX(rx), matRotY(ry)), matRotZ(rz));
-        rotationKeys.push({ time: frame / fps, quat: matToQuaternion(m) });
-      }
-    } else if (bone.rotationQuat) {
-      if (bone.rotationQuat.constant) {
-        rotationKeys.push({ time: 0, quat: bone.rotationQuat.constant });
-      } else if (bone.rotationQuat.keys) {
-        for (const k of bone.rotationQuat.keys) rotationKeys.push({ time: k.frame / fps, quat: k.value });
-      }
-    }
-
-    if (bone.translation && bone.translation.some((a) => a)) {
-      for (let i = 0; i < sampleCount; i++) {
-        const frame = (i / (sampleCount - 1)) * totalFrames;
-        translationKeys.push({
-          time: frame / fps,
-          value: [
-            sampleAxis(bone.translation[0], frame, bind?.translation[0] ?? 0),
-            sampleAxis(bone.translation[1], frame, bind?.translation[1] ?? 0),
-            sampleAxis(bone.translation[2], frame, bind?.translation[2] ?? 0),
-          ],
-        });
-      }
-    } else if (bone.translationQuat) {
-      if (bone.translationQuat.constant) {
-        const c = bone.translationQuat.constant;
-        translationKeys.push({ time: 0, value: [c[0], c[1], c[2]] });
-      } else if (bone.translationQuat.keys) {
-        for (const k of bone.translationQuat.keys) {
-          translationKeys.push({ time: k.frame / fps, value: [k.value[0], k.value[1], k.value[2]] });
-        }
-      }
-    }
-
-    if (rotationKeys.length > 0 || translationKeys.length > 0) {
-      joints.push({
-        boneName: bone.boneName,
-        ...(rotationKeys.length > 0 ? { rotationKeys } : {}),
-        ...(translationKeys.length > 0 ? { translationKeys } : {}),
-      });
-    }
-  }
-
-  return { name: animation.name, loopMode: animation.loopMode, duration: totalFrames / fps, joints };
+  return sampleCtrSkeletalAnimation(animation, bindBones, fps, maxSamples);
 }
