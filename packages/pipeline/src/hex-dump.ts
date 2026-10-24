@@ -6,6 +6,7 @@
  * this preserves backward compat with `npx tsx packages/pipeline/src/hex-dump.ts`.
  */
 import { basename } from 'node:path';
+import { fourCCAt } from '@seer-project/core';
 import { readBinary } from './io.js';
 
 /** Print a hex+ASCII dump of `filePath` to stdout. */
@@ -45,7 +46,7 @@ export function hexDump(filePath: string, startOffset = 0, maxLength = 256): voi
   }
 
   if (startOffset === 0 && data.length >= 4) {
-    const fourCC = String.fromCharCode(...data.slice(0, 4));
+    const fourCC = fourCCAt(data);
     const isPrintable = [...fourCC].every((c) => c >= ' ' && c <= '~');
     if (isPrintable) {
       console.log(`\nMagic / FourCC: "${fourCC}"`);

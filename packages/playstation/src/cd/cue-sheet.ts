@@ -31,7 +31,7 @@
  * `../node.js` for `loadCue`/`readTrackSectors`, which resolve a `.cue`'s
  * `FILE` line and read the `.bin` off disk.
  */
-import { encodeWav } from '@seer-project/core';
+import { dataViewOf, encodeWav } from '@seer-project/core';
 import { FORM1_USER_SIZE, HEADER_SIZE, RAW_SECTOR_SIZE, msfStringToSectors } from './sector.js';
 
 export const SAMPLE_RATE = 44100;
@@ -221,7 +221,7 @@ export function cookDataTrack(raw: Uint8Array, sectorSize: number): Uint8Array {
 export function decodeAudioSectors(raw: Uint8Array): Int16Array {
   const frames = Math.floor(raw.length / 4);
   const out = new Int16Array(frames * 2);
-  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  const view = dataViewOf(raw);
   for (let i = 0; i < frames * 2; i++) {
     out[i] = view.getInt16(i * 2, true);
   }

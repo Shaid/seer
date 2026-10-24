@@ -53,6 +53,8 @@
  *    encode into their vertex/attribute data.
  */
 
+import { dataViewOf } from '@seer-project/core';
+
 export interface RgbaColor {
   r: number;
   g: number;
@@ -113,7 +115,7 @@ export function pixelsPerHalfword(pmode: PixelMode): number {
  * error or just "not a TIM here").
  */
 export function tryParseTim(data: Uint8Array, offset: number): TimRecord | null {
-  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const view = dataViewOf(data);
   if (offset + 8 > data.length) return null;
   const magic = view.getUint32(offset, true);
   if (magic !== 0x10) return null;
@@ -221,7 +223,7 @@ export function decodeTimToRGBA(tim: TimRecord): Uint8Array {
       rgba[i * 4 + 3] = c.a;
     }
   } else if (tim.pmode === 2) {
-    const view = new DataView(tim.pixelData.buffer, tim.pixelData.byteOffset, tim.pixelData.byteLength);
+    const view = dataViewOf(tim.pixelData);
     for (let i = 0; i < tim.width * tim.height; i++) {
       const v = view.getUint16(i * 2, true);
       const [r, g, b, a] = decodeBGR555(v);
@@ -294,7 +296,7 @@ export interface TimIndexed {
 /** Parse a 4bpp/8bpp CLUT TIM without collapsing it to RGBA. Returns null if it isn't one. */
 export function parseTimIndexed(buf: Uint8Array): TimIndexed | null {
   if (buf.length < 8) return null;
-  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const view = dataViewOf(buf);
   if (view.getUint32(0, true) !== 0x10) return null;
   const flag = view.getUint32(4, true);
   if ((flag & ~0xf) !== 0) return null;
@@ -429,7 +431,7 @@ export function renderTimRow(tim: TimIndexed, row: number): Uint8Array {
 /** Parse a TIM image from `buf`. Returns null if the magic/flag don't look like a valid TIM. */
 export function parseTim(buf: Uint8Array): TimImage | null {
   if (buf.length < 8) return null;
-  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const view = dataViewOf(buf);
   const magic = view.getUint32(0, true);
   if (magic !== 0x10) return null;
   const flag = view.getUint32(4, true);

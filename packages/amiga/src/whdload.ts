@@ -11,7 +11,7 @@
  * opaque by design and carry no shared structure to parse).
  */
 
-import { r16, r32 } from '@seer-project/core';
+import { asciiAt, r16, r32 } from '@seer-project/core';
 import { codeHunks, isHunkFile, parseHunkFile } from './hunk.js';
 
 export interface WhdloadSlave {
@@ -54,9 +54,7 @@ export function parseWhdloadSlave(data: Uint8Array): WhdloadSlave | null {
   if (!code || code.fileOffset === null || code.size < 42) return null;
   const payload = data.subarray(code.fileOffset, code.fileOffset + code.size);
 
-  let id = '';
-  for (let i = 0; i < 8; i++) id += String.fromCharCode(payload[4 + i]);
-  if (id !== ID) return null;
+  if (asciiAt(payload, 4, 8) !== ID) return null;
 
   const version = r16(payload, 12, 'be');
   const slave: WhdloadSlave = {

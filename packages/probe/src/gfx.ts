@@ -14,6 +14,7 @@
  * with, not trusted.
  */
 
+import { clamp01 } from '@seer-project/core';
 import {
   decodePlanar,
   greyscaleRamp,
@@ -444,9 +445,6 @@ function tryText(bytes: Uint8Array): string | null {
   }
 }
 
-function clamp01(v: number): number {
-  return Math.max(0, Math.min(1, v));
-}
 
 function round3(v: number): number {
   return Math.round(v * 1000) / 1000;

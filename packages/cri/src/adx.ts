@@ -50,6 +50,8 @@
  *   coef1 = trunc(c * 8192); coef2 = trunc(c*c * -4096)
  */
 
+import { asciiAt, dataViewOf } from '@seer-project/core';
+
 export interface AdxHeader {
   /** Byte offset (from the start of the ADX stream) where nibble data begins. */
   dataOffset: number;
@@ -71,7 +73,7 @@ const ADX_MAGIC = 0x8000;
 /** Parse an ADX header from the start of a stream. Returns null if the magic doesn't match. */
 export function parseAdxHeader(buf: Uint8Array): AdxHeader | null {
   if (buf.length < 0x14) return null;
-  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const dv = dataViewOf(buf);
   if (dv.getUint16(0) !== ADX_MAGIC) return null;
   const copyrightOffset = dv.getUint16(2);
   const encodingType = buf[4]!;
@@ -101,7 +103,7 @@ export function parseAdxHeader(buf: Uint8Array): AdxHeader | null {
 export function verifyAdxCopyrightTag(buf: Uint8Array, header: AdxHeader): boolean {
   const start = header.dataOffset - 6;
   if (start < 0 || header.dataOffset > buf.length) return false;
-  const tag = String.fromCharCode(...buf.subarray(start, header.dataOffset));
+  const tag = asciiAt(buf, start, header.dataOffset - start);
   return tag === '(c)CRI';
 }
 

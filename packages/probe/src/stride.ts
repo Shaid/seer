@@ -11,6 +11,7 @@
  * and picking one silently is the documented failure mode.
  */
 
+import { clamp01 } from '@seer-project/core';
 import { readBinary, writeJson, writePNG } from '@seer-project/pipeline';
 import { parseFlags } from './args.js';
 import { meanAbsDiffAtLag, equalityRateAtLag } from './score.js';
@@ -276,9 +277,6 @@ function median(arr: Float64Array): number {
   return sorted[sorted.length >> 1];
 }
 
-function clamp01(v: number): number {
-  return Math.max(0, Math.min(1, v));
-}
 
 function round3(v: number): number {
   return Math.round(v * 1000) / 1000;

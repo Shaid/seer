@@ -12,7 +12,7 @@
  * blobs — that itself is triage signal.
  */
 
-import { r32 } from '@seer-project/core';
+import { printableAsciiAt, r32 } from '@seer-project/core';
 
 const BLOCK = 512;
 /** Hash-table size in a 512-byte root/dir block. */
@@ -69,12 +69,7 @@ function blockOffset(block: number): number {
 function bcplName(data: Uint8Array, blockStart: number): string {
   const nameOff = blockStart + 0x1b0;
   const len = Math.min(data[nameOff] ?? 0, 30);
-  let s = '';
-  for (let i = 0; i < len; i++) {
-    const c = data[nameOff + 1 + i];
-    s += c >= 0x20 && c <= 0x7e ? String.fromCharCode(c) : '_';
-  }
-  return s;
+  return printableAsciiAt(data, nameOff + 1, len, '_');
 }
 
 function validHeader(data: Uint8Array, block: number, totalBlocks: number): boolean {

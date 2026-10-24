@@ -37,7 +37,7 @@
  * LZEXE, which stays in `@seer-project/pipeline`.
  */
 
-import { r16 } from '@seer-project/core';
+import { asciiAt, r16 } from '@seer-project/core';
 
 export class ExepackError extends Error {}
 
@@ -71,7 +71,7 @@ export interface ExepackInfo {
 
 /** Unpack an EXEPACK-compressed MZ executable's bytes into its real load image. */
 export function unpackExepack(data: Uint8Array): { image: Uint8Array; info: ExepackInfo } {
-  const magic = String.fromCharCode(data[0], data[1]);
+  const magic = asciiAt(data, 0, 2);
   if (magic !== 'MZ' && magic !== 'ZM') {
     throw new ExepackError('not an MZ executable');
   }

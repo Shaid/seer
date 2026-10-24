@@ -2,7 +2,7 @@ import { parseIff, findChunks, findChunk } from '@seer-project/iff';
 import { renderToStereoBuffers, mixVoiceStereo, applyMasterGain } from '@seer-project/audio-dsp';
 import type { BlockRenderer } from '@seer-project/audio-dsp';
 import type { InstrEmbedded, InstrExternal, Instr8SVX, SsFile } from './sampled-sound.js';
-import { toI16, toI32 } from '@seer-project/core';
+import { dataViewOf, toI16, toI32 } from '@seer-project/core';
 
 function readCString(data: Uint8Array, start = 0, maxLen?: number): string {
   const end = maxLen !== undefined ? Math.min(data.length, start + maxLen) : data.length;
@@ -268,11 +268,7 @@ export function parseSmusScore(buffer: ArrayBuffer): SmusScore {
 
   const shdrChunk = findChunk(form, 'SHDR');
   if (shdrChunk && shdrChunk.data.length >= 4) {
-    const dv = new DataView(
-      shdrChunk.data.buffer,
-      shdrChunk.data.byteOffset,
-      shdrChunk.data.length,
-    );
+    const dv = dataViewOf(shdrChunk.data);
     tempo = dv.getUint16(0, false);
     volume = dv.getUint8(2);
     ntracks = dv.getUint8(3);
@@ -286,7 +282,7 @@ export function parseSmusScore(buffer: ArrayBuffer): SmusScore {
   const ins1Chunks = findChunks(form, 'INS1');
   for (const chunk of ins1Chunks) {
     if (chunk.data.length >= 4) {
-      const dv = new DataView(chunk.data.buffer, chunk.data.byteOffset, chunk.data.length);
+      const dv = dataViewOf(chunk.data);
       const register = dv.getUint8(0);
       const instrName = readCString(chunk.data.subarray(4));
       instruments.set(register, instrName);

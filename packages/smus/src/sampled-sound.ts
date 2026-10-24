@@ -9,7 +9,7 @@
  * Also parses .ss (Sampled Sound) multi-octave sample files.
  */
 
-import { BinaryReader } from '@seer-project/core';
+import { BinaryReader, matchesMagic } from '@seer-project/core';
 import { parseIff, findChunk } from '@seer-project/iff';
 
 // ─── Parsed types ──────────────────────────────────────────────────────
@@ -252,15 +252,11 @@ function readCommonHeader(data: Uint8Array): InstrCommon {
 }
 
 function isSampledSound(data: Uint8Array): boolean {
-  if (data.length < 12) return false;
-  return new TextDecoder().decode(data.subarray(0, 12)) === SAMPLED_SOUND_MAGIC;
+  return matchesMagic(data, 0, SAMPLED_SOUND_MAGIC);
 }
 
 export function isIff8svx(data: Uint8Array): boolean {
-  if (data.length < 12) return false;
-  const fourCC = new TextDecoder().decode(data.subarray(0, 4));
-  const formType = new TextDecoder().decode(data.subarray(8, 12));
-  return fourCC === 'FORM' && formType === '8SVX';
+  return matchesMagic(data, 0, 'FORM') && matchesMagic(data, 8, '8SVX');
 }
 
 function parseExternal(data: Uint8Array): InstrExternal {

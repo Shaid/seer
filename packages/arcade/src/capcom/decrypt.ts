@@ -32,6 +32,7 @@
  * `docs/ddsom/cps2/data-structure.md` § "68000 program encryption" for the
  * full evidence chain.
  */
+import { dataViewOf } from '@seer-project/core';
 import {
   fn1GroupA,
   fn1GroupB,
@@ -205,7 +206,7 @@ export function decodeCps2Key20(key: Uint8Array): Cps2KeyInfo {
 /** Decode the historical 8-byte hardcoded MAME key format (2x big-endian u32). */
 export function decodeCps2Key8(key: Uint8Array): [number, number] {
   if (key.length !== 8) throw new Error(`Expected an 8-byte CPS2 key, got ${key.length}`);
-  const view = new DataView(key.buffer, key.byteOffset, key.byteLength);
+  const view = dataViewOf(key);
   return [view.getUint32(0, false), view.getUint32(4, false)];
 }
 
@@ -254,8 +255,8 @@ export function cps2Decrypt(
 ): Uint8Array {
   const length = rom.length;
   const dec = new Uint8Array(length);
-  const srcView = new DataView(rom.buffer, rom.byteOffset, rom.byteLength);
-  const dstView = new DataView(dec.buffer, dec.byteOffset, dec.byteLength);
+  const srcView = dataViewOf(rom);
+  const dstView = dataViewOf(dec);
 
   const key1Base = expandKey96(masterKey, expand1stKeyBits);
   const key1: [number, number, number, number] = [...key1Base];

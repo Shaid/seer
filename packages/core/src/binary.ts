@@ -74,3 +74,91 @@ export function r32(data: Uint8Array, offset: number, endian: Endianness): numbe
     0
   );
 }
+
+// ---------------------------------------------------------------------------
+// Text at a fixed offset
+//
+// Every byte-level format has magics, FourCCs and fixed-width name fields, and
+// before these existed each package wrote its own `ascii()` — six named copies
+// and ~18 inline `String.fromCharCode(...)` expressions across ten packages,
+// silently disagreeing on what to do with a non-ASCII byte (pass it through /
+// `.` / space / mask the top bit). These are the two policies worth sharing,
+// named so a call site says which one it wants.
+//
+// Note these are byte->char, not a text decoding: byte `n` becomes code point
+// `n` (Latin-1), never UTF-8. That is what you want for a magic or an ASCII
+// identifier field and is NOT what you want for human-readable text in an
+// unknown encoding — use `TextDecoder` for that.
+// ---------------------------------------------------------------------------
+
+/**
+ * Read `len` bytes at `off` as characters, one byte per code point, with no
+ * filtering at all. A byte past the end of `data` reads as `\0`.
+ */
+export function asciiAt(data: Uint8Array, off: number, len: number): string {
+  let s = '';
+  for (let i = 0; i < len; i++) s += String.fromCharCode(data[off + i] ?? 0);
+  return s;
+}
+
+/** The four-character tag at `off` — `asciiAt(data, off, 4)`, named for the thing it reads. */
+export function fourCCAt(data: Uint8Array, off = 0): string {
+  return asciiAt(data, off, 4);
+}
+
+/**
+ * Read `len` bytes at `off`, substituting `placeholder` for anything outside
+ * printable ASCII (`0x20`-`0x7e`) — the hex-dump / filename-sanitizing
+ * policy, as opposed to `asciiAt`'s pass-everything-through.
+ */
+export function printableAsciiAt(data: Uint8Array, off: number, len: number, placeholder = '.'): string {
+  let s = '';
+  for (let i = 0; i < len; i++) {
+    const b = data[off + i];
+    s += b >= 0x20 && b <= 0x7e ? String.fromCharCode(b) : placeholder;
+  }
+  return s;
+}
+
+/**
+ * Read a NUL-terminated string at `off`, stopping at the first zero byte, the
+ * end of `data`, or `maxLen` bytes — whichever comes first. One byte per code
+ * point, like `asciiAt`.
+ */
+export function cStringAt(data: Uint8Array, off: number, maxLen = 256): string {
+  let s = '';
+  const end = Math.min(off + maxLen, data.length);
+  for (let i = off; i < end; i++) {
+    const b = data[i]!;
+    if (b === 0) break;
+    s += String.fromCharCode(b);
+  }
+  return s;
+}
+
+/**
+ * Whether the bytes at `off` spell `magic`. Compares code unit by code unit,
+ * so it never allocates a string and never depends on a text encoding; a
+ * `magic` with a code unit above 255 can therefore never match.
+ */
+export function matchesMagic(data: Uint8Array, off: number, magic: string): boolean {
+  if (off + magic.length > data.length) return false;
+  for (let i = 0; i < magic.length; i++) {
+    if (data[off + i] !== magic.charCodeAt(i)) return false;
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Small numeric helpers
+// ---------------------------------------------------------------------------
+
+/** Clamp `v` into `[lo, hi]`. */
+export function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+/** Clamp `v` into `[0, 1]` — written verbatim in six places before this existed. */
+export function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}

@@ -23,6 +23,8 @@
  *   order left untouched. Used for CPS gfx mask ROMs — `interleaveWords()`.
  */
 
+import { dataViewOf } from '@seer-project/core';
+
 /** ROM_LOAD16_WORD_SWAP: swap each adjacent byte pair (a per-16-bit-word byteswap), applied to one contiguous ROM's bytes. */
 export function swapWordBytes(src: Uint8Array): Uint8Array {
   const out = new Uint8Array(src.length);
@@ -52,7 +54,7 @@ export function interleaveWords(
   wordSlotBytes: number,
   groupBytes: number,
 ): void {
-  const view = new DataView(dest.buffer, dest.byteOffset, dest.byteLength);
+  const view = dataViewOf(dest);
   for (let i = 0; i + 1 < src.length; i += 2) {
     const destOffset = destBase + (i / 2) * groupBytes + wordSlotBytes;
     view.setUint8(destOffset, src[i]);

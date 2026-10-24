@@ -15,6 +15,7 @@
  * scope for both containers (HCA for AFS2, ATRAC3-in-WAV for ITOC are both
  * out of scope for this package).
  */
+import { dataViewOf, fourCCAt } from '@seer-project/core';
 import { parseUtf, readUtfRow, subUtfTable, type UtfTable } from './cpk.js';
 
 export interface AwbEntry {
@@ -36,9 +37,9 @@ export interface AwbTable {
  */
 export function parseAfs2(buf: Uint8Array): AwbTable | null {
   if (buf.length < 0x10) return null;
-  const tag = String.fromCharCode(buf[0]!, buf[1]!, buf[2]!, buf[3]!);
+  const tag = fourCCAt(buf);
   if (tag !== 'AFS2') return null;
-  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const dv = dataViewOf(buf);
   const offsetSize = buf[5]!;
   const idSize = buf[6]!;
   const count = dv.getUint32(8, true);
@@ -92,9 +93,9 @@ export function parseAfs2(buf: Uint8Array): AwbTable | null {
  */
 export function parseItocAwb(buf: Uint8Array): AwbTable | null {
   if (buf.length < 0x20) return null;
-  const tag = String.fromCharCode(buf[0]!, buf[1]!, buf[2]!, buf[3]!);
+  const tag = fourCCAt(buf);
   if (tag !== 'CPK ') return null;
-  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const dv = dataViewOf(buf);
   const utfSize = Number(dv.getBigUint64(8, true));
   if (buf.length < 0x10 + utfSize) return null;
   const header = parseUtf(buf.subarray(0x10, 0x10 + utfSize));
@@ -105,7 +106,7 @@ export function parseItocAwb(buf: Uint8Array): AwbTable | null {
   if (!itocOffset) return null;
 
   if (buf.length < itocOffset + 0x10) return null;
-  const itocMagic = String.fromCharCode(buf[itocOffset]!, buf[itocOffset + 1]!, buf[itocOffset + 2]!, buf[itocOffset + 3]!);
+  const itocMagic = fourCCAt(buf, itocOffset);
   if (itocMagic !== 'ITOC') return null;
   const itocPacketSize = Number(dv.getBigUint64(itocOffset + 8, true));
   if (buf.length < itocOffset + 0x10 + itocPacketSize) return null;

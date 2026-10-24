@@ -29,6 +29,7 @@
  * codecs) can decode without reimplementing the MDEC Huffman/IDCT pipeline or
  * the ADPCM codec by hand.
  */
+import { dataViewOf } from '@seer-project/core';
 import {
   HEADER_SIZE,
   RAW_SECTOR_SIZE,
@@ -94,7 +95,7 @@ export function strMagicCoverage(
 ): number {
   const nSectors = Math.min(Math.floor(buf.length / sectorStride), maxSectors);
   if (nSectors === 0) return 0;
-  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const dv = dataViewOf(buf);
   let hits = 0;
   for (let s = 0; s < nSectors; s++) {
     if (dv.getUint32(s * sectorStride + userDataOffset, true) === STR_MAGIC) hits++;

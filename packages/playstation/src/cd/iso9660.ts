@@ -5,6 +5,7 @@
  * sectors are read through a raw MODE2/2352 CD-XA layer or straight off a
  * plain 2048-byte-stride image (a PSP UMD, or a cooked/stripped ISO file).
  */
+import { asciiAt, dataViewOf } from '@seer-project/core';
 import type { DiscReader } from './sector.js';
 
 const ISO_LOGICAL_BLOCK = 2048;
@@ -18,16 +19,15 @@ export interface PvdInfo {
   rootExtentLen: number;
 }
 
+/** `[start, end)` as one-byte-per-code-point characters — a half-open-range shim over core's length-based `asciiAt`, since every ISO 9660 field below is spelled as a byte range. */
 function ascii(data: Uint8Array, start: number, end: number): string {
-  let s = '';
-  for (let i = start; i < end; i++) s += String.fromCharCode(data[i]!);
-  return s;
+  return asciiAt(data, start, end - start);
 }
 
 /** Parse the Primary Volume Descriptor at logical sector `lba` (default 16). */
 export function parsePvd(disc: DiscReader, lba = 16): PvdInfo {
   const data = disc.readLogical(lba, ISO_LOGICAL_BLOCK);
-  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const view = dataViewOf(data);
   const stdId = ascii(data, 1, 6);
   if (stdId !== 'CD001') throw new Error(`bad PVD id: ${stdId}`);
   const systemId = ascii(data, 8, 40).trim();
@@ -35,7 +35,7 @@ export function parsePvd(disc: DiscReader, lba = 16): PvdInfo {
   const volumeSpaceSize = view.getUint32(80, true);
   const logicalBlockSize = view.getUint16(128, true);
   const rootDr = data.subarray(156, 156 + 34);
-  const rootView = new DataView(rootDr.buffer, rootDr.byteOffset, rootDr.byteLength);
+  const rootView = dataViewOf(rootDr);
   const rootExtentLba = rootView.getUint32(2, true);
   const rootExtentLen = rootView.getUint32(10, true);
   return { systemId, volumeId, volumeSpaceSize, logicalBlockSize, rootExtentLba, rootExtentLen };
@@ -62,7 +62,7 @@ function parseDirectoryRecords(disc: DiscReader, lba: number, length: number): D
       continue;
     }
     const rec = data.subarray(off, off + recLen);
-    const view = new DataView(rec.buffer, rec.byteOffset, rec.byteLength);
+    const view = dataViewOf(rec);
     const extentLba = view.getUint32(2, true);
     const dataLen = view.getUint32(10, true);
     const flags = rec[25]!;

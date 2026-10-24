@@ -14,6 +14,7 @@
  *   compression.
  */
 
+import { clamp01 } from '@seer-project/core';
 import {
   repeatingPeriod,
   equalityRateAtLag,
@@ -193,9 +194,6 @@ export function classifyWindow(data: Uint8Array, start: number, end: number): Wi
   return { start, end, entropy, fractions, class: cls, strength: clamp01(strength) };
 }
 
-function clamp01(v: number): number {
-  return Math.max(0, Math.min(1, v));
-}
 
 /**
  * Entropy gate for "compressed-or-encrypted", adjusted for window size: a

@@ -14,7 +14,7 @@
  */
 
 import { inflateRawSync } from 'node:zlib';
-import { r16 as rd16, r32 as rd32 } from '@seer-project/core';
+import { asciiAt, r16 as rd16, r32 as rd32 } from '@seer-project/core';
 import { bufferSource, type ByteSource } from './source.js';
 
 export interface ZipEntry {
@@ -61,8 +61,7 @@ function parseCentralDirectory(cd: Uint8Array, count: number): ZipEntry[] {
     const extraLen = rd16(cd, off + 30, 'le');
     const commentLen = rd16(cd, off + 32, 'le');
     const localHeaderOffset = rd32(cd, off + 42, 'le');
-    let name = '';
-    for (let c = 0; c < nameLen; c++) name += String.fromCharCode(cd[off + 46 + c]);
+    const name = asciiAt(cd, off + 46, nameLen);
     if (!name.endsWith('/')) {
       entries.push({ name, size, compressedSize, crc32: crc32Value, compressionMethod: method, localHeaderOffset });
     }

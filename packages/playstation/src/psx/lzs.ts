@@ -30,6 +30,8 @@
  * Compression".
  */
 
+import { dataViewOf } from '@seer-project/core';
+
 const WSIZE = 4096;
 const WSIZE_MASK = WSIZE - 1;
 const MIN_REF_LEN = 3;
@@ -85,7 +87,7 @@ export function decompressLzsFile(data: Uint8Array): Uint8Array {
   if (data.length < 4) {
     throw new Error(`LZS file too short: ${data.length} bytes`);
   }
-  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const dv = dataViewOf(data);
   const compressedSize = dv.getUint32(0, true);
   if (4 + compressedSize > data.length) {
     throw new Error(

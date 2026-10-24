@@ -43,7 +43,7 @@
  * does when it doesn't.
  */
 
-import { r32 } from '@seer-project/core';
+import { fourCCAt, matchesMagic, r32 } from '@seer-project/core';
 import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 
@@ -86,7 +86,7 @@ function looksLikeHeader(data: Uint8Array, o: number, n: number): boolean {
  * this format at all, not a variant to resync past.
  */
 export function scanChunks(data: Uint8Array): UssChunk[] {
-  if (new TextDecoder().decode(data.subarray(0, 4)) !== 'ASF ') {
+  if (!matchesMagic(data, 0, 'ASF ')) {
     throw new Error('Not a UAE-family .uss savestate (missing "ASF " magic)');
   }
   const n = data.length;
@@ -107,7 +107,7 @@ export function scanChunks(data: Uint8Array): UssChunk[] {
       off = found;
     }
 
-    const name = new TextDecoder().decode(data.subarray(off, off + 4));
+    const name = fourCCAt(data, off);
     const size = r32(data, off + 4, 'be');
     const flags = r32(data, off + 8, 'be');
     const payloadOffset = off + 12;

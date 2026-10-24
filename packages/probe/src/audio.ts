@@ -27,7 +27,7 @@ import { Module } from '@seer-project/tracker';
 import { isIff8svx, parse8svx } from '@seer-project/smus';
 import { isHunkFile, parseHunkFile } from '@seer-project/amiga';
 import { readBinary, writeJson, writePNG, writeWav } from '@seer-project/pipeline';
-import { r16, r32 } from '@seer-project/core';
+import { clamp01, printableAsciiAt, r16, r32 } from '@seer-project/core';
 import { parseFlags } from './args.js';
 import { artifactPath, ensureOutDir } from './out.js';
 import { resolveRanges, type ByteRange } from './range.js';
@@ -89,15 +89,6 @@ export interface AudioResult {
 
 const MOD_MAGICS = new Set(['M.K.', 'M!K!', 'FLT4', 'FLT8', '8CHN', '6CHN', '4CHN', 'OCTA', 'CD81']);
 
-function ascii(data: Uint8Array, off: number, len: number): string {
-  let s = '';
-  for (let i = 0; i < len; i++) {
-    const b = data[off + i];
-    s += b >= 0x20 && b <= 0x7e ? String.fromCharCode(b) : '.';
-  }
-  return s;
-}
-
 /**
  * MOD size-closure structural check:
  * `1084 + patterns*rowBytes*64 + Σ sampleWords*2 === fileLength` — the
@@ -105,7 +96,7 @@ function ascii(data: Uint8Array, off: number, len: number): string {
  */
 export function modSizeClosure(data: Uint8Array): { patterns: number; expected: number; matches: boolean } | null {
   if (data.length < 1084) return null;
-  const magic = ascii(data, 1080, 4);
+  const magic = printableAsciiAt(data, 1080, 4);
   if (!MOD_MAGICS.has(magic)) return null;
   const channels = magic === '8CHN' || magic === 'FLT8' || magic === 'OCTA' || magic === 'CD81' ? 8 : magic === '6CHN' ? 6 : 4;
   let patterns = 0;
@@ -139,7 +130,7 @@ export function scanContainers(data: Uint8Array): ContainerHit[] {
 
   const closure = modSizeClosure(data);
   if (closure) {
-    let detail = `magic ${ascii(data, 1080, 4)}, ${closure.patterns} patterns, size closure ${closure.matches ? 'holds' : `FAILS (expected ${closure.expected}, file ${data.length})`}`;
+    let detail = `magic ${printableAsciiAt(data, 1080, 4)}, ${closure.patterns} patterns, size closure ${closure.matches ? 'holds' : `FAILS (expected ${closure.expected}, file ${data.length})`}`;
     try {
       const mod = new Module(data);
       detail += `, loads as "${mod.songName.trim()}" (${mod.numChannels}ch)`;
@@ -149,7 +140,7 @@ export function scanContainers(data: Uint8Array): ContainerHit[] {
     hits.push({ kind: 'mod', offset: 0, length: data.length, detail, sampleRate: null });
   }
 
-  const four = ascii(data, 0, 4);
+  const four = printableAsciiAt(data, 0, 4);
   if (four === 'MMD0' || four === 'MMD1' || four === 'MED ') {
     hits.push({ kind: 'med', offset: 0, length: null, detail: `OctaMED magic ${four}`, sampleRate: null });
   }
@@ -213,7 +204,7 @@ function scanForms(data: Uint8Array, start: number, end: number): ContainerHit[]
     // alphanumerics/spaces with a non-space lead. Compressed data
     // contains "FORM" byte runs with plausible sizes often enough that
     // skipping this floods a corpus triage with junk kinds.
-    const type = ascii(data, off + 8, 4);
+    const type = printableAsciiAt(data, off + 8, 4);
     if (!/^[A-Za-z0-9][A-Za-z0-9 ]{3}$/.test(type)) {
       off += 2;
       continue;
@@ -560,9 +551,6 @@ function mean(xs: number[]): number {
   return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
-function clamp01(v: number): number {
-  return Math.max(0, Math.min(1, v));
-}
 
 function round3(v: number): number {
   return Math.round(v * 1000) / 1000;

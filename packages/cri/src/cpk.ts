@@ -23,11 +23,9 @@
  *   ... file payloads from ContentOffset ...
  */
 
-export const SECTOR = 0x800;
+import { dataViewOf } from '@seer-project/core';
 
-function dv(buf: Uint8Array): DataView {
-  return new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-}
+export const SECTOR = 0x800;
 
 /** Find the first zero byte at or after `start`, or -1 if none (mirrors Buffer.indexOf(0, start)). */
 function indexOfZero(buf: Uint8Array, start: number): number {
@@ -113,7 +111,7 @@ function readUtfValue(
   typ: number,
   stringsBase: number,
 ): [number | bigint | string | { offset: number; length: number }, number] {
-  const view = dv(buf);
+  const view = dataViewOf(buf);
   switch (typ) {
     case 0:
     case 1:
@@ -148,7 +146,7 @@ function readUtfValue(
 
 /** Parse a big-endian @UTF table from already-decrypted bytes. */
 export function parseUtf(buf: Uint8Array, base = 0): UtfTable {
-  const view = dv(buf);
+  const view = dataViewOf(buf);
   const u32 = (o: number) => view.getUint32(base + o, false);
   const u16 = (o: number) => view.getUint16(base + o, false);
   if (asciiAt(buf, base, 4) !== '@UTF') {
@@ -267,7 +265,7 @@ export interface CpkFileEntry {
 /** Read and decrypt the CPK header; returns parsed values. */
 export function readCpkHeader(buf: Uint8Array): CpkHeader {
   if (asciiAt(buf, 0, 4) !== 'CPK ') throw new Error('Not a CPK file');
-  const utfSize = dv(buf).getBigUint64(8, true);
+  const utfSize = dataViewOf(buf).getBigUint64(8, true);
   const dec = utfPacket(buf.subarray(0x10, 0x10 + Number(utfSize)));
   const utf = parseUtf(dec);
   const row = readUtfRow(utf, 0);
@@ -314,7 +312,7 @@ export function parseCpkTocPacket(packet: Uint8Array, addOffset: number): CpkFil
 export function readCpkFileTable(buf: Uint8Array, header: CpkHeader): CpkFileTable {
   const tocOff = header.tocOffset;
   if (asciiAt(buf, tocOff, 4) !== 'TOC ') throw new Error('Missing TOC magic');
-  const tocSize = dv(buf).getBigUint64(tocOff + 8, true);
+  const tocSize = dataViewOf(buf).getBigUint64(tocOff + 8, true);
   const dec = utfPacket(buf.subarray(tocOff + 16, tocOff + 16 + Number(tocSize)));
   // add_offset = min(ContentOffset, TocOffset) per CriPakTools
   const addOffset = Math.min(header.contentOffset, header.tocOffset);
@@ -324,7 +322,7 @@ export function readCpkFileTable(buf: Uint8Array, header: CpkHeader): CpkFileTab
 /** CRILAYLA decompressor (ported from CriPakTools DecompressCRILAYLA). */
 export function decompressCrilayla(input: Uint8Array): Uint8Array {
   const buf = input;
-  const view = dv(buf);
+  const view = dataViewOf(buf);
   const uncompressedSize = view.getUint32(8, true);
   const headerOffset = view.getUint32(12, true);
   const result = new Uint8Array(uncompressedSize + 0x100);

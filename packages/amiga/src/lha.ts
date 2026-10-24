@@ -13,6 +13,8 @@
  * for the whole archive, because recon corpora contain damaged files.
  */
 
+import { asciiAt, r16, r32 } from '@seer-project/core';
+
 const THRESHOLD = 3;
 const MAXMATCH = 256;
 const NC = 255 + MAXMATCH + 2 - THRESHOLD; // 510
@@ -35,19 +37,9 @@ export interface LhaEntry {
   isDirectory: boolean;
 }
 
-function ascii(data: Uint8Array, off: number, len: number): string {
-  let s = '';
-  for (let i = 0; i < len; i++) s += String.fromCharCode(data[off + i]);
-  return s;
-}
-
-function u16(data: Uint8Array, off: number): number {
-  return data[off] | (data[off + 1] << 8);
-}
-
-function u32(data: Uint8Array, off: number): number {
-  return (data[off] | (data[off + 1] << 8) | (data[off + 2] << 16) | (data[off + 3] << 24)) >>> 0;
-}
+/** LHA headers are little-endian throughout; these spell that once. */
+const u16 = (data: Uint8Array, off: number): number => r16(data, off, 'le');
+const u32 = (data: Uint8Array, off: number): number => r32(data, off, 'le');
 
 /** True if `data` looks like an LHA archive (method signature at the usual offset). */
 export function isLhaFile(data: Uint8Array): boolean {
@@ -75,7 +67,7 @@ export function listLha(data: Uint8Array): LhaEntry[] {
       headerSize = data[off];
       if (headerSize === 0) break;
       const nameLen = data[off + 21];
-      name = ascii(data, off + 22, nameLen);
+      name = asciiAt(data, off + 22, nameLen);
       const afterName = off + 22 + nameLen;
       crc16 = u16(data, afterName);
       if (level === 0) {
@@ -98,8 +90,8 @@ export function listLha(data: Uint8Array): LhaEntry[] {
             const type = data[ext + 2];
             // An extended header is [size:2][type:1][payload], with
             // `size` covering all three, so the payload is size - 3.
-            if (type === 0x01) name = ascii(data, ext + 3, extSize - 3);
-            else if (type === 0x02) name = ascii(data, ext + 3, extSize - 3).replace(/\xff/g, '/') + name;
+            if (type === 0x01) name = asciiAt(data, ext + 3, extSize - 3);
+            else if (type === 0x02) name = asciiAt(data, ext + 3, extSize - 3).replace(/\xff/g, '/') + name;
           }
           ext += extSize;
         }
@@ -117,9 +109,9 @@ export function listLha(data: Uint8Array): LhaEntry[] {
         // Extended header: 1 byte type, then payload.
         const type = data[ext + 2];
         if (type === 0x01) {
-          name = ascii(data, ext + 3, extSize - 3);
+          name = asciiAt(data, ext + 3, extSize - 3);
         } else if (type === 0x02) {
-          name = ascii(data, ext + 3, extSize - 3).replace(/\xff/g, '/') + name;
+          name = asciiAt(data, ext + 3, extSize - 3).replace(/\xff/g, '/') + name;
         }
         ext += extSize;
       }
@@ -128,7 +120,7 @@ export function listLha(data: Uint8Array): LhaEntry[] {
       break;
     }
 
-    const method = ascii(data, off + 2, 5).replace(/-/g, '');
+    const method = asciiAt(data, off + 2, 5).replace(/-/g, '');
     const skipSize = u32(data, off + 7);
     const originalSize = u32(data, off + 11);
     if (dataOffset > data.length) break;
