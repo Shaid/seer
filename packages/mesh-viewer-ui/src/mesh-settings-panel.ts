@@ -1,4 +1,3 @@
-import { createPopover } from '@seer-project/canvas-export';
 import {
   supportedRenderModes,
   type MeshSession,
@@ -7,11 +6,7 @@ import {
   type TextureFilterMode,
   type SpringBoneOptions,
 } from '@seer-project/engine-3d';
-
-/** Shows/hides an element via the `.hidden { display: none }` class every seer project's own `viewer.css` already defines — re-implemented here (rather than imported) so this package has no dependency on any consumer project's local module, same rationale as `@seer-project/audio-ui`'s own copy. */
-function setHidden(el: HTMLElement, hidden: boolean): void {
-  el.classList.toggle('hidden', hidden);
-}
+import { PanelController } from './panel-controller.js';
 
 /**
  * The DOM elements one settings panel is built from — a toolbar toggle
@@ -109,36 +104,23 @@ export interface MeshSettingsPanelOptions {
  * host running both together should wire `MeshSettingsPanelOptions.onChange`
  * to the render panel's `refresh()` (and, symmetrically,
  * `RenderSettingsPanelOptions.onChange` to this panel's `refresh()`).
+ *
+ * The attach/refresh/detach/dispose lifecycle, the listener-teardown list and
+ * the popover wiring all come from `PanelController`, shared with
+ * `RenderSettingsPanel`.
  */
-export class MeshSettingsPanel {
+export class MeshSettingsPanel extends PanelController<MeshSession> {
   private els: MeshSettingsPanelElements;
   private opts: MeshSettingsPanelOptions;
-  private session: MeshSession | null = null;
-  private teardown: Array<() => void> = [];
 
   constructor(elements: MeshSettingsPanelElements, opts: MeshSettingsPanelOptions = {}) {
+    super(elements.toggleBtn, elements.panel);
     this.els = elements;
     this.opts = opts;
-    setHidden(this.els.toggleBtn, true);
-    setHidden(this.els.panel, true);
     this.bindStaticControls();
   }
 
-  private on(target: EventTarget, type: string, fn: EventListener): void {
-    target.addEventListener(type, fn);
-    this.teardown.push(() => target.removeEventListener(type, fn));
-  }
-
-  private closePanel(): void {
-    setHidden(this.els.panel, true);
-  }
-
   private bindStaticControls(): void {
-    // Toggle-click / outside-click / Escape-to-close is shared chrome —
-    // see @seer-project/canvas-export's createPopover, extracted from this
-    // panel's own original implementation.
-    this.teardown.push(createPopover(this.els.toggleBtn, this.els.panel));
-
     this.on(this.els.renderModeSelect, 'change', () => {
       if (!this.session) return;
       this.session.setRenderMode(this.els.renderModeSelect.value as RenderMode);
@@ -219,19 +201,6 @@ export class MeshSettingsPanel {
   }
 
   /**
-   * Points the panel at `session` and shows the toolbar toggle button.
-   * Does not open the panel itself — call `refresh()` (directly, or via
-   * `attach()`'s own call) once the session actually has a model loaded so
-   * the render-mode `<option>`s' disabled state and every control's
-   * displayed value reflect it.
-   */
-  attach(session: MeshSession): void {
-    this.session = session;
-    setHidden(this.els.toggleBtn, false);
-    this.refresh();
-  }
-
-  /**
    * Re-syncs every control's displayed value (and the render-mode
    * `<option>`s' disabled state, and the anisotropy `<option>` list) from
    * the attached session's current state. No-op if nothing is attached.
@@ -278,19 +247,5 @@ export class MeshSettingsPanel {
       this.els.springBonesStrengthRange.value = String(strength);
       this.els.springBonesStrengthRange.disabled = session.springBones === false;
     }
-  }
-
-  /** Closes the panel, hides the toolbar toggle button, and releases the session reference. Call on every asset switch away from a mesh (mirrors `AudioBarController.detach()`) — does not touch the session itself (a host still owns disposing it). */
-  detach(): void {
-    this.session = null;
-    this.closePanel();
-    setHidden(this.els.toggleBtn, true);
-  }
-
-  /** Tears down the controller itself — unbinds every listener bound in the constructor (including the document-level outside-click/Escape handlers). Call when the panel's elements are being removed from the page entirely; not needed for ordinary asset-to-asset switching (use `detach()`/`attach()` for that). */
-  dispose(): void {
-    this.session = null;
-    for (const off of this.teardown) off();
-    this.teardown = [];
   }
 }

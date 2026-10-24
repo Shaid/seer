@@ -1,5 +1,4 @@
 import {
-  createPopover,
   downloadScreenshot,
   downloadClip,
   recordClip,
@@ -11,11 +10,7 @@ import {
   type MeshSession,
   type CinematicOptions,
 } from '@seer-project/engine-3d';
-
-/** Same rationale as `mesh-settings-panel.ts`'s own copy — no dependency on a consumer project's local module. */
-function setHidden(el: HTMLElement, hidden: boolean): void {
-  el.classList.toggle('hidden', hidden);
-}
+import { PanelController, setHidden } from './panel-controller.js';
 
 export type RenderQuality = 'flat' | 'cinematic' | 'photo';
 
@@ -95,36 +90,30 @@ const DEFAULT_CINEMATIC: Required<Pick<CinematicOptions, 'bloom' | 'ao' | 'dof'>
  * symmetrically, `RenderSettingsPanelOptions.onChange` to
  * `MeshSettingsPanel.refresh()`) so a render-mode/shading change made in one
  * panel is reflected in the other without a page-level poll.
+ *
+ * The attach/refresh/detach/dispose lifecycle, the listener-teardown list and
+ * the popover wiring all come from `PanelController`, shared with
+ * `MeshSettingsPanel`; this panel's extra teardown (the photo-mode poll and
+ * an in-flight recording) rides on that base's `onDetach()` hook, so
+ * `detach()` and `dispose()` can't drift apart on it again.
  */
-export class RenderSettingsPanel {
+export class RenderSettingsPanel extends PanelController<MeshSession> {
   private els: RenderSettingsPanelElements;
   private opts: RenderSettingsPanelOptions;
-  private session: MeshSession | null = null;
-  private teardown: Array<() => void> = [];
   private photoModeAvailable = true;
   private photoModePollTimer: ReturnType<typeof setInterval> | null = null;
   private recording = false;
   private recordingAbort: AbortController | null = null;
 
   constructor(elements: RenderSettingsPanelElements, opts: RenderSettingsPanelOptions) {
+    super(elements.toggleBtn, elements.panel);
     this.els = elements;
     this.opts = opts;
-    setHidden(this.els.toggleBtn, true);
-    setHidden(this.els.panel, true);
     this.bindStaticControls();
     void isPhotoModeAvailable().then((available) => {
       this.photoModeAvailable = available;
       this.refresh();
     });
-  }
-
-  private on(target: EventTarget, type: string, fn: EventListener): void {
-    target.addEventListener(type, fn);
-    this.teardown.push(() => target.removeEventListener(type, fn));
-  }
-
-  private closePanel(): void {
-    setHidden(this.els.panel, true);
   }
 
   /** Absent toggles default to on — a reduced panel with no per-effect controls gets the full cinematic bundle from selecting the tier alone. */
@@ -264,8 +253,6 @@ export class RenderSettingsPanel {
   }
 
   private bindStaticControls(): void {
-    this.teardown.push(createPopover(this.els.toggleBtn, this.els.panel));
-
     this.on(this.els.qualitySelect, 'change', () => this.applyQuality());
     this.on(this.els.shadowsCheckbox, 'change', () => {
       this.session?.setShadows(this.els.shadowsCheckbox.checked);
@@ -282,11 +269,14 @@ export class RenderSettingsPanel {
     });
   }
 
-  /** Points the panel at `session` and shows the toolbar toggle button. Does not open the panel itself — mirrors `MeshSettingsPanel.attach()`. */
-  attach(session: MeshSession): void {
-    this.session = session;
-    setHidden(this.els.toggleBtn, false);
-    this.refresh();
+  /**
+   * Stops the photo-mode status poll and aborts an in-flight turntable
+   * recording — the session it renders through may be about to be disposed.
+   * Runs from both `detach()` and `dispose()` (see `PanelController`).
+   */
+  protected override onDetach(): void {
+    this.stopPhotoModePoll();
+    this.recordingAbort?.abort();
   }
 
   /**
@@ -368,23 +358,5 @@ export class RenderSettingsPanel {
       this.els.recordTurntableBtn.disabled = recordingBroken;
       this.els.recordTurntableBtn.title = recordingBroken ? 'Turntable recording is not supported in photo mode' : '';
     }
-  }
-
-  /** Closes the panel, hides the toolbar toggle button, stops the photo-mode status poll, aborts an in-flight turntable recording (if any — the session it renders through may be about to be disposed), and releases the session reference. Does not touch the session itself. */
-  detach(): void {
-    this.stopPhotoModePoll();
-    this.recordingAbort?.abort();
-    this.session = null;
-    this.closePanel();
-    setHidden(this.els.toggleBtn, true);
-  }
-
-  /** Tears down the controller itself — unbinds every listener bound in the constructor, and aborts an in-flight turntable recording the same way `detach()` does. */
-  dispose(): void {
-    this.stopPhotoModePoll();
-    this.recordingAbort?.abort();
-    this.session = null;
-    for (const off of this.teardown) off();
-    this.teardown = [];
   }
 }
