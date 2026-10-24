@@ -24,6 +24,8 @@ export {
   scanFilesByExtension,
 } from './io.js';
 
+export { type Checkpoint, type CheckpointOptions, openCheckpoint } from './checkpoint.js';
+
 export { hexDump } from './hex-dump.js';
 
 export { decompressLZEXE, type LZEXEResult } from './lzexe.js';
