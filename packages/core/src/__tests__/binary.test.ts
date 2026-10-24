@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   r16, r24, r32, dataViewOf,
-  asciiAt, fourCCAt, printableAsciiAt, cStringAt, matchesMagic, clamp, clamp01,
+  asciiAt, fourCCAt, printableAsciiAt, cStringAt, hexAt, matchesMagic, alignUp, clamp, clamp01,
 } from '../binary.js';
 
 describe('dataViewOf', () => {
@@ -154,5 +154,59 @@ describe('clamp / clamp01', () => {
     expect(clamp01(-0.5)).toBe(0);
     expect(clamp01(0.25)).toBe(0.25);
     expect(clamp01(2)).toBe(1);
+  });
+});
+
+describe('hexAt', () => {
+  const data = new Uint8Array([0x00, 0x0f, 0xa5, 0xff]);
+
+  it('is two lowercase digits per byte with no separator', () => {
+    expect(hexAt(data, 0, 4)).toBe('000fa5ff');
+    expect(hexAt(data, 2, 1)).toBe('a5');
+    expect(hexAt(data, 0, 0)).toBe('');
+  });
+
+  // Deliberately the opposite of asciiAt's pad-with-NUL: `00` is a real byte
+  // value, so padding a short read would turn a truncated buffer into a
+  // plausible-looking digest.
+  it('truncates past the end rather than padding, unlike asciiAt', () => {
+    expect(hexAt(data, 2, 8)).toBe('a5ff');
+    expect(hexAt(data, 99, 4)).toBe('');
+    expect(asciiAt(data, 2, 4)).toHaveLength(4);
+  });
+});
+
+describe('alignUp', () => {
+  it('rounds up to the next multiple, leaving exact multiples alone', () => {
+    expect(alignUp(0, 32)).toBe(0);
+    expect(alignUp(1, 32)).toBe(32);
+    expect(alignUp(32, 32)).toBe(32);
+    expect(alignUp(33, 32)).toBe(64);
+  });
+
+  it('handles a non-power-of-two alignment, which the bitwise idiom cannot', () => {
+    expect(alignUp(10, 3)).toBe(12);
+    expect(alignUp(12, 3)).toBe(12);
+  });
+
+  // The whole reason this is `%` and not `(v + n - 1) & ~(n - 1)`: JS bitwise
+  // operators truncate to 32-bit *signed*, so the idiom goes negative past
+  // 2**31 — a real failure on a 6.9 GB archive, not a theoretical one.
+  it('stays correct past 2**31, where the bitwise idiom goes negative', () => {
+    // 6936719456 is the real DATA1.bin size that found this; it happens to be
+    // 32-aligned already, so it exercises the exact-multiple path up there.
+    expect(alignUp(6936719456, 32)).toBe(6936719456);
+    expect(alignUp(6936719457, 32)).toBe(6936719488);
+    expect(alignUp(2 ** 31 + 1, 32)).toBe(2 ** 31 + 32);
+    // What the bitwise idiom does with the same inputs — the bug this replaces.
+    expect((6936719457 + 31) & ~31).toBeLessThan(0);
+  });
+
+  it('agrees with the bitwise idiom everywhere that idiom is valid', () => {
+    for (const align of [2, 4, 8, 16, 32, 128, 2048]) {
+      for (const v of [0, 1, 7, 255, 4095, 65535, 1 << 20, (1 << 30) + 3]) {
+        expect(alignUp(v, align)).toBe((v + (align - 1)) & ~(align - 1));
+      }
+    }
   });
 });

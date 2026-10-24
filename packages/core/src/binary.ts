@@ -137,6 +137,27 @@ export function cStringAt(data: Uint8Array, off: number, maxLen = 256): string {
 }
 
 /**
+ * Lowercase hex of `len` bytes at `off`, two digits per byte, no separator —
+ * the `Buffer…toString('hex')` spelling without `Buffer`, so it works in a
+ * browser too.
+ *
+ * This one **truncates** past the end of `data` rather than padding, the
+ * opposite of `asciiAt`. Padding is right for a fixed-width text field, where
+ * a short read is still that field; it is wrong here, because `00` is a real
+ * byte value and emitting it for a byte that is not there turns a truncated
+ * buffer into a plausible-looking digest.
+ */
+export function hexAt(data: Uint8Array, off: number, len: number): string {
+  let s = '';
+  for (let i = 0; i < len; i++) {
+    const b = data[off + i];
+    if (b === undefined) break;
+    s += b.toString(16).padStart(2, '0');
+  }
+  return s;
+}
+
+/**
  * Whether the bytes at `off` spell `magic`. Compares code unit by code unit,
  * so it never allocates a string and never depends on a text encoding; a
  * `magic` with a code unit above 255 can therefore never match.
@@ -156,6 +177,26 @@ export function matchesMagic(data: Uint8Array, off: number, magic: string): bool
 /** Clamp `v` into `[lo, hi]`. */
 export function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
+}
+
+/**
+ * Round `v` up to the next multiple of `align`.
+ *
+ * **Never write `(v + (n - 1)) & ~(n - 1)` for this.** JS's bitwise operators
+ * coerce both operands to 32-bit *signed* integers, so that idiom silently
+ * corrupts for any `v` at or beyond `2**31` (~2.147 GB) — well inside the
+ * range of a modern disc or cartridge image. Found the hard way in a
+ * consuming project whose archive is 6.9 GB: `(6936719456 + 31) & ~31`
+ * evaluates to `-1653215136`, which then encoded as a huge unsigned file
+ * position and failed on the next read.
+ *
+ * `%` is exact for every JS safe integer, so this agrees with the bitwise
+ * form for every power-of-two `align` below `2**31` and keeps working above
+ * it. Unlike that form it also handles a non-power-of-two `align`.
+ */
+export function alignUp(v: number, align: number): number {
+  const r = v % align;
+  return r === 0 ? v : v + (align - r);
 }
 
 /** Clamp `v` into `[0, 1]` — written verbatim in six places before this existed. */
