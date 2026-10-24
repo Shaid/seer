@@ -255,11 +255,11 @@ export function encodeBC3AlphaBlock(alpha: Uint8Array /* 16, row-major 4x4 */): 
  * Encode a whole RGBA8 image to BC3 (DXT5), linear block order: 8-byte
  * alpha block (`encodeBC3AlphaBlock`) followed by an 8-byte BC1-shaped
  * color block, reusing `encodeBC1Block`'s endpoint/palette logic directly —
- * DXT5's color block is bit-identical in format to DXT1's. No re-ordering is
- * needed here only because `encodeBC1Block` already forces `c0 > c1`
- * unconditionally; the claim this comment used to make — that `decodeBC23`
- * never branches on `c0` vs `c1` — was simply false, see the note at that
- * branch.
+ * DXT5's color block is bit-identical in format to DXT1's. `encodeBC1Block`
+ * forces `c0 > c1` unconditionally, which BC1 needs (to stay out of the
+ * punch-through mode) and BC3 is simply indifferent to: `decodeBC23` reads
+ * the colour block as 4-colour whatever the endpoint order, per spec. So the
+ * two encoders can share a block encoder with no re-ordering step here.
  */
 export function encodeBC3(rgba: Uint8Array, width: number, height: number): Uint8Array {
   const out = new Uint8Array(Math.ceil(width / 4) * Math.ceil(height / 4) * 16);
@@ -311,17 +311,15 @@ function decodeBC23(data: Uint8Array, width: number, height: number, out: Uint8A
       // BC2: 16 4-bit alpha nibbles in the same 8 bytes, 2 per byte, low first.
       for (let p = 0; p < 16; p++) aVal[p] = ((data[b + (p >> 1)] >> ((p & 1) * 4)) & 0xf) * 17;
     }
-    // NOTE: `punchThrough` is `true` here only to preserve this decoder's
-    // long-standing behavior byte-for-byte. Per the BC2/BC3 spec the colour
-    // block is *unconditionally* 4-colour — alpha lives in the sub-block
-    // above, so the endpoint ordering carries no meaning and a `c0 <= c1`
-    // block should still interpolate at 1/3 and 2/3. This decoder instead
-    // falls to the 1/2-average + black pair, which is a real (separate,
-    // pre-existing) spec deviation for any BC2/BC3 block whose endpoints
-    // happen to be ordered that way. Changing it moves decoded bytes for the
-    // already-published asset corpus, so it is deliberately NOT folded into
-    // this refactor; `writeAlpha: false` keeps the real alpha either way.
-    decodeColorBlock(data, b + 8, block, true, false);
+    // `punchThrough: false` — per the BC2/BC3 spec the colour block is
+    // *unconditionally* 4-colour. BC1's `c0 <= c1` ordering signals "3 opaque
+    // colours + transparent black"; BC2/BC3 carry alpha in the sub-block
+    // above, so the endpoint ordering carries no meaning at all and a
+    // `c0 <= c1` block must still interpolate at 1/3 and 2/3. Until
+    // 2026-10-25 this decoder passed `true` and so produced the ½-average +
+    // transparent-black pair for any BC2/BC3 block whose endpoints happened
+    // to be ordered that way — see the fix commit.
+    decodeColorBlock(data, b + 8, block, false, false);
     for (let p = 0; p < 16; p++) block[p * 4 + 3] = aVal[p];
     scatterBlock(out, outOff, width, height, bx, by, block);
   });

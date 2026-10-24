@@ -42,6 +42,29 @@ BC3/BC4/BC5 source through this decoder is wrong and should be regenerated.
 `encodeBC3AlphaBlock` always wrote spec-correct bytes, so encoded output is
 unaffected.
 
+## Fixed 2026-10-25: BC2/BC3 took BC1's punch-through colour branch
+
+BC1 gives the endpoint ordering a meaning: `c0 <= c1` selects a 3-opaque-colour
+palette whose fourth entry is transparent black, instead of the usual four
+interpolated opaque colours. BC2 and BC3 carry alpha in their own 8-byte
+sub-block, so for them the ordering is meaningless and the colour block is
+*unconditionally* 4-colour (D3D BC2/BC3 spec; DirectXTex decodes both with its
+colour-key flag off).
+
+`decodeBC23` passed BC1's punch-through flag straight through, so every BC2 or
+BC3 block whose 565 endpoints happened to land in `c0 <= c1` order decoded
+palette entry 2 as the ½-average of the endpoints instead of the 2/3 point, and
+palette entry 3 as black instead of the 1/3 point (the stray alpha the
+punch-through entry carries was already being discarded, so only RGB moved).
+Roughly half of all blocks fall in that ordering, and the texels affected are
+the ones using indices 2 and 3 — so the artefact is washed-out midtones plus
+black speckle, not a uniform shift.
+
+**This changes decoded bytes** for BC2 and BC3 (only); BC1 is unchanged and
+still honours punch-through. Anything extracted from a BC2/BC3 source through
+this decoder should be regenerated. Encoding is unaffected: `encodeBC1Block`
+always forces `c0 > c1`, which BC1 needs and BC3 is indifferent to.
+
 `decodeBC6H` is approximate (unpacked to grayscale luminance, not a
 real BC6H decode) — flagged the same way `decodeBC7` used to be before it
 was replaced with a full conformant decoder; BC6H hasn't had that pass yet.

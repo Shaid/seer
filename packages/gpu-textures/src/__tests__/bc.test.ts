@@ -102,6 +102,131 @@ describe('decodeBC2 (4-bit alpha)', () => {
   });
 });
 
+describe('BC2/BC3 colour block is always 4-colour (never BC1 punch-through)', () => {
+  /**
+   * BC1 gives `c0 <= c1` a meaning: drop to 3 opaque colours plus transparent
+   * black. BC2 and BC3 carry alpha in their own 8-byte sub-block, so for them
+   * the endpoint ordering is meaningless and the colour block is
+   * unconditionally 4-colour (D3D BC2/BC3 spec; DirectXTex decodes both with
+   * its colour-key flag off). Until 2026-10-25 `decodeBC23` passed BC1's
+   * punch-through flag through, so a `c0 <= c1` block decoded to the ½-average
+   * + black pair instead of the 2/3 and 1/3 interpolants.
+   *
+   * c0 = 0x0000 (black), c1 = 0xffff (expand565 -> 248,252,248), i.e. c0 < c1.
+   */
+  const C0 = [0, 0, 0] as const;
+  const C1 = [248, 252, 248] as const;
+  /** Correct 4-colour mode: (2*c0+c1)/3 and (c0+2*c1)/3, truncated. */
+  const FOUR_COLOR = [C0, C1, [82, 84, 82], [165, 168, 165]] as const;
+  /** What the old punch-through branch produced: ½-average, then black. */
+  const OLD_THREE_COLOR = [C0, C1, [124, 126, 124], [0, 0, 0]] as const;
+  const INDICES = [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3];
+
+  /** 8 colour-block bytes: c0, c1 (LE u16 each) then the 32-bit index field. */
+  function colorBytes(): Uint8Array {
+    const out = new Uint8Array(8);
+    out[0] = 0x00; out[1] = 0x00; // c0 = 0x0000
+    out[2] = 0xff; out[3] = 0xff; // c1 = 0xffff  -> c0 <= c1
+    let bits = 0;
+    for (let p = 15; p >= 0; p--) bits = ((bits << 2) | INDICES[p]!) >>> 0;
+    out[4] = bits & 0xff; out[5] = (bits >> 8) & 0xff;
+    out[6] = (bits >> 16) & 0xff; out[7] = (bits >>> 24) & 0xff;
+    return out;
+  }
+
+  it('decodeBC2 interpolates at 2/3 and 1/3 for a c0 <= c1 block', () => {
+    const block = new Uint8Array(16);
+    for (let i = 0; i < 8; i++) block[i] = 0xff; // every alpha nibble 0xf -> 255
+    block.set(colorBytes(), 8);
+    const out = new Uint8Array(4 * 4 * 4);
+    decodeBC2(block, 4, 4, out);
+    for (let p = 0; p < 16; p++) {
+      const want = FOUR_COLOR[INDICES[p]!]!;
+      expect([out[p * 4], out[p * 4 + 1], out[p * 4 + 2]], `texel ${p}`).toEqual([want[0], want[1], want[2]]);
+      expect(out[p * 4 + 3]).toBe(255); // alpha stays the sub-block's, not the palette's
+    }
+    // And explicitly: it is not the old 3-colour+black output.
+    expect([out[2 * 4], out[2 * 4 + 1], out[2 * 4 + 2]]).not.toEqual([...OLD_THREE_COLOR[2]]);
+    expect([out[3 * 4], out[3 * 4 + 1], out[3 * 4 + 2]]).not.toEqual([...OLD_THREE_COLOR[3]]);
+  });
+
+  it('decodeBC3 interpolates at 2/3 and 1/3 for a c0 <= c1 block, index 3 is not black', () => {
+    const block = new Uint8Array(16);
+    block[0] = 200; block[1] = 200; // flat alpha sub-block, both endpoints equal
+    block.set(colorBytes(), 8);
+    const out = new Uint8Array(4 * 4 * 4);
+    decodeBC3(block, 4, 4, out);
+    for (let p = 0; p < 16; p++) {
+      const want = FOUR_COLOR[INDICES[p]!]!;
+      expect([out[p * 4], out[p * 4 + 1], out[p * 4 + 2]], `texel ${p}`).toEqual([want[0], want[1], want[2]]);
+      expect(out[p * 4 + 3]).toBe(200);
+    }
+  });
+
+  it('decodeBC1 still honours punch-through for the same colour bytes', () => {
+    // The guard that the fix was scoped to BC2/BC3: BC1 must keep the
+    // 3-colour + transparent-black interpretation of c0 <= c1.
+    const out = new Uint8Array(4 * 4 * 4);
+    decodeBC1(colorBytes(), 4, 4, out);
+    for (let p = 0; p < 16; p++) {
+      const want = OLD_THREE_COLOR[INDICES[p]!]!;
+      expect([out[p * 4], out[p * 4 + 1], out[p * 4 + 2]], `texel ${p}`).toEqual([want[0], want[1], want[2]]);
+      expect(out[p * 4 + 3]).toBe(INDICES[p] === 3 ? 0 : 255);
+    }
+  });
+
+  it('decodes BC2/BC3 colour identically regardless of endpoint order', () => {
+    // The strongest statement of the spec rule: swapping c0/c1 only permutes
+    // the palette, it never changes the *mode*. Encode the same four colours
+    // in both orders with mirrored indices and expect identical output.
+    const swapped = (src: Uint8Array): Uint8Array => {
+      const out = new Uint8Array(8);
+      out[0] = src[2]!; out[1] = src[3]!; out[2] = src[0]!; out[3] = src[1]!;
+      // 0<->1 and 2<->3 under an endpoint swap in 4-colour mode.
+      let bits = 0;
+      for (let p = 15; p >= 0; p--) bits = ((bits << 2) | (INDICES[p]! ^ 1)) >>> 0;
+      out[4] = bits & 0xff; out[5] = (bits >> 8) & 0xff;
+      out[6] = (bits >> 16) & 0xff; out[7] = (bits >>> 24) & 0xff;
+      return out;
+    };
+    for (const [name, decode] of [['BC2', decodeBC2], ['BC3', decodeBC3]] as const) {
+      const a = new Uint8Array(16); a.set(colorBytes(), 8);
+      const b = new Uint8Array(16); b.set(swapped(colorBytes()), 8);
+      const outA = new Uint8Array(4 * 4 * 4), outB = new Uint8Array(4 * 4 * 4);
+      decode(a, 4, 4, outA); decode(b, 4, 4, outB);
+      for (let p = 0; p < 16; p++) {
+        // index i under (c0,c1) == index i^1 under (c1,c0) for 4-colour mode.
+        expect([outB[p * 4], outB[p * 4 + 1], outB[p * 4 + 2]], `${name} texel ${p}`)
+          .toEqual([outA[p * 4], outA[p * 4 + 1], outA[p * 4 + 2]]);
+      }
+    }
+  });
+
+  it('round-trips encodeBC3 -> decodeBC3 for colour and alpha together', () => {
+    // A real decode(encode(x)) pass over a block with both a colour gradient
+    // and a varying alpha ramp — the encoder's two halves and the decoder's
+    // two halves agreeing end to end, not just the colour path (the existing
+    // round-trip test above checks green only, at alpha 255).
+    const width = 8, height = 8;
+    const rgba = new Uint8Array(width * height * 4);
+    for (let i = 0; i < width * height; i++) {
+      rgba[i * 4] = 40 + (i % 8) * 4;
+      rgba[i * 4 + 1] = 90 + ((i / 8) | 0) * 4;
+      rgba[i * 4 + 2] = 160 - (i % 8) * 3;
+      rgba[i * 4 + 3] = 255 - (i % 16) * 8;
+    }
+    const decoded = new Uint8Array(width * height * 4);
+    decodeBC3(encodeBC3(rgba, width, height), width, height, decoded);
+    for (let i = 0; i < width * height; i++) {
+      for (let c = 0; c < 3; c++) {
+        expect(Math.abs(decoded[i * 4 + c]! - rgba[i * 4 + c]!), `texel ${i} ch ${c}`).toBeLessThanOrEqual(12);
+      }
+      // 8-level alpha quantization over a 120-wide ramp.
+      expect(Math.abs(decoded[i * 4 + 3]! - rgba[i * 4 + 3]!), `texel ${i} alpha`).toBeLessThanOrEqual(12);
+    }
+  });
+});
+
 describe('decodeBC4 (single channel)', () => {
   it('decodes a flat single-value block to a grayscale RGBA with alpha=255', () => {
     const block = new Uint8Array(8);
@@ -141,10 +266,17 @@ describe('block scatter/gather refactor: byte-identical decode output', () => {
   // fix already applied) and must not move: they pin every format's output on
   // pseudo-random block data at six surface shapes, four of which are not a
   // multiple of 4 in one or both axes and so exercise the clipping path.
+  //
+  // BC2 and BC3 were re-captured once, deliberately, when the BC2/BC3
+  // colour-mode fix landed (see "BC2/BC3 colour block is always 4-colour"
+  // above): random endpoint bytes put roughly half of these blocks in the
+  // `c0 <= c1` ordering, which used to take BC1's punch-through branch. Every
+  // other format's digests are untouched by that fix, which is itself part of
+  // the evidence that the change was correctly scoped.
   const GOLDEN: Record<string, readonly string[]> = {
     BC1: ['600d9045', '6e1f7084', '7bb53a9e', '983d2b44', 'abb052fb', '6b8050f7'],
-    BC2: ['156d77b4', 'ed7f8fb3', 'b3f8414d', 'ae438a2c', 'dc6b3bd6', 'a5efced2'],
-    BC3: ['4ab69ac8', 'e61bce8a', 'dbd844c6', 'a2ede7a8', 'b2ab1e52', '473c99ac'],
+    BC2: ['e6f87854', '066985e2', '60b880c1', '9ad090c6', '86450232', '64e0b5d4'],
+    BC3: ['36ab2a28', 'dff1327b', '0d8038fe', 'cad0eb16', 'ec9d7a4a', 'e4a9a79e'],
     BC4: ['6764580c', 'f8eb18c6', '83882f35', '603c2a4b', '643f8c86', 'b8ee81d5'],
     BC5: ['8e661a36', 'ee25139f', '4dcf8624', '73becd5c', '71f952e4', '8931a96f'],
     BC6H: ['35598445', 'a0e0de05', 'bbfb2359', '1bef5297', 'b7238265', 'f3991765'],
