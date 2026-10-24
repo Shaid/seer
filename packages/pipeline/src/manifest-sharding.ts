@@ -22,52 +22,21 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { writeJson } from './io.js';
 
-export interface ShardableEntry {
-  name: string;
-  category?: string;
-  group?: string;
-}
-
-/** One `group` row within a category that got group-level sub-sharding (see `GROUP_SHARD_THRESHOLD`). */
-export interface GroupIndexEntry {
-  /** Machine id — also the sub-shard filename stem (`manifest/<category>/<id>.json`). */
-  id: string;
-  count: number;
-}
-
-/** One row of `categories.json` — the lightweight index a viewer fetches before committing to any per-category shard fetch. */
-export interface CategoryIndexEntry {
-  /** Machine id — also the shard filename stem (`manifest/<id>.json`, always written regardless of `groups`). */
-  id: string;
-  /** Human label; the viewer falls back to `id` itself when absent. */
-  displayName?: string;
-  /** Total entries in this category (all types combined). */
-  count: number;
-  /**
-   * Present only when this category exceeded `GROUP_SHARD_THRESHOLD` and
-   * was additionally split by `group` into `manifest/<category>/<group>
-   * .json` sub-shards, sorted largest-first. A viewer can use this to offer
-   * a cheaper group-level fetch instead of the (potentially very large)
-   * flat `manifest/<id>.json` — both are always written, so either
-   * contract works: a viewer unaware of `groups` still gets a correct,
-   * complete flat shard.
-   */
-  groups?: GroupIndexEntry[];
-}
+import {
+  GROUP_SHARD_THRESHOLD,
+  type CategoryIndexEntry,
+  type GroupIndexEntry,
+  type ShardableEntry,
+} from './manifest-types.js';
 
 /**
- * A category above this many entries also gets split further by `group`
- * (`manifest/<category>/<group>.json`, one file per distinct `group`
- * value) — the flat `manifest/<category>.json` is still written too, this
- * is a purely additive faster path for the (typically one or two) huge
- * categories where even one level of category splitting isn't enough on
- * its own. Picked empirically from a real corpus (a UE3 asset extraction
- * where the dominant `background` category was ~91% of the whole manifest
- * and still ~22MB after category-level splitting alone) — a reasonable
- * general default, not a hard rule; a project may want its own threshold
- * for a very different corpus shape.
+ * The shapes written here live in `manifest-types.ts` so a browser-side
+ * viewer can import them from `@seer-project/pipeline/manifest-types`
+ * without this module's `node:fs` coming along. Re-exported from here — and
+ * so, unchanged, from the package barrel — because every Node-side caller
+ * already reaches for them through the writer.
  */
-const GROUP_SHARD_THRESHOLD = 3000;
+export * from './manifest-types.js';
 
 /**
  * Writes `<outDir>/manifest/<category>.json` (one array of entries per

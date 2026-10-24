@@ -21,6 +21,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./manifest-types": {
+      "types": "./dist/manifest-types.d.ts",
+      "import": "./dist/manifest-types.js"
     }
   },
   "files": [

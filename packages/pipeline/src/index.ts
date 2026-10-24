@@ -39,9 +39,14 @@ export {
   decrunchRenamedPp20,
 } from './ancient.js';
 
+export { writeShardedManifest } from './manifest-sharding.js';
+
+// Also reachable on its own as `@seer-project/pipeline/manifest-types` —
+// which is what a *browser* viewer has to import, since this barrel reaches
+// `node:fs` through `config.js`, `io.js` and the sharder itself.
 export {
+  GROUP_SHARD_THRESHOLD,
   type ShardableEntry,
   type GroupIndexEntry,
   type CategoryIndexEntry,
-  writeShardedManifest,
-} from './manifest-sharding.js';
+} from './manifest-types.js';
