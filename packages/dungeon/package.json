@@ -26,6 +26,10 @@
     "./schema": {
       "types": "./dist/schema/index.d.ts",
       "import": "./dist/schema/index.js"
+    },
+    "./pixi": {
+      "types": "./dist/render/PixiPresenter.d.ts",
+      "import": "./dist/render/PixiPresenter.js"
     }
   },
   "files": [

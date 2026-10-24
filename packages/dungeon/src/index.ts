@@ -2,6 +2,14 @@
  * Barrel for `@seer-project/dungeon`. Re-exports the schema types/validators
  * (also independently available, dependency-free, at `@seer-project/dungeon/schema`)
  * alongside the raster and render layers.
+ *
+ * `PixiPresenter` is deliberately NOT here: it is the one module in the
+ * package with a top-level `import ... from 'pixi.js'`, so re-exporting it
+ * would pull PixiJS into the graph of anyone who merely validates a level
+ * file. It lives at `@seer-project/dungeon/pixi`, the same split
+ * `@seer-project/engine-2d` makes with `./pixi-helpers` and that
+ * `@seer-project/core`'s barrel documents as the reason it re-exports no
+ * Pixi helpers either. `CanvasPresenter` imports no Pixi and stays here.
  */
 export * from './schema/index.js';
 
@@ -26,7 +34,6 @@ export * from './raster/composite.js';
 export * from './raster/anim.js';
 
 export * from './render/CanvasPresenter.js';
-export * from './render/PixiPresenter.js';
 
 export * from './input/WalkerController.js';
 

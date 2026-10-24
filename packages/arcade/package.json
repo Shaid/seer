@@ -23,6 +23,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./capcom": {
+      "types": "./dist/capcom/index.d.ts",
+      "import": "./dist/capcom/index.js"
+    },
+    "./neogeo": {
+      "types": "./dist/neogeo/index.d.ts",
+      "import": "./dist/neogeo/index.js"
+    },
+    "./sega": {
+      "types": "./dist/sega/index.d.ts",
+      "import": "./dist/sega/index.js"
     }
   },
   "files": [
@@ -38,6 +50,7 @@
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
     "prepack": "npm run build",
+    "prepublishOnly": "npm run lint && npm test",
     "pretest": "npm run build",
     "test": "vitest run",
     "lint": "eslint src/"
