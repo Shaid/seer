@@ -20,6 +20,18 @@ GPU texture codecs used by modern console decompilation:
   fixed memory arena.
 - **`zstd.ts`** — one-shot Zstandard decompression via
   `@tootallnate/zstd-wasm` (MIT).
+- **`revision.ts`** — `BC_DECODER_REVISION`, a monotonic integer naming the
+  version of the decode paths above (`bc.ts` + `swizzle.ts`; not the
+  WASM-backed ASTC/zstd, which `package-lock.json` already pins). It is a
+  **cache key for consumers**: an extraction pipeline stamps its resume logs
+  and manifests with it, so a fix here invalidates exactly the outputs that
+  fix changes instead of leaving them silently stale behind an
+  "already done" guard. Bump it, with a changelog line, on any change to
+  decoded bytes — `revision.test.ts` pins a digest of a fixed synthetic
+  corpus next to the constant so that it cannot be forgotten. The two fixes
+  below are what the numbering records; both shipped before any consumer
+  could stamp anything, and both cost a downstream project a day of
+  believing a rebuild had happened when it hadn't.
 
 ## Fixed 2026-10-25: the 48-bit index-field shift bug
 

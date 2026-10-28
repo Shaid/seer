@@ -43,12 +43,21 @@ export {
 
 export { writeShardedManifest } from './manifest-sharding.js';
 
+export {
+  readDecoderStamps,
+  readDecoderStamp,
+  manifestStampMatches,
+  recordDecoderStamp,
+} from './decoder-stamp.js';
+
 // Also reachable on its own as `@seer-project/pipeline/manifest-types` —
 // which is what a *browser* viewer has to import, since this barrel reaches
 // `node:fs` through `config.js`, `io.js` and the sharder itself.
 export {
   GROUP_SHARD_THRESHOLD,
+  DECODER_STAMP_FILE,
   type ShardableEntry,
   type GroupIndexEntry,
   type CategoryIndexEntry,
+  type DecoderStampFile,
 } from './manifest-types.js';

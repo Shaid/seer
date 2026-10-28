@@ -76,3 +76,41 @@ export interface CategoryIndexEntry {
  * the same boundary to know when a `groups` array can be expected.
  */
 export const GROUP_SHARD_THRESHOLD = 3000;
+
+/**
+ * Filename of the decoder-stamp sidecar that sits next to a manifest, one
+ * per output directory.
+ *
+ * **Why a sidecar rather than a field on the manifest.** The natural place
+ * for "which decoder revision produced these rows" is a top-level key on
+ * `manifest.json` — but that file is a top-level JSON *array* in every
+ * project using this writer, and an array has no top-level keys. Wrapping it
+ * in an object would break every viewer and every stage that reads it, for a
+ * field none of them care about. A sidecar is additive instead: unknown to
+ * old readers, ignored by the shard verifier, and deletable without losing
+ * anything but the stamp.
+ *
+ * **Why keyed by stage.** One `manifest.json` is written by many stages —
+ * textures, meshes, portraits, audio, animations, game data — each owning
+ * the rows of its own `type` and all of them merging into the same file. A
+ * single stamp for the whole manifest would mean a texture-decoder fix
+ * invalidating the audio rows too, which is both wrong and expensive. The
+ * stage id is whatever the project calls the stage; only stages whose output
+ * actually depends on the stamped code should record one, and a stage with
+ * no entry is simply "never stamped" — see {@link DecoderStampFile}.
+ */
+export const DECODER_STAMP_FILE = '.decoderStamp.json';
+
+/**
+ * Contents of {@link DECODER_STAMP_FILE}: stage id → the stamp that produced
+ * that stage's rows in the sibling manifest.
+ *
+ * A missing file, or a stage missing from `stages`, means **unstamped**, and
+ * a consumer should treat unstamped as stale for the same reason
+ * `openCheckpoint`'s `stamp` option does: it is output whose provenance
+ * nobody recorded. A project that knows its existing output is current
+ * adopts it by writing this file once, deliberately.
+ */
+export interface DecoderStampFile {
+  stages: Record<string, string>;
+}
