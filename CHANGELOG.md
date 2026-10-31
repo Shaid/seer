@@ -34,6 +34,17 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- `@seer-project/arcade` — Black Tiger board video in `./capcom`
+  (`capcom/blktiger-video.ts`): `BlktigerVideo` holds the bg tile RAM (4
+  banks), text RAM, palette RAM, live and vblank-buffered sprite RAM and the
+  scroll/layout/enable/bank registers, accepts Z80-style memory and port
+  writes, and renders a 256x224 frame of palette indices (0..1023).
+  `BlktigerRenderer` is the stateless core. The scrolling bg wraps in both
+  8x4 and 4x8 page layouts, sprites follow the hardware draw order with
+  clipping, and bg pixels go in front of or behind sprites per pixel from
+  the `bd02` -> `bd01` PROM chain. `blktigerPaletteToRgba` and
+  `blktigerFrameToRgba` convert to RGBA. Also re-exported from the package
+  root.
 - `@seer-project/arcade` — new `./yamaha` subpath with register-driven
   YM2203 (OPN) models: `Ym2203Fm` (3 channels, 8 algorithms, envelope
   generator, detune/MUL, feedback; sample rate `clock / 72`) and

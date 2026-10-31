@@ -114,6 +114,31 @@ verification evidence. `decodeCps2TrackV1` is `CPS2_V1.15`-family-generic;
 a later driver generation (`CPS2_V140`+) would need vgmtrans's newer
 branches ported separately.
 
+### Black Tiger board video (`capcom/blktiger-video.ts`)
+
+```ts
+import { BlktigerVideo, blktigerFrameToRgba } from '@seer-project/arcade/capcom';
+
+const video = new BlktigerVideo({ chars, tiles, sprites }, { bd01, bd02 });
+video.writeMemory(0xc000, code);   // bg tile RAM (bank from port 0x0d), text, palette, sprite RAM
+video.writePort(0x08, scrollXLo);  // scroll, layer enables, bg bank, 8x4/4x8 layout
+video.vblank();                    // latch the sprite list, as the buffered sprite RAM does
+const frame = video.render();      // { width: 256, height: 224, pixels: Uint16Array } of palette indices
+const rgba = blktigerFrameToRgba(frame, video.paletteRgba());
+```
+
+A renderer for Black Tiger's (Capcom, 1987) video board, for a
+reimplementation whose game logic writes tile RAM, the sprite list, palette
+RAM and the scroll registers the way the original Z80 code did. Output is
+an indexed frame (palette-RAM index 0..1023 per pixel) so a runtime can do
+the palette lookup in a shader. Covers the scrolling 16x16 bg layer in both
+page layouts, the 8x8 text layer, 128 16x16 sprites and the per-pixel
+bg-vs-sprite priority from the `bd02`/`bd01` PROM pair. The caller supplies
+decoded graphics as pen-index arrays and the PROM bytes. Facts come from the
+kolbold Black Tiger notes; the draw order, transparent pens, visible window
+offset and enable bits follow MAME's driver and are flagged as such in the
+source. Flip screen is not modelled.
+
 ## Neo Geo
 
 ```ts

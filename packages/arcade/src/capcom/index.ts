@@ -2,7 +2,8 @@
  * `@seer-project/arcade/capcom` — Capcom CPS1/CPS2/CPS3 hardware: tile and
  * palette decode, ROM region assembly, the CPS2 and CPS3 decryption, the
  * OKI/QSound audio chips and the CPS2 QSound sequence driver, plus the SH-2
- * interpreter CPS3 runs on.
+ * interpreter CPS3 runs on; also the pre-CPS Black Tiger board's video
+ * renderer.
  *
  * A subpath, so a Neo Geo or System 16 consumer does not pull 1188 lines of
  * SH-2 interpreter and the CPS decrypt tables into its graph. Everything
@@ -110,3 +111,32 @@ export {
   clampCps2PitchIndex,
   computeCps2PitchDelta,
 } from './qsound-driver.js';
+export {
+  BLKTIGER_SCREEN_WIDTH,
+  BLKTIGER_SCREEN_HEIGHT,
+  BLKTIGER_VISIBLE_Y0,
+  BLKTIGER_BG_RAM_SIZE,
+  BLKTIGER_BG_BANK_SIZE,
+  BLKTIGER_TEXT_RAM_SIZE,
+  BLKTIGER_SPRITE_RAM_SIZE,
+  BLKTIGER_SPRITE_COUNT,
+  BLKTIGER_PALETTE_RAM_SIZE,
+  BLKTIGER_PALETTE_ENTRIES,
+  BLKTIGER_TILES_PALETTE_BASE,
+  BLKTIGER_SPRITES_PALETTE_BASE,
+  BLKTIGER_CHARS_PALETTE_BASE,
+  BLKTIGER_BACKDROP_PEN,
+  BLKTIGER_TILE_COUNT,
+  type BlktigerGfx,
+  type BlktigerProms,
+  type BlktigerBoardState,
+  type BlktigerFrame,
+  blktigerBgTileIndex,
+  blktigerBgMapSize,
+  blktigerBgFrontTable,
+  decodeBlktigerPaletteEntry,
+  blktigerPaletteToRgba,
+  blktigerFrameToRgba,
+  BlktigerRenderer,
+  BlktigerVideo,
+} from './blktiger-video.js';
