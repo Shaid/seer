@@ -9,6 +9,7 @@ import {
   scanTimImages,
   decodeTimToRGBA,
   decodeBGR555,
+  bgr555ToRgba,
   type TexPageRef,
 } from '../tim.js';
 
@@ -52,8 +53,8 @@ describe('parseTim (bgr555ToRgba pipeline)', () => {
     expect(tim!.width).toBe(2);
     expect(tim!.height).toBe(1);
     expect(tim!.palette).toHaveLength(2);
-    expect(tim!.palette![0]).toEqual({ r: 0, g: 0, b: 0, a: 0 });
-    expect(tim!.palette![1]).toEqual({ r: 248, g: 0, b: 0, a: 255 }); // <<3 scaling: 31<<3=248
+    expect(tim!.palette![0]).toEqual({ r: 0, g: 0, b: 0, a: 0, stp: false });
+    expect(tim!.palette![1]).toEqual({ r: 248, g: 0, b: 0, a: 255, stp: false }); // <<3 scaling: 31<<3=248
     expect(Array.from(tim!.rgba.subarray(0, 4))).toEqual([0, 0, 0, 0]);
     expect(Array.from(tim!.rgba.subarray(4, 8))).toEqual([248, 0, 0, 255]);
   });
@@ -283,5 +284,42 @@ describe('decodeBGR555 / tryParseTim / decodeTimToRGBA', () => {
     const starts = found.map((t) => t.start);
     expect(starts).toContain(0);
     expect(starts).toContain(a.length);
+  });
+});
+
+describe('bgr555ToRgba STP bit', () => {
+  it('exposes bit 15 as stp without changing the channels', () => {
+    expect(bgr555ToRgba(0x801f, false)).toEqual({ r: 248, g: 0, b: 0, a: 255, stp: true });
+    expect(bgr555ToRgba(0x001f, false).stp).toBe(false);
+  });
+
+  it('keeps key-colour transparency independent of stp', () => {
+    expect(bgr555ToRgba(0x0000, true)).toEqual({ r: 0, g: 0, b: 0, a: 0, stp: false });
+    expect(bgr555ToRgba(0x8000, true).a).toBe(255);
+  });
+
+  it('parseTimIndexed propagates each CLUT entry\'s STP bit into palette[i].stp', () => {
+    const clutColors = [0x0000, 0x001f, 0x801f]; // key-colour, opaque red, STP-flagged red
+    const clutSize = 4 + 8 + clutColors.length * 2;
+    const pixels = [0, 1, 2];
+    const imgSize = 12 + pixels.length;
+    const buf = new Uint8Array(8 + clutSize + imgSize);
+    const view = new DataView(buf.buffer);
+    view.setUint32(0, 0x10, true);
+    view.setUint32(4, 0x09, true); // 8bpp + CLUT
+    let off = 8;
+    view.setUint32(off, clutSize, true);
+    view.setUint16(off + 8, clutColors.length, true);
+    view.setUint16(off + 10, 1, true);
+    clutColors.forEach((c, i) => view.setUint16(off + 12 + i * 2, c, true));
+    off += clutSize;
+    view.setUint32(off, imgSize, true);
+    view.setUint16(off + 8, 1, true); // imgWRaw halfwords -> width 3
+    view.setUint16(off + 10, 1, true);
+    pixels.forEach((p, i) => (buf[off + 12 + i] = p));
+
+    const tim = parseTimIndexed(buf);
+    expect(tim).not.toBeNull();
+    expect(tim!.palette.map((c) => c.stp)).toEqual([false, false, true]);
   });
 });

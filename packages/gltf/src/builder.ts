@@ -19,7 +19,7 @@ export type JsonNode = {
 };
 
 export interface GltfJson {
-  asset: { version: string };
+  asset: { version: string; generator?: string };
   scene: number;
   /**
    * `extras` is additive and optional. three.js's `GLTFLoader` copies a
@@ -30,7 +30,8 @@ export interface GltfJson {
   scenes: { nodes: number[]; extras?: Record<string, unknown> }[];
   nodes: JsonNode[];
   meshes: { name?: string; primitives: { attributes: Record<string, number>; indices?: number; material?: number }[] }[];
-  buffers: { byteLength: number }[];
+  /** `uri` is only set for sidecar `.gltf` output ({@link assembleGltfSidecar}); a GLB's single buffer is the BIN chunk. */
+  buffers: { byteLength: number; uri?: string }[];
   bufferViews: { buffer: number; byteOffset: number; byteLength: number; target?: number }[];
   accessors: Record<string, unknown>[];
   materials?: {
@@ -55,7 +56,7 @@ export interface GltfJson {
      */
     extras?: Record<string, unknown>;
   }[];
-  images?: { name?: string; bufferView: number; mimeType: 'image/png' }[];
+  images?: { name?: string; bufferView?: number; mimeType?: 'image/png'; uri?: string }[];
   textures?: { sampler?: number; source: number }[];
   samplers?: { magFilter?: number; minFilter?: number; wrapS?: number; wrapT?: number }[];
   skins?: { joints: number[]; inverseBindMatrices: number }[];
@@ -187,6 +188,14 @@ export function addEmbeddedTexture(builder: GltfBuilder, image: EmbeddedTexture)
     samplers.push({ magFilter: GL_LINEAR, minFilter: GL_LINEAR_MIPMAP_LINEAR, wrapS: GL_REPEAT, wrapT: GL_REPEAT });
   }
   return textures.push({ sampler: 0, source: imageIndex }) - 1;
+}
+
+/** Add one image referenced by `uri` (resolved relative to the `.gltf`, for sidecar output) with a sampler-less texture, returning the glTF texture index. */
+export function addExternalTexture(builder: GltfBuilder, uri: string): number {
+  const images = (builder.json.images ??= []);
+  const textures = (builder.json.textures ??= []);
+  const imageIndex = images.push({ uri }) - 1;
+  return textures.push({ source: imageIndex }) - 1;
 }
 
 /** Euler XYZ (radians) -> column-major 4x4 rotation matrix. Composition order is `Rx * Ry * Rz` (Z applied first) — the opposite of Blender's own "XYZ Euler" (`Rz * Ry * Rx`); a caller porting rotation data from another engine should confirm its convention rather than assume this matches. */
@@ -407,6 +416,35 @@ export function addAnimationChannel(
   anim.channels.push({ sampler: samplerIndex, target: { node: nodeIndex, path } });
 }
 
+/** Stamp the buffer length and drop empty optional top-level arrays (glTF forbids zero-length ones); returns the binary length. */
+function finalizeJson(builder: GltfBuilder): number {
+  const total = builder.binOffset;
+  builder.json.buffers[0]!.byteLength = total;
+  const json = builder.json as unknown as Record<string, unknown[] | undefined>;
+  for (const key of ['materials', 'meshes', 'skins', 'accessors', 'bufferViews', 'buffers', 'images', 'textures', 'samplers', 'animations'] as const) {
+    if (Array.isArray(json[key]) && json[key]!.length === 0) delete json[key];
+  }
+  return total;
+}
+
+/**
+ * Finish a builder as a separate `.gltf` + `.bin` pair instead of a GLB: the
+ * returned `json` points `buffers[0].uri` at `binUri` (relative to the
+ * `.gltf`), and `bin` is the 4-byte-aligned binary buffer. Image `uri`s (see
+ * {@link addExternalTexture}) stay external.
+ */
+export function assembleGltfSidecar(builder: GltfBuilder, binUri: string): { json: GltfJson; bin: Uint8Array } {
+  const total = finalizeJson(builder);
+  const bin = new Uint8Array(total);
+  let p = 0;
+  for (const c of builder.chunks) {
+    bin.set(c, p);
+    p += align4(c.length);
+  }
+  builder.json.buffers[0]!.uri = binUri;
+  return { json: builder.json, bin };
+}
+
 /**
  * Pack the accumulated JSON + binary chunks into a GLB ArrayBuffer.
  *
@@ -421,13 +459,7 @@ export function assembleGLB(builder: GltfBuilder): ArrayBuffer {
     builder.chunks.push(new Uint8Array(0));
   }
 
-  const total = builder.binOffset;
-  builder.json.buffers[0]!.byteLength = total;
-
-  const json = builder.json as unknown as Record<string, unknown[] | undefined>;
-  for (const key of ['materials', 'meshes', 'skins', 'accessors', 'bufferViews', 'buffers', 'images', 'textures', 'samplers', 'animations'] as const) {
-    if (Array.isArray(json[key]) && json[key]!.length === 0) delete json[key];
-  }
+  const total = finalizeJson(builder);
 
   const jsonBytes = new TextEncoder().encode(JSON.stringify(builder.json));
   const jsonPaddedLen = align4(jsonBytes.length);

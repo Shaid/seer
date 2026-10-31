@@ -5,6 +5,8 @@ import {
   pushBytes,
   pushAccessor,
   addEmbeddedTexture,
+  addExternalTexture,
+  assembleGltfSidecar,
   newAnimation,
   addAnimationChannel,
   assembleGLB,
@@ -142,6 +144,27 @@ describe('assembleGLB / parseGLB round trip', () => {
     builder.json.scenes[0]!.nodes.push(0);
     const glb = parseGLB(assembleGLB(builder));
     expect(Array.from(readAccessor(glb, idxAcc).values)).toEqual([0, 1]);
+  });
+});
+
+describe('assembleGltfSidecar / addExternalTexture', () => {
+  it('emits a .gltf JSON with external buffer + image URIs and an aligned bin', () => {
+    const builder = newBuilder();
+    const view = pushView(builder, new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), ARRAY_BUFFER);
+    pushBytes(builder, new Uint8Array([9, 8, 7]));
+    const acc = pushAccessor(builder, view, 'VEC3', FLOAT, 3);
+    builder.json.meshes.push({ primitives: [{ attributes: { POSITION: acc } }] });
+    builder.json.nodes.push({ mesh: 0 });
+    builder.json.scenes[0]!.nodes.push(0);
+    expect(addExternalTexture(builder, 'atlas.png')).toBe(0);
+    const { json, bin } = assembleGltfSidecar(builder, 'm.bin');
+    expect(json.buffers).toEqual([{ byteLength: 40, uri: 'm.bin' }]);
+    expect(bin.length).toBe(40);
+    expect(Array.from(bin.subarray(36, 40))).toEqual([9, 8, 7, 0]);
+    expect(json.images).toEqual([{ uri: 'atlas.png' }]);
+    expect(json.textures).toEqual([{ source: 0 }]);
+    expect(json.samplers).toBeUndefined();
+    expect(json.materials).toBeUndefined();
   });
 });
 

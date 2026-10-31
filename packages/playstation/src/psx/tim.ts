@@ -60,6 +60,13 @@ export interface RgbaColor {
   g: number;
   b: number;
   a: number;
+  /**
+   * The raw colour's STP bit (bit 15 of the BGR555 word). On real hardware a
+   * *textured* semi-transparent primitive only alpha-blends a texel whose own
+   * CLUT entry has this bit set; otherwise the texel draws opaque. Set by
+   * `bgr555ToRgba`; colours synthesised elsewhere leave it `undefined`.
+   */
+  stp?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -349,7 +356,7 @@ export function bgr555ToRgba(c: number, isPaletteIndexZero: boolean): RgbaColor 
   const g = ((c >> 5) & 0x1f) << 3;
   const b = ((c >> 10) & 0x1f) << 3;
   const a = isPaletteIndexZero && c === 0 ? 0 : 255;
-  return { r, g, b, a };
+  return { r, g, b, a, stp: (c & 0x8000) !== 0 };
 }
 
 /**
