@@ -34,6 +34,25 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- `@seer-project/arcade-runtime` — new package: the runtime shell for
+  browser-native arcade reimplementations (ported game logic on a virtual
+  board, not emulation). `createFixedStepLoop` steps at the board's own
+  refresh rate (e.g. Black Tiger's 59.637 Hz) from rAF time, with capped
+  catch-up, pause, single-step and a speed multiplier. Boards hand over an
+  `IndexedFrame` (`Uint16Array` palette indices) and an RGBA palette;
+  `createPresenter` draws them through a WebGL2 R16UI + palette-texture
+  shader with integer/fit/fill scaling and pixel aspect, optionally through
+  `@seer-project/retro-display`, falling back to Canvas2D.
+  `indexedToRgba` is the CPU reference. `createInputMap` turns keyboard
+  (MAME default keys) and gamepads into one bitmask per player per step,
+  with plain-JSON remappable bindings; `defineDipSwitches` gives typed DIP
+  settings that also pack to raw DSW bytes. `snapshotState`/`restoreState`
+  (in place, keeping typed-array identity), `RingBuffer` for rewind,
+  `InputRecorder`/`runReplay` and `hashState` (FNV-1a over a canonical
+  walk) cover save states and per-frame replay regression tests.
+  `createAudioWorkletHost` posts frame-stamped sound commands to a worklet,
+  and the `./worklet` subpath's `defineGeneratorProcessor` renders a
+  generator with each command landing on its exact sample.
 - `@seer-project/arcade` — Black Tiger board video in `./capcom`
   (`capcom/blktiger-video.ts`): `BlktigerVideo` holds the bg tile RAM (4
   banks), text RAM, palette RAM, live and vblank-buffered sprite RAM and the
