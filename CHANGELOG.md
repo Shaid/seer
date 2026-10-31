@@ -34,6 +34,16 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- `@seer-project/arcade` — new `./yamaha` subpath with register-driven
+  YM2203 (OPN) models: `Ym2203Fm` (3 channels, 8 algorithms, envelope
+  generator, detune/MUL, feedback; sample rate `clock / 72`) and
+  `Ym2203Ssg` (3 tones, noise, mixer, 4-bit volume). Both step one sample at
+  a time with no platform imports, so they run in offline renders and
+  AudioWorklets alike. Checked against MAME 0.289's ymfm on Black Tiger's
+  music and effects (identical register streams within 0.03–0.18 dB and
+  ~0.01 cent), not against real silicon. Moved from the kolbold consumer
+  repo so a browser runtime and the RE tools share one copy. Also
+  re-exported from the package root.
 - `@seer-project/switch` — new package: Nintendo Switch container
   primitives, filling the gap left by `@seer-project/gpu-textures` already
   billing itself as a Tegra X1 (Switch) block-linear deswizzler with no

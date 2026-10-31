@@ -170,6 +170,28 @@ is a commodity part used across many Sega/Capcom/etc titles, not
 Sega-exclusive; it lives under `sega/` because its first real-hardware
 verification (Golden Axe) was a Sega System 16 board.
 
+## Yamaha YM2203 (`@seer-project/arcade/yamaha`)
+
+```ts
+import { Ym2203Fm, Ym2203Ssg } from '@seer-project/arcade/yamaha';
+
+const fm = new Ym2203Fm(3_579_545); // fm.sampleRate = clock / 72
+fm.write(0x28, 0xf0);               // register writes, as the sound CPU made them
+const s = fm.sample();              // one FM sample at fm.sampleRate
+
+const ssg = new Ym2203Ssg(3_579_545);
+ssg.write(0x08, 0x0f);
+const t = ssg.sample(48_000);       // one SSG sample at the caller's output rate
+```
+
+Register-driven models of the OPN's FM section (3 channels, 8 algorithms,
+envelope generator, detune/MUL, feedback) and SSG section (3 tones, noise,
+mixer, 4-bit volume). Both step one sample at a time with no platform
+imports, so they suit offline renders and AudioWorklets alike. Checked
+against MAME 0.289's ymfm on Black Tiger's music and effects, not against
+real silicon. Timers/IRQ, 3-slot/CSM mode, SSG-EG and the SSG hardware
+envelope are not modelled.
+
 ## License
 
 AGPL-3.0-or-later

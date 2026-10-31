@@ -1,7 +1,7 @@
 {
   "name": "@seer-project/arcade",
   "version": "0.1.0",
-  "description": "Decoders for arcade board ROM sets: MAME zip containers, CPS1/CPS2 gfx+palette+encryption, Neo Geo graphics",
+  "description": "Decoders for arcade board ROM sets: MAME zip containers, CPS1/CPS2 gfx+palette+encryption, Neo Geo graphics, Yamaha YM2203 FM/SSG",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -14,7 +14,8 @@
     "cps1",
     "cps2",
     "neogeo",
-    "mame"
+    "mame",
+    "ym2203"
   ],
   "type": "module",
   "main": "./dist/index.js",
@@ -35,6 +36,10 @@
     "./sega": {
       "types": "./dist/sega/index.d.ts",
       "import": "./dist/sega/index.js"
+    },
+    "./yamaha": {
+      "types": "./dist/yamaha/index.d.ts",
+      "import": "./dist/yamaha/index.js"
     }
   },
   "files": [
