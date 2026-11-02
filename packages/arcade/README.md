@@ -139,6 +139,36 @@ kolbold Black Tiger notes; the draw order, transparent pens, visible window
 offset and enable bits follow MAME's driver and are flagged as such in the
 source. Flip screen is not modelled.
 
+### CPS2 board video (`capcom/cps2-video.ts`)
+
+```ts
+import { Cps2Video, Cps2GfxRegion, cps2FrameToRgba } from '@seer-project/arcade/capcom';
+
+const video = new Cps2Video(new Cps2GfxRegion(unshuffledGfx)); // or a Cps2PackedGfx of only the tiles you ship
+video.write16(0x804104, 0x9140);   // CPS-A: SCROLL2_BASE (any 68000 word write: gfx RAM, CPS-A/B, 0x400000 regs, object RAM)
+video.write16(0x914000, code);     // SCROLL2 tilemap RAM {code, attr}
+video.write16(0x804166, 0x12ce);   // CPS-B layer control
+video.write16(0x80410a, 0x91c0);   // PALETTE_BASE: the CPS-B copies the shadow pages into the palette
+video.vblank();                    // latch the object list and OBJ_PRI
+const frame = video.render();      // { width: 384, height: 224, pixels: Uint16Array } of palette indices 0..0xc00
+const rgba = cps2FrameToRgba(frame, video.paletteRgba());
+```
+
+A renderer for the Capcom CPS2 video hardware, for reimplementations whose
+game logic writes gfx RAM (SCROLL1/2/3 tilemaps, row-scroll table, palette
+shadow pages), the CPS-A/CPS-B registers and CPS2 object RAM the way the
+68000 did. Covers the three tilemaps with flips, pen-15 transparency and
+SCROLL2 row scroll, the layer-control order and enables, CPS2 objects (block
+sprites, the code bank bits in Y, the list end marker, the per-pixel
+priority masks from OBJ_PRI), and the 0xc00-entry palette with its
+brightness nibble and page control. Output is an indexed frame; index 0xc00
+is the black the board clears to. Graphics come through a small `Cps2Gfx`
+interface: `Cps2GfxRegion` decodes lazily from a whole gfx region,
+`Cps2PackedGfx` serves a sparse set of pre-decoded tiles. Register and RAM
+formats come from the kolbold ddsom/ddtod notes; the visible window, draw
+order and sprite priority masks follow MAME's `cps2.cpp` and are flagged as
+such in the source. Flip screen, stars and raster effects are not modelled.
+
 ## Neo Geo
 
 ```ts

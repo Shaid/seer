@@ -2,8 +2,8 @@
  * `@seer-project/arcade/capcom` — Capcom CPS1/CPS2/CPS3 hardware: tile and
  * palette decode, ROM region assembly, the CPS2 and CPS3 decryption, the
  * OKI/QSound audio chips and the CPS2 QSound sequence driver, plus the SH-2
- * interpreter CPS3 runs on; also the pre-CPS Black Tiger board's video
- * renderer.
+ * interpreter CPS3 runs on; the CPS2 board video renderer (`Cps2Video`);
+ * also the pre-CPS Black Tiger board's video renderer.
  *
  * A subpath, so a Neo Geo or System 16 consumer does not pull 1188 lines of
  * SH-2 interpreter and the CPS decrypt tables into its graph. Everything
@@ -140,3 +140,44 @@ export {
   BlktigerRenderer,
   BlktigerVideo,
 } from './blktiger-video.js';
+export {
+  CPS2_SCREEN_WIDTH,
+  CPS2_SCREEN_HEIGHT,
+  CPS2_VISIBLE_X0,
+  CPS2_VISIBLE_Y0,
+  CPS2_HZ,
+  CPS2_GFXRAM_ADDR,
+  CPS2_GFXRAM_SIZE,
+  CPS2_CPSA_ADDR,
+  CPS2_CPSB_ADDR,
+  CPS2_OUTPUT_ADDR,
+  CPS2_OBJRAM1_ADDR,
+  CPS2_OBJRAM2_ADDR,
+  CPS2_OBJRAM_BANK_ADDR,
+  CPS2_OBJRAM_SIZE,
+  CPS2_OBJ_COUNT,
+  CPS_A,
+  CPS_B,
+  CPS2_OBJ,
+  CPS2_PALETTE_PAGES,
+  CPS2_PALETTE_ENTRIES,
+  CPS2_PALETTE_RGBA_ENTRIES,
+  CPS2_BACKDROP_PEN,
+  type Cps2Gfx,
+  type Cps2TileTable,
+  type Cps2BoardState,
+  type Cps2Frame,
+  type Cps2LayerCode,
+  type Cps2RenderMask,
+  Cps2GfxRegion,
+  Cps2PackedGfx,
+  decodeCps2LayerControl,
+  cps2LayerPlan,
+  cps2BaseWord,
+  cps2TilemapIndex,
+  decodeCps2PaletteWord,
+  cps2PaletteToRgba,
+  cps2FrameToRgba,
+  Cps2Renderer,
+  Cps2Video,
+} from './cps2-video.js';

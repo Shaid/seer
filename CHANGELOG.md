@@ -34,6 +34,16 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- `@seer-project/arcade` — `Cps2Video` (`capcom/cps2-video.ts`, exported from
+  `/capcom`): a CPS2 board video renderer for reimplementations. Game logic
+  writes gfx RAM, the CPS-A/CPS-B and CPS2 object registers and object RAM
+  over a 68000-style `write16`; `render()` gives a 384x224 frame of palette
+  indices, `paletteRgba()` the colours (brightness nibble applied, entry
+  0xc00 = the black backdrop). SCROLL1/2/3 with flips and row scroll,
+  layer-control order and enables, CPS2 block sprites with the OBJ_PRI
+  priority masks, palette upload with page control. Graphics through
+  `Cps2Gfx` (`Cps2GfxRegion` lazy decode, `Cps2PackedGfx` sparse tiles).
+  Browser-safe.
 - `@seer-project/arcade-runtime` — new package: the runtime shell for
   browser-native arcade reimplementations (ported game logic on a virtual
   board, not emulation). `createFixedStepLoop` steps at the board's own
