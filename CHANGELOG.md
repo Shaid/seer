@@ -44,6 +44,12 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
   priority masks, palette upload with page control. Graphics through
   `Cps2Gfx` (`Cps2GfxRegion` lazy decode, `Cps2PackedGfx` sparse tiles).
   Browser-safe.
+- `@seer-project/arcade` — `QsoundMixer` (`capcom/qsound-mixer.ts`, exported
+  from `/capcom`): the 16 QSound PCM voices driven by the register writes a
+  CPS1/CPS2 Z80 driver makes (bank, address, 4.12 rate, phase, loop, end,
+  volume, pan, echo send), mixed to stereo at any output rate. Browser-safe
+  for AudioWorklets. Pan law (`QSOUND_PAN_TABLE`, `sqrt(i/32)`) and the
+  echo are approximations recalled from MAME's QSound HLEs.
 - `@seer-project/arcade-runtime` — new package: the runtime shell for
   browser-native arcade reimplementations (ported game logic on a virtual
   board, not emulation). `createFixedStepLoop` steps at the board's own

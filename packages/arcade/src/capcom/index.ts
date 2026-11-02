@@ -112,6 +112,17 @@ export {
   computeCps2PitchDelta,
 } from './qsound-driver.js';
 export {
+  QSOUND_SAMPLE_RATE,
+  QSOUND_VOICES,
+  QSOUND_PAN_BASE,
+  QSOUND_ECHO_DELAY_BASE,
+  QSOUND_PAN_TABLE,
+  qsoundPanGains,
+  type QsoundMixerOptions,
+  type QsoundVoiceState,
+  QsoundMixer,
+} from './qsound-mixer.js';
+export {
   BLKTIGER_SCREEN_WIDTH,
   BLKTIGER_SCREEN_HEIGHT,
   BLKTIGER_VISIBLE_Y0,

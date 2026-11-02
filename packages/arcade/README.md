@@ -114,6 +114,28 @@ verification evidence. `decodeCps2TrackV1` is `CPS2_V1.15`-family-generic;
 a later driver generation (`CPS2_V140`+) would need vgmtrans's newer
 branches ported separately.
 
+### QSound voice mixer (`capcom/qsound-mixer.ts`)
+
+```ts
+import { QsoundMixer, QSOUND_PAN_BASE } from '@seer-project/arcade/capcom';
+
+const mixer = new QsoundMixer({ rom: qsoundRom, outputRate: 48000 });
+mixer.write(0x02, 0x1000);                 // voice 0 rate (4.12), as the Z80 mailbox writes it
+mixer.write(0x80, QSOUND_PAN_BASE + 16);   // voice 0 pan, centre
+mixer.render(left, right, 0, 128);         // floats, overwrites
+```
+
+The 16 PCM voices of the QSound DSP driven by the register map the
+CPS1/CPS2 Z80 driver writes (bank — one channel late — address, rate,
+phase, loop length, end, volume, pan, echo send). Browser-safe, so an
+AudioWorklet can run it beside a sound-driver port. Voice playback and the
+echo follow MAME's `qsound_hle.cpp` as recalled (no interpolation, loop by
+subtracting the loop length, `volume * sample >> 14`); the pan law is the
+`sqrt(i/32)` table of MAME's older HLE because the DSP's own tables live in
+its internal ROM. The echo coefficients and the pan law are approximations
+(see the module comment); `panTable`, `echo: false` and
+`interpolation: 'linear'` let a caller compare against offline renders.
+
 ### Black Tiger board video (`capcom/blktiger-video.ts`)
 
 ```ts
