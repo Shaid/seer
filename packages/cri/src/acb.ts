@@ -52,6 +52,7 @@ import { parseAfs2, type AwbTable } from './awb.js';
 /** Confirmed `WaveformTable.EncodeType` -> codec mappings (see module doc comment for the cross-check evidence). Unconfirmed values are reported as `unknown-<n>` rather than guessed — see `pixel-format-value-guessed-from-enum-not-confirmed.md`. */
 const ENCODE_TYPE_CODEC: Record<number, string> = {
   2: 'hca', // Dragon's Crown (PS3) — confirmed via vgmstream-cli ("encoding: CRI HCA")
+  6: 'hca', // Dragon's Crown (PS3) — 228 waveforms (161 in se_stage.acb); every stream has a plain `HCA\0` header and channels/rate match its `fmt` chunk (2026-11-18 audit; CRI enum name probably HCA-MX)
   8: 'atrac3', // Grand Knights History (PSP) — confirmed via the WAVE_FORMAT_SONY_SCX fmt-chunk tag on the raw stream
 };
 

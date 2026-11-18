@@ -97,6 +97,14 @@ describe('acb — positional cue/waveform pairing', () => {
     expect(acb.tracks[0]!.waveform.codec).toBe('unknown-99');
   });
 
+  it('maps EncodeType 6 to hca (Dragon\'s Crown se_stage, 2026-11-18 audit)', () => {
+    const acbBuf = buildAcb({
+      waveforms: [{ id: 0, encodeType: 6, sampleRate: 44100, channels: 1, samples: 10 }],
+      cueNames: [{ name: 'X', cueIndex: 0 }],
+    });
+    expect(parseAcb(acbBuf).tracks[0]!.waveform.codec).toBe('hca');
+  });
+
   it('confirms EncodeType 8 maps to atrac3 (Grand Knights History convention)', () => {
     const acbBuf = buildAcb({
       waveforms: [{ id: 0, encodeType: 8, sampleRate: 44100, channels: 2, samples: 500 }],

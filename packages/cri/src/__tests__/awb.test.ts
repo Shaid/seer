@@ -3,7 +3,7 @@ import { parseAfs2, parseItocAwb, parseAwb } from '../awb.js';
 import { buildUtf } from './utf-builder.js';
 
 /** Build a minimal synthetic AFS2 wave-bank header (id table + offset table only — no payload bytes). */
-function buildAfs2(ids: number[], offsets: number[], opts: { idSize: 2 | 4; offsetSize: 4 | 8 } = { idSize: 2, offsetSize: 4 }): Uint8Array {
+function buildAfs2(ids: number[], offsets: number[], opts: { idSize: 2 | 4; offsetSize: 2 | 4 | 8 } = { idSize: 2, offsetSize: 4 }): Uint8Array {
   const idTableStart = 0x10;
   const idTableLen = ids.length * opts.idSize;
   const offsetTableStart = idTableStart + idTableLen;
@@ -21,7 +21,8 @@ function buildAfs2(ids: number[], offsets: number[], opts: { idSize: 2 | 4; offs
   });
   offsets.forEach((off, i) => {
     const p = offsetTableStart + i * opts.offsetSize;
-    if (opts.offsetSize === 4) view.setUint32(p, off, true);
+    if (opts.offsetSize === 2) view.setUint16(p, off, true);
+    else if (opts.offsetSize === 4) view.setUint32(p, off, true);
     else view.setBigUint64(p, BigInt(off), true);
   });
   return buf;
@@ -44,6 +45,14 @@ describe('awb — AFS2', () => {
     expect(awb!.entries).toEqual([
       { id: 1000, offset: 500, size: 100 },
       { id: 2000, offset: 600, size: 300 },
+    ]);
+  });
+
+  it('supports the 2-byte offset variant (Dragon\'s Crown se_* banks) and does not read it as u64', () => {
+    const awb = parseAfs2(buildAfs2([0, 1], [64, 200, 500], { idSize: 2, offsetSize: 2 }));
+    expect(awb!.entries).toEqual([
+      { id: 0, offset: 64, size: 136 },
+      { id: 1, offset: 200, size: 300 },
     ]);
   });
 

@@ -76,7 +76,11 @@ export function parseAfs2(buf: Uint8Array): AwbTable | null {
   const offsets: number[] = [];
   for (let i = 0; i < nOffsets; i++) {
     const p = offsetTableStart + i * offsetSize;
-    offsets.push(offsetSize === 4 ? dv.getUint32(p, true) : Number(dv.getBigUint64(p, true)));
+    // offsetSize 2 = u16 (Dragon's Crown: 29 small `se_*` banks, 178 waveforms;
+    // reading these as u64 produced ~1.4e18 offsets), 4 = u32, otherwise u64.
+    offsets.push(
+      offsetSize === 2 ? dv.getUint16(p, true) : offsetSize === 4 ? dv.getUint32(p, true) : Number(dv.getBigUint64(p, true)),
+    );
   }
 
   const entries: AwbEntry[] = [];
