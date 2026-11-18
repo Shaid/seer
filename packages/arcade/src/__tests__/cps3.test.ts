@@ -40,12 +40,12 @@ describe('cps3DecryptProgram', () => {
 
   it('decrypts raw dwords to SH2-opcode-like values at the reset region', () => {
     // Hand-built fixture: the FIRST dword of the real sfiii3n simm1 dump,
-    // encrypted, decodes back to the plaintext dword 0xa00e0006 (whose bytes
-    // 0xa0 0x0e are the SH2 `bra` opcode). We take the known plaintext,
+    // encrypted, decodes back to the reset-vector dword 0x06000ea0 (the PC the
+    // SH-2 starts at, read big-endian). We take the known plaintext,
     // encrypt it (XOR), then assert the decrypt recovers it.
     const key1 = 0xa55432b4;
     const key2 = 0x0c129981;
-    const plain = 0xa00e0006;
+    const plain = 0x06000ea0;
 
     // encrypt: raw[0..3] little-endian? cps3DecryptProgram reads MAME's
     // host-LE byte image, so to encrypt we build the same LE bytes of

@@ -16,10 +16,12 @@
  * 4-flash SIMM-1 layout; MAME stores the result as a host little-endian
  * u32, which this port reproduces by writing the dword bytes LE).
  *
- * Verified this session against a real `sfiii3n` dump: after decryption the
- * image disassembles (capstone SH-2, big-endian) as coherent code starting
- * `bra 0x20`, and the reset/vector area carries handler pointers into the
- * `0x06000000` region (e.g. bytes `18 04 00 06` = LE `0x06000418`).
+ * Verified against a real `sfiii3n` dump: read as big-endian u32 (chip0 in the
+ * top byte) after the XOR, the reset vector is PC `0x06000ea0` (SP `0x02008f94`)
+ * and the image is dense, well-formed SH-2 code with vector entries into the
+ * `0x06000000` region (e.g. handler `0x06000418`). An earlier note here read the
+ * first dword in the wrong byte order (`0xa00e0006`, "bra 0x20"); that was a
+ * byte-order artefact.
  *
  * Per-game keys (MAME `cps3_state::init_*`):
  *
