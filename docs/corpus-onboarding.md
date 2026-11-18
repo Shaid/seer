@@ -91,7 +91,11 @@ build/cache/<game>/           decompressed and other non-web intermediates
 docs/<game>/<platform>/       byte-level format specifications
 ```
 
-Original files must not be modified by extractors and must not be committed.
+Original files must not be modified by extractors and must not be committed,
+and **nothing derived may be written under `data/`** — not even a
+`data/extracted/` subtree (an older scaffold default; see
+`architecture-overview.md` §2). Exports and intermediates go to
+`build/cache/<game>/`, web output to `public/assets/`.
 Generated assets are reproducible output. Browser code must not import Node-only
 pipeline code. Shared game-agnostic logic belongs in the appropriate
 `@seer-project/*` package; game-specific decoders stay in the consuming
@@ -162,6 +166,35 @@ Use these confidence labels consistently:
   oracle;
 - **hypothesis** — plausible, unresolved, or inferred from weak evidence.
 
+A "confirmed" label must rest on a check that **could have failed**. The
+2026-11-13/18 cross-project codebreaker audits found the same failure modes in
+most repositories; avoid them:
+
+- **No tautological checks.** A test that asserts a size, count, or shape the
+  decoder itself produced (e.g. the output buffer was allocated at the
+  declared size, then "decoded to the declared size" is asserted) proves
+  nothing. Neither does a test whose expected value encodes the same model as
+  the code under test. Assert something independent: exact input consumption,
+  a terminator landing on the stream end, a known sibling boundary, a
+  checksum, a byte-identical oracle.
+- **Run a null control.** Every invariant you cite should be shown to *fail*
+  on wrong input — start one byte late, use the wrong endianness or field
+  width, shuffle the data, or pair the wrong files. Quote both numbers
+  (e.g. "125/125 exact; 0/125 with a 1-byte offset").
+- **Check the whole population, not a sample.** Report the match rate across
+  every record/file (`162/195`), not "records 0, 1, 50, 100 match". A
+  hand-picked sample is a smoke test, not verification.
+- **Account for every byte.** Container and bank claims should tile exactly
+  (zero gaps, zero overlaps, ends on the file size). Unread space — a second
+  directory, trailing sections, regions labelled "dead" or "padding" — is an
+  open item, and corpus-wide counts must say which parts they cover.
+- **A plausible render is `rendered`, not `confirmed`.** Wrong plane counts,
+  strides, palettes and label permutations routinely produce clean-looking
+  images.
+- **Use the free oracles.** Before building a bespoke check, look for a
+  sibling port or region with byte-identical data, the game's own manual or
+  tables, and published SPC/sound rips or community dumps.
+
 The game's reader is the authoritative specification. Follow data from file
 bytes through loader, endian conversion, relocation, decompression, fixups, and
 the final blitter/DMA/field consumer. State whether every offset is file,
@@ -172,7 +205,11 @@ file/line. When a premise is overturned, retain the old path as a documented
 dead end and add a `> **Correction:**` block. Keep one current status row per
 open item in `docs/<game>/TODO.md`; put detailed evidence and paths tried in
 `data-structure.md`. A solved TODO row is removed rather than left as stale
-history.
+history: no `fixed`/`resolved`/`closed` rows, no dated changelog or session
+narrative at the top of `TODO.md` (that belongs in git history and the
+format spec's corrections). Every open item the spec mentions has a row, and
+every row's id is used consistently across spec, TODO and any status page —
+update status/summary pages in the same change, or delete them.
 
 ## 6. Agent and skill routing
 

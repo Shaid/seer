@@ -11,6 +11,15 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+
+- `create-seer-app` — the scaffolded Stage 1 exporter writes to
+  `build/cache/<game>/extracted/` instead of `data/extracted/<game>/`, and the
+  scaffolded `.gitignore` ignores `/build/`. `data/` holds only user-supplied
+  originals; `docs/architecture-overview.md` §2 now documents `build/cache/`
+  as the intermediates zone and corrects the old Stage 1 path.
+  Existing projects are unaffected until they migrate.
+
 ### Fixed
 
 - `@seer-project/probe` — `triage` no longer counts the scanner's

@@ -975,6 +975,12 @@ ignores it.
 (developer-run intermediates, gitignored, never read by the runtime) and to
 the scaffolded `.gitignore`. Half the consumers already behave as if it's
 documented.
+**Done (2026-11-18):** `architecture-overview.md` §2 now lists `build/cache/`
+and states `data/` is read-only to code; the scaffold's Stage 1 export moved
+from `data/extracted/` to `build/cache/<game>/extracted/` and `.gitignore`
+ignores `/build/`. As of 2026-11-18 these consumers still have a `data/extracted/`
+tree and need a per-repo migration: crawl, middilgard, nicodemus, strike,
+thebreed, valkyrie, ceres, siren, lucina, vanille, hunter, rondo, facepunch.
 
 **15c. Framework docs living in game repos.** Three worth relocating:
 `docs/walker.md` (1694 L) opens by describing itself as "a reusable,

@@ -14,7 +14,9 @@ function main() {
   }
 
   // TODO: parse your game data tables here.
-  const outDir = resolve('data/extracted/<%= it.game %>');
+  // Derived output never goes under data/ (read-only original files) — see
+  // docs/architecture-overview.md §2.
+  const outDir = resolve('build/cache/<%= it.game %>/extracted');
   mkdirSync(outDir, { recursive: true });
   writeJson(resolve(outDir, 'entities.json'), []);
   console.log("Wrote placeholder output to " + outDir);

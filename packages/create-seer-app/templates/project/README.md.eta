@@ -41,6 +41,7 @@ tools/               Offline pipeline scripts
   <%= it.game %>/              Per-game export and build scripts
 data/                Original game data (gitignored)
 public/assets/       Built web assets (gitignored)
+build/cache/         Pipeline intermediates, e.g. Stage 1 JSON (gitignored)
 seer.config.ts       Pipeline configuration
 ```
 
