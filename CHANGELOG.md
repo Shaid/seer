@@ -22,6 +22,13 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 
+- `@seer-project/3ds` — `decompressLz13` unwraps the stored `.lz` wrapper
+  (`00` + u24 `fileSize-4` + raw payload, 31 Fates files), which previously
+  passed through still carrying its 4-byte header. The LZ13 outer u24 is
+  documented as the in-place decompression buffer size (it differs from the
+  inner LZ11 size in 853/4,914 Awakening and 1,480/13,455 Fates files); the
+  decoder already sized output by the inner LZ11 size, so only the JSDoc changed.
+
 - `@seer-project/probe` — `triage` no longer counts the scanner's
   `hunk-wrapped` marker (context for `probe audio`'s output, not a media
   container) as a container hit. On the TOSEC ADF corpus the marker made

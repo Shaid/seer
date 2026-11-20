@@ -8,9 +8,14 @@
  *   two bytes, `length = (b1 >> 4) + 3`, `disp = ((b1 & 0xF) << 8 | b2) + 1`.
  * - LZ11  (type byte 0x11) — long-repeat variant with three block encodings
  *   for longer lengths (see LZ11 below).
- * - "LZ13" — FE13/Fates wrapper: `[0x13][u24 size][LZ11 stream]`. The first
- *   four bytes are `0x13` + the little-endian decompressed size, followed by
+ * - "LZ13" — FE13/Fates wrapper: `[0x13][u24 size][LZ11 stream]`. The u24 is
+ *   the size of the game's in-place decompression buffer, NOT the decompressed
+ *   size: it equals the inner LZ11 size in most files but differs in others
+ *   (853/4,914 Awakening, 1,480/13,455 Fates). The inner LZ11 header's size is
+ *   authoritative and is what this decoder returns. The wrapper is followed by
  *   a standard LZ11 stream (which begins with its own `0x11` type byte).
+ * - Stored wrapper — `[0x00][u24 size][raw bytes]` with size = file length - 4
+ *   (31 Fates `.lz` files); the payload is returned as-is.
  *
  * Both bare streams are `[type byte][u24 LE decompressed size][blocks...]`.
  */
@@ -139,6 +144,9 @@ function copyRepeat(
  * stream]`. Also handles a bare LZ10/LZ11 stream with no wrapper, so callers
  * can feed any RomFS file through and get usable bytes back.
  *
+ * A stored wrapper (`00` + u24 == length - 4) yields its raw payload. The LZ13
+ * outer size is ignored; output length is the inner LZ11 size.
+ *
  * Data that is not any of those forms (an already-uncompressed CTPK, BCH or
  * CGFX, whose magics never start with 0x10/0x11/0x13) passes through
  * untouched. A wrapper with an unrecognised inner type throws rather than
@@ -146,6 +154,10 @@ function copyRepeat(
  */
 export function decompressLz13(data: Uint8Array): Uint8Array {
   if (data.length < 5) return data;
+  // Stored wrapper: 00 + u24 (fileSize - 4) + raw payload.
+  if (data[0] === 0x00 && (data[1] | (data[2] << 8) | (data[3] << 16)) === data.length - 4) {
+    return data.subarray(4);
+  }
   if (data[0] === 0x13) {
     const inner = data[4];
     if (inner !== 0x10 && inner !== 0x11) {
