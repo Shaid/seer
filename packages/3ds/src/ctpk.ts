@@ -15,14 +15,18 @@
  *   ...   texture-info u32s
  *   ...   padded to 0x80, then raw texture data
  *
- * Texture pixel formats use the CT SDK `GPU_FORMAT_*` numbering — NOT the
- * 3DS hardware enums — so 12 = ETC1 and 13 = ETC1A4.
+ * Texture pixel formats are the PICA200 hardware texture-format values (the
+ * same numbering BCH carries in GPU register 0x8E), so 12 = ETC1 and
+ * 13 = ETC1A4. (An earlier comment said these were CT SDK ids "NOT the
+ * hardware enums"; corrected 2026-11-20 — each texture's dataSize matches the
+ * PICA200 mip-chain size for that format in 2,863/2,863 loose FE Awakening
+ * CTPK textures, 9,072/9,072 incl. arc-embedded per the lucina audit.)
  */
 import { u32At, u16At } from './le.js';
 import { CTR_FORMAT_NAMES } from './ctr-texture.js';
 
 /**
- * CT SDK pixel-format ids. Re-exported from `ctr-texture.ts` (the decoder
+ * PICA200 texture-format ids. Re-exported from `ctr-texture.ts` (the decoder
  * that has to agree with it) rather than kept as a second, value-identical
  * copy here.
  */
@@ -30,7 +34,7 @@ export const CTPK_TEXTURE_FORMATS: Readonly<Record<number, string>> = CTR_FORMAT
 
 export interface CtpkTexture {
   name: string;
-  /** CT SDK pixel format id (see CTPK_TEXTURE_FORMATS). */
+  /** PICA200 texture-format id (see CTPK_TEXTURE_FORMATS). */
   format: number;
   width: number;
   height: number;
