@@ -58,6 +58,9 @@ audit mode.)
   and display-name behavior. The component has no built-in knowledge of any
   game's data shapes — the calling page builds the `labels` map itself from
   whatever name data actually exists. See README.md for a worked example.
+- **Spoilers**: wrap story or late-game content in
+  `src/components/Spoiler.astro` (block or `inline`), with a `group` per game
+  so one reveal covers the whole site visit. See README.md.
 - **Images**: use a raw `<img src="...">` tag (never markdown `![]()` syntax —
   see the base-path note below) with a **relative** path to the copied asset,
   e.g. `<img src="../../assets/<%= it.game %>/amiga/screens/title.png">` from

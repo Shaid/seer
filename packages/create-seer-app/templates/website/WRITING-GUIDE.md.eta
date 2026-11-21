@@ -131,6 +131,11 @@ AGENTS.md's base-path section, and never markdown `![]()` syntax for a
 reader needs individual frames with real names, enough of them to need
 search, or art that only makes sense in motion.
 
+**Hide spoilers, don't omit them.** Format facts are never spoilers, but
+character names, late-game assets, endings and route-specific content can be.
+For a recent game, wrap them in `<Spoiler group="<%= it.game %>">` rather than
+leaving them out: the page stays complete and the reader chooses.
+
 **Read manifests at build time; never hand-maintain a frame list.** Astro
 component frontmatter runs in Node, so a component can read the extraction
 pipeline's own JSON and derive everything from it. When the extraction changes,

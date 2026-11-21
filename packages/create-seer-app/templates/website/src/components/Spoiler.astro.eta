@@ -1,0 +1,250 @@
+---
+/**
+ * Spoiler: hides story or late-game content until the reader asks to see it.
+ *
+ * Block form (the default) wraps any content, headings, tables and galleries included:
+ *
+ *   <Spoiler title="Chapter 12 onwards" group="mygame">
+ *     ...content...
+ *   </Spoiler>
+ *
+ * Inline form hides a phrase inside running text and reveals it on click, Enter or Space:
+ *
+ *   The final boss is <Spoiler inline group="mygame">the narrator</Spoiler>.
+ *
+ * Behaviour:
+ * - The block body gets Starlight's prose styles. Pass `prose={false}` when the content is a component with its own
+ *   layout (a gallery or catalogue that opts out with `not-content`), so those styles don't leak into it.
+ * - The block form is a native <details>, so it opens with JavaScript off too, and in-page links into it work.
+ * - `group` ties spoilers together: revealing one reveals every spoiler with the same group on the page, and the
+ *   choice is remembered per browser (localStorage, best effort) so the reader isn't asked again on the next page.
+ *   "Hide again" forgets it. Omit `group` for a one-off spoiler that nothing remembers.
+ * - Revealing or hiding dispatches a `seer-spoiler` CustomEvent on `document` with `detail: { group, open }`, so a
+ *   page component can react (e.g. show spoiler-only links elsewhere in a catalogue).
+ * - Hidden text is kept out of the built-in search's result excerpts (`data-pagefind-ignore`), because an excerpt
+ *   would show it unasked. Pass `searchable` to index it anyway, e.g. on a page whose whole subject is spoilers.
+ * - Starlight still lists headings inside a block spoiler in the page's table of contents. If a heading's text is
+ *   itself a spoiler, use bold text instead of a heading, or set `tableOfContents: false` on the page.
+ */
+interface Props {
+	/** What is hidden, shown on the closed spoiler ("Spoilers: <title>"). Block form only. */
+	title?: string;
+	/** Optional note under the title, e.g. which part of the game it covers. Block form only. */
+	note?: string;
+	/** Spoilers sharing a group open together and remember being opened. */
+	group?: string;
+	/** Hide a phrase inside a paragraph instead of a block. */
+	inline?: boolean;
+	/** Let site search index (and excerpt) the hidden text. */
+	searchable?: boolean;
+	/** Start open. Rarely right; mainly for a page whose reader has already opted in. */
+	open?: boolean;
+	/** Apply Starlight's prose styles to the block body (default). */
+	prose?: boolean;
+	/** Element id, for linking to the spoiler itself (a link into it opens it). */
+	id?: string;
+}
+
+const {
+	title = 'Spoilers',
+	note,
+	group,
+	inline = false,
+	searchable = false,
+	open = false,
+	prose = true,
+	id,
+} = Astro.props;
+const ignore = searchable ? {} : { 'data-pagefind-ignore': 'all' };
+---
+
+{
+	inline ? (
+		<span
+			id={id}
+			class="seer-spoiler-inline"
+			data-spoiler-group={group}
+			data-open={open ? '' : undefined}
+			role="button"
+			tabindex="0"
+			aria-expanded={open ? 'true' : 'false'}
+			aria-label="Spoiler: activate to reveal"
+			title="Spoiler: click to reveal"
+			{...ignore}
+		>
+			<span class="seer-spoiler-inline-text" aria-hidden={open ? undefined : 'true'}><slot /></span>
+		</span>
+	) : (
+		<details id={id} class="seer-spoiler not-content" data-spoiler-group={group} open={open} {...ignore}>
+			<summary>
+				<span class="seer-spoiler-label">{title === 'Spoilers' ? 'Spoilers' : `Spoilers: ${title}`}</span>
+				{note && <span class="seer-spoiler-note">{note}</span>}
+				<span class="seer-spoiler-action" aria-hidden="true">
+					<span class="show">Show</span>
+					<span class="hide">Hide again</span>
+				</span>
+			</summary>
+			<div class:list={['seer-spoiler-body', { 'sl-markdown-content': prose }]}>
+				<slot />
+			</div>
+		</details>
+	)
+}
+
+<script>
+	const KEY = 'seer-spoiler:';
+	const remembered = (group: string) => {
+		try {
+			return localStorage.getItem(KEY + group) === 'open';
+		} catch {
+			return false;
+		}
+	};
+	const remember = (group: string, open: boolean) => {
+		try {
+			if (open) localStorage.setItem(KEY + group, 'open');
+			else localStorage.removeItem(KEY + group);
+		} catch {
+			/* storage blocked: the choice just isn't remembered */
+		}
+	};
+
+	let syncing = false;
+	const setGroup = (group: string, open: boolean, persist: boolean) => {
+		syncing = true;
+		for (const el of document.querySelectorAll<HTMLElement>(`[data-spoiler-group="${CSS.escape(group)}"]`)) {
+			if (el instanceof HTMLDetailsElement) el.open = open;
+			else setInline(el, open);
+		}
+		syncing = false;
+		if (persist) remember(group, open);
+		document.dispatchEvent(new CustomEvent('seer-spoiler', { detail: { group, open } }));
+	};
+	const setInline = (el: HTMLElement, open: boolean) => {
+		el.toggleAttribute('data-open', open);
+		el.setAttribute('aria-expanded', String(open));
+		el.setAttribute('aria-label', open ? 'Spoiler (revealed): activate to hide' : 'Spoiler: activate to reveal');
+		// Closed text is blurred for sighted readers; hide it from assistive tech too until revealed.
+		const text = el.querySelector('.seer-spoiler-inline-text');
+		if (open) text?.removeAttribute('aria-hidden');
+		else text?.setAttribute('aria-hidden', 'true');
+	};
+
+	// Block spoilers: a native <details> toggles itself; keep its group in step.
+	for (const d of document.querySelectorAll<HTMLDetailsElement>('details.seer-spoiler')) {
+		d.addEventListener('toggle', () => {
+			if (syncing) return;
+			const group = d.dataset.spoilerGroup;
+			if (group) setGroup(group, d.open, true);
+			else document.dispatchEvent(new CustomEvent('seer-spoiler', { detail: { group: null, open: d.open } }));
+		});
+	}
+
+	// Inline spoilers: click, Enter or Space toggles.
+	for (const s of document.querySelectorAll<HTMLElement>('.seer-spoiler-inline')) {
+		const toggle = (e: Event) => {
+			e.preventDefault();
+			const open = !s.hasAttribute('data-open');
+			const group = s.dataset.spoilerGroup;
+			if (group) setGroup(group, open, true);
+			else setInline(s, open);
+		};
+		s.addEventListener('click', toggle);
+		s.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') toggle(e);
+		});
+	}
+
+	// Restore remembered groups, and open a block spoiler that a #fragment link points into.
+	const groups = new Set(
+		[...document.querySelectorAll<HTMLElement>('[data-spoiler-group]')].map((el) => el.dataset.spoilerGroup!),
+	);
+	for (const g of groups) if (remembered(g)) setGroup(g, true, false);
+	const openTarget = () => {
+		const id = decodeURIComponent(location.hash.slice(1));
+		const target = id && document.getElementById(id);
+		const d = target && target.closest<HTMLDetailsElement>('details.seer-spoiler');
+		if (d && !d.open) {
+			d.open = true;
+			requestAnimationFrame(() => target.scrollIntoView());
+		}
+	};
+	openTarget();
+	addEventListener('hashchange', openTarget);
+</script>
+
+<style is:global>
+	.seer-spoiler {
+		border: 1px solid var(--sl-color-gray-5);
+		border-left: 3px solid var(--sl-color-accent);
+		border-radius: 0.4rem;
+		background: var(--sl-color-gray-7, var(--sl-color-black));
+		margin-block: 1.25rem;
+	}
+	.seer-spoiler > summary {
+		cursor: pointer;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.25rem 0.75rem;
+		padding: 0.75rem 1rem;
+		list-style: none;
+	}
+	.seer-spoiler > summary::-webkit-details-marker {
+		display: none;
+	}
+	.seer-spoiler > summary:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+	.seer-spoiler-label {
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+	.seer-spoiler-note {
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-sm);
+	}
+	.seer-spoiler-action {
+		margin-inline-start: auto;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-accent-high);
+	}
+	.seer-spoiler-action .hide,
+	.seer-spoiler[open] .seer-spoiler-action .show {
+		display: none;
+	}
+	.seer-spoiler[open] .seer-spoiler-action .hide {
+		display: inline;
+	}
+	.seer-spoiler-body {
+		padding: 0 1rem 1rem;
+		border-top: 1px solid var(--sl-color-gray-5);
+	}
+	.seer-spoiler-body > :first-child {
+		margin-top: 1rem;
+	}
+
+	.seer-spoiler-inline {
+		cursor: pointer;
+		border-radius: 0.2rem;
+		background: var(--sl-color-gray-5);
+		padding-inline: 0.15em;
+	}
+	.seer-spoiler-inline:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 1px;
+	}
+	.seer-spoiler-inline:not([data-open]) .seer-spoiler-inline-text {
+		filter: blur(0.3em);
+		user-select: none;
+	}
+	.seer-spoiler-inline[data-open] {
+		background: transparent;
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		.seer-spoiler-inline-text {
+			transition: filter 0.2s;
+		}
+	}
+</style>

@@ -11,6 +11,16 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- `create-seer-app` — the website scaffold ships `src/components/Spoiler.astro`,
+  a generic spoiler for story or late-game content: a block form (native
+  `<details>`, works without JavaScript, opens for in-page links) and an
+  `inline` form. Spoilers sharing a `group` reveal together and the choice is
+  remembered per browser; a `seer-spoiler` event lets page components react.
+  Hidden text is kept out of search excerpts unless `searchable` is set.
+  Documented in the scaffold's README, AGENTS and WRITING-GUIDE.
+
 ### Changed
 
 - `create-seer-app` — the scaffolded Stage 1 exporter writes to

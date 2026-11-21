@@ -142,6 +142,39 @@ event delegation on `document`, it works for elements added, or shown/hidden
 by a search filter, after the page loads — no re-init needed when a
 gallery's own content changes.
 
+## `Spoiler`
+
+`src/components/Spoiler.astro` hides story or late-game content until the
+reader asks for it — the right default for a recent game, or for any page
+where a gallery, table or text would give away an ending.
+
+```mdx
+import Spoiler from '../../../components/Spoiler.astro';
+
+<Spoiler title="Late-game characters" note="Chapters 18 onwards" group="<%= it.game %>">
+
+Anything goes in here: paragraphs, tables, headings, galleries.
+
+</Spoiler>
+
+The last recruit is <Spoiler inline group="<%= it.game %>">the narrator</Spoiler>.
+```
+
+- The block form is a native `<details>`: it works with JavaScript off, and a
+  `#fragment` link to an element inside it opens it.
+- `group` ties spoilers together. Revealing one reveals every spoiler in that
+  group on the page and is remembered per browser, so the reader isn't asked
+  again on the next page; "Hide again" forgets it.
+- Revealing or hiding dispatches a `seer-spoiler` event on `document`
+  (`detail: { group, open }`) for page components that need to react.
+- Hidden text is excluded from search excerpts (`data-pagefind-ignore`); pass
+  `searchable` to index it anyway.
+- `prose={false}` drops Starlight's prose styles from the body, for a spoiler
+  wrapping a component with its own layout; `id` makes the spoiler linkable.
+- Starlight's table of contents still lists headings inside a spoiler. If a
+  heading's text is itself the spoiler, use bold text instead, or set
+  `tableOfContents: false` on the page.
+
 ## Pointing the favicon at a real sprite
 
 `scripts/build.mjs` calls `scripts/generate_favicon.mjs <atlasDir> <manifest>

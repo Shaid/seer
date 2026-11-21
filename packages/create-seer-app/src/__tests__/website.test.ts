@@ -63,6 +63,16 @@ describe('scaffoldWebsite', () => {
     expect(gallery).toContain('data-lightbox');
   });
 
+  it('creates the Spoiler component', () => {
+    run('spoiler/www');
+    const spoiler = readFileSync(resolve(TMP, 'spoiler/www/src/components/Spoiler.astro'), 'utf-8');
+    // Block form is a native <details>; hidden text stays out of search excerpts by default.
+    expect(spoiler).toMatch(/<details[^>]*class="seer-spoiler/);
+    expect(spoiler).toContain('data-pagefind-ignore');
+    expect(spoiler).toContain("new CustomEvent('seer-spoiler'");
+    expect(spoiler).not.toContain('<%');
+  });
+
   it('copies a placeholder favicon', () => {
     run('favicon/www');
     const favicon = resolve(TMP, 'favicon/www/public/favicon.png');

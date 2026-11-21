@@ -138,6 +138,7 @@ export function scaffoldWebsite(targetDir: string, ctx: WebsiteContext = {}): vo
   );
   write(p('src/components/Lightbox.astro'), render('src/components/Lightbox.astro.eta', data));
   write(p('src/scripts/lightbox.js'), render('src/scripts/lightbox.js.eta', data));
+  write(p('src/components/Spoiler.astro'), render('src/components/Spoiler.astro.eta', data));
   write(p('src/content/docs/index.mdx'), render('src/content/docs/index.mdx.eta', data));
   write(
     p(`src/content/docs/${game}/index.mdx`),
