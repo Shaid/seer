@@ -13,6 +13,8 @@ export * from './ctpk.js';
 export * from './lz.js';
 export * from './ctr-texture.js';
 export * from './bcstm.js';
+export * from './cwav.js';
+export * from './bcsar.js';
 export * from './mat4-ctr.js';
 export * from './ctr-anim.js';
 export * from './bch.js';

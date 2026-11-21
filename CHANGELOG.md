@@ -13,6 +13,12 @@ and the project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- `@seer-project/3ds` — `cwav.ts` (CWAV/BCWAV decoder: DSP-ADPCM, PCM8, PCM16,
+  IMA-ADPCM to PCM16 per channel, `pcm16ChannelsToWav`) and `bcsar.ts` (CTR SDK
+  sound archive: STRG names, INFO sounds/wave archives/banks/sound groups/files,
+  `parseCwar`, `parseCwsd`, `parseCbnkWaveIds`, `resolveCsarWaveLayout`). Decodes
+  every CWAV of the Fire Emblem Awakening/Fates/Warriors and Bravely Default/Second
+  archives sample-exact against vgmstream.
 - `create-seer-app` — the website scaffold ships `src/components/Spoiler.astro`,
   a generic spoiler for story or late-game content: a block form (native
   `<details>`, works without JavaScript, opens for in-page links) and an
