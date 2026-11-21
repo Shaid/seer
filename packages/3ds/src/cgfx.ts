@@ -182,6 +182,10 @@ export interface Cgfx {
   models: CgfxModel[];
   textures: CgfxTexture[];
   skeletalAnimations: CgfxSkeletalAnimation[];
+  /** CCAM camera objects (DATA dict 5). Empty for model files. */
+  cameras: CgfxCamera[];
+  /** CANM camera animations (DATA dict 12). */
+  cameraAnimations: CgfxCameraAnimation[];
 }
 
 const PRIMITIVE_TRIANGLES = 4;
@@ -951,6 +955,232 @@ function readCgfxSkeletalAnimations(data: Uint8Array, dataStart: number): CgfxSk
   return animations;
 }
 
+// ---------------------------------------------------------------------------
+// Cameras (CCAM) and camera animations (CANM)
+//
+// Layout, derived from the 152 Awakening `bev/*.bccam` files (350 CCAM,
+// 294 CANM; every one parses, 1,074 key groups all hermite128). Offsets
+// below are relative to the object's magic.
+//
+// DATA dict 5 (`dataStart + 40`) = cameras; dict 12 (`dataStart + 96`) =
+// camera animations. A camera dict value points 4 bytes BEFORE the "CCAM"
+// magic (a u32 flags word 0x4000000a precedes it); a CANM value points at the
+// magic itself.
+//
+// CCAM: +4 revision (0x07010000), +8 name (rel), +0x2c scale xyz, +0x38
+// rotation euler xyz (radians), +0x44 translation xyz, +0x50/+0x80 local/world
+// 3x4 matrices, +0xb8 view-object pointer (rel), +0xbc projection pointer (rel).
+//   view   +0 type: 0x80000000 aim target (+8 target xyz, +0x14 twist),
+//                   0x20000000 rotate (+8 rotation euler xyz),
+//                   0x40000000 look-at (+8 target xyz, +0x14 up xyz)
+//   proj   +0 type (0x20000000 perspective in all 350), +4 near, +8 far,
+//          +0xc aspect, +0x10 fovY in radians
+// CANM: +4 revision (0x07000000/1), +8 name, +0xc target group name, +0x10
+// loop mode, +0x14 frame count (float), +0x18 member dict (count, rel). Each
+// member is [flags u32][path rel][type u32] + curves:
+//   type 5 "Transform": the skeletal transform segment (rotation xyz,
+//     translation xyz; flags bits 19..21 / 23..25 = axis absent, i.e. keep the
+//     CCAM value)
+//   type 4 "ViewUpdater.TargetPosition" / "ViewUpdater.UpwardVector": three
+//     rel curve pointers at +0xc; flags 0x8/0x10/0x20 = x/y/z absent
+//   type 0 "ViewUpdater.Twist": one rel curve pointer at +0xc
+// A curve is a key group: +0x20 flags (8 -> hermite128), +0x24 key count,
+// keys (frame, value, inSlope, outSlope) from +0x2c.
+// ---------------------------------------------------------------------------
+
+export interface CgfxCameraKey {
+  frame: number;
+  value: number;
+  inSlope: number;
+  outSlope: number;
+}
+
+/** One animated scalar: hermite keys. An axis absent from the track list keeps its static CCAM value. */
+export interface CgfxCameraCurve {
+  keys: CgfxCameraKey[];
+}
+
+export type CgfxCameraView =
+  | { type: 'aim'; target: [number, number, number]; twist: number }
+  | { type: 'rotate'; rotation: [number, number, number] }
+  | { type: 'lookAt'; target: [number, number, number]; up: [number, number, number] }
+  | { type: 'unknown'; flags: number };
+
+export interface CgfxCamera {
+  name: string;
+  revision: number;
+  scale: [number, number, number];
+  /** Node rotation (euler, radians). */
+  rotation: [number, number, number];
+  /** Node translation = camera position (before animation). */
+  translation: [number, number, number];
+  view: CgfxCameraView;
+  projection: { flags: number; near: number; far: number; aspect: number; fovY: number };
+}
+
+export interface CgfxCameraAnimation {
+  name: string;
+  revision: number;
+  targetGroup: string;
+  loopMode: number;
+  frameCount: number;
+  /** Camera node rotation/translation curves (xyz), `undefined` per absent axis. */
+  rotation?: (CgfxCameraCurve | undefined)[];
+  translation?: (CgfxCameraCurve | undefined)[];
+  targetPosition?: (CgfxCameraCurve | undefined)[];
+  upwardVector?: (CgfxCameraCurve | undefined)[];
+  twist?: CgfxCameraCurve;
+}
+
+function readCameraCurve(data: Uint8Array, g: number): CgfxCameraCurve | undefined {
+  if (g <= 0 || g + 0x2c > data.length) return undefined;
+  const flags = u32At(data, g + 0x20);
+  if (flags >>> 5 !== 0) return undefined; // only hermite128 is used by the retail cameras
+  const count = Math.min(u32At(data, g + 0x24), 0x4000);
+  const start = readFloat(data, g + 0x18);
+  const keys: CgfxCameraKey[] = [];
+  let p = g + 0x2c;
+  for (let k = 0; k < count && p + 16 <= data.length; k++, p += 16) {
+    keys.push({
+      frame: readFloat(data, p) + start,
+      value: readFloat(data, p + 4),
+      inSlope: readFloat(data, p + 8),
+      outSlope: readFloat(data, p + 12),
+    });
+  }
+  return { keys };
+}
+
+/** Cubic-hermite evaluation of a camera curve (slopes are per frame); clamps outside the key range. */
+export function evaluateCgfxCameraCurve(curve: CgfxCameraCurve, frame: number): number {
+  const k = curve.keys;
+  if (k.length === 0) return 0;
+  if (frame <= k[0]!.frame) return k[0]!.value;
+  const last = k[k.length - 1]!;
+  if (frame >= last.frame) return last.value;
+  let i = 0;
+  while (i + 2 < k.length && k[i + 1]!.frame <= frame) i++;
+  const a = k[i]!;
+  const b = k[i + 1]!;
+  const dt = b.frame - a.frame;
+  if (dt <= 0) return a.value;
+  const t = (frame - a.frame) / dt;
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return (
+    (2 * t3 - 3 * t2 + 1) * a.value +
+    (t3 - 2 * t2 + t) * dt * a.outSlope +
+    (-2 * t3 + 3 * t2) * b.value +
+    (t3 - t2) * dt * b.inSlope
+  );
+}
+
+function readCameraAxes(
+  data: Uint8Array,
+  p: number,
+  absentMask: (axis: number) => boolean,
+): (CgfxCameraCurve | undefined)[] {
+  const out: (CgfxCameraCurve | undefined)[] = [];
+  for (let a = 0; a < 3; a++) out.push(absentMask(a) ? undefined : readCameraCurve(data, relOffset(data, p + 4 * a)));
+  return out;
+}
+
+function readCgfxCameras(data: Uint8Array, dataStart: number): CgfxCamera[] {
+  const cams: CgfxCamera[] = [];
+  for (const entry of readDictRef(data, dataStart + 40)) {
+    try {
+      const c = entry.offset + 4;
+      if (String.fromCharCode(data[c]!, data[c + 1]!, data[c + 2]!, data[c + 3]!) !== 'CCAM') continue;
+      const v3 = (o: number): [number, number, number] => [readFloat(data, o), readFloat(data, o + 4), readFloat(data, o + 8)];
+      const vp = relOffset(data, c + 0xb8);
+      const pp = relOffset(data, c + 0xbc);
+      const vflags = vp ? u32At(data, vp) : 0;
+      let view: CgfxCameraView = { type: 'unknown', flags: vflags };
+      if (vp && vflags === 0x80000000) view = { type: 'aim', target: v3(vp + 8), twist: readFloat(data, vp + 0x14) };
+      else if (vp && vflags === 0x20000000) view = { type: 'rotate', rotation: v3(vp + 8) };
+      else if (vp && vflags === 0x40000000) view = { type: 'lookAt', target: v3(vp + 8), up: v3(vp + 0x14) };
+      cams.push({
+        name: entry.name,
+        revision: u32At(data, c + 4),
+        scale: v3(c + 0x2c),
+        rotation: v3(c + 0x38),
+        translation: v3(c + 0x44),
+        view,
+        projection: pp
+          ? {
+              flags: u32At(data, pp),
+              near: readFloat(data, pp + 4),
+              far: readFloat(data, pp + 8),
+              aspect: readFloat(data, pp + 0xc),
+              fovY: readFloat(data, pp + 0x10),
+            }
+          : { flags: 0, near: 0, far: 0, aspect: 0, fovY: 0 },
+      });
+    } catch (e) {
+      console.warn(`  ✗ CGFX camera: ${(e as Error).message}`);
+    }
+  }
+  return cams;
+}
+
+function readCgfxCameraAnimations(data: Uint8Array, dataStart: number): CgfxCameraAnimation[] {
+  const anims: CgfxCameraAnimation[] = [];
+  for (const entry of readDictRef(data, dataStart + 96)) {
+    try {
+      const c = entry.offset;
+      if (String.fromCharCode(data[c]!, data[c + 1]!, data[c + 2]!, data[c + 3]!) !== 'CANM') continue;
+      const anim: CgfxCameraAnimation = {
+        name: readCString(data, relOffset(data, c + 8)),
+        revision: u32At(data, c + 4),
+        targetGroup: readCString(data, relOffset(data, c + 0xc)),
+        loopMode: u32At(data, c + 0x10),
+        frameCount: readFloat(data, c + 0x14),
+      };
+      for (const m of readDictRef(data, c + 0x18)) {
+        const mv = m.offset;
+        const flags = u32At(data, mv);
+        const type = u32At(data, mv + 8);
+        if (type === CGFX_SEGMENT_TRANSFORM) {
+          // Same transform segment as skeletal tracks; curves are read with slopes.
+          let p = mv + 0x18;
+          let notExist = 0x80000;
+          const groups: (CgfxCameraCurve | undefined)[][] = [[], []];
+          for (let j = 0; j < 2; j++) {
+            for (let axis = 0; axis < 3; axis++) {
+              groups[j]!.push((flags & notExist) === 0 ? readCameraCurve(data, relOffset(data, p)) : undefined);
+              p += 4;
+              notExist <<= 1;
+            }
+            notExist <<= 1;
+            p += 4;
+          }
+          anim.rotation = groups[0]!;
+          anim.translation = groups[1]!;
+        } else if (type === 4 && m.name === 'ViewUpdater.TargetPosition') {
+          anim.targetPosition = readCameraAxes(data, mv + 0xc, (a) => (flags & (8 << a)) !== 0);
+        } else if (type === 4 && m.name === 'ViewUpdater.UpwardVector') {
+          anim.upwardVector = readCameraAxes(data, mv + 0xc, (a) => (flags & (8 << a)) !== 0);
+        } else if (type === 0 && m.name === 'ViewUpdater.Twist') {
+          anim.twist = readCameraCurve(data, relOffset(data, mv + 0xc));
+        }
+      }
+      anims.push(anim);
+    } catch (e) {
+      console.warn(`  ✗ CGFX camera animation: ${(e as Error).message}`);
+    }
+  }
+  return anims;
+}
+
+/** Cameras and camera animations of a CGFX buffer (cheap; no model decode). */
+export function parseCgfxCameras(data: Uint8Array): { cameras: CgfxCamera[]; cameraAnimations: CgfxCameraAnimation[] } {
+  if (data.length < 8 || data[0] !== 0x43 || data[1] !== 0x47 || data[2] !== 0x46 || data[3] !== 0x58) {
+    throw new Error('Not a CGFX file');
+  }
+  const dataStart = u16At(data, 6) + 8;
+  return { cameras: readCgfxCameras(data, dataStart), cameraAnimations: readCgfxCameraAnimations(data, dataStart) };
+}
+
 export type CgfxSampledJointAnimation = CtrSampledJointAnimation;
 export type CgfxSampledAnimation = CtrSampledAnimation;
 
@@ -1050,5 +1280,6 @@ export function parseCgfx(data: Uint8Array): Cgfx {
   }
 
   const skeletalAnimations = readCgfxSkeletalAnimations(data, dataStart);
-  return { models: modelList, textures: cgfxTextures, skeletalAnimations };
+  const { cameras, cameraAnimations } = parseCgfxCameras(data);
+  return { models: modelList, textures: cgfxTextures, skeletalAnimations, cameras, cameraAnimations };
 }
