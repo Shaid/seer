@@ -18,9 +18,13 @@
  *   Sound (ref 0x2200): +0 u32 fileId, +4 u32 playerId (type in the top byte),
  *     +8 u8 volume, +0xc ref {0x2201 stream | 0x2202 wave | 0x2203 sequence},
  *     +0x18 u32 stringId; the typed record sits at entry+ref.offset:
- *     wave: +0 u32 index into the CWSD file; sequence: +0 u32 label offset?, bank ids.
- *   Wave archive (0x2207): +0 u32 fileId, +0xc u32 stringId, +0x10 u32 waveCount.
- *   Bank (0x2206): +0 u32 fileId, +0x10 u32 stringId.
+ *     wave: +0 u32 index into the CWSD file; sequence: +0 ref {0x0100, off} to a
+ *     bank-id table (u32 count + ids, top byte 3), +0x10 u32 CSEQ label offset.
+ *   Wave archive (0x2207): +0 u32 fileId, +4 u32 flag. flag 1: 20-byte record
+ *     {+8 u32 3, +0xc u32 stringId, +0x10 u32 waveCount}; flag 0: 12-byte record, no name/count.
+ *   Bank (0x2206): +0 u32 fileId, +0x10 u32 stringId; the CBNK file's wave-id table
+ *     names the wave archives it uses.
+ *   Sound group (0x2204): +0 first sound id, +4 last sound id, +0x1c u32 stringId.
  *   File (0x220a): +0 ref {0x220c internal | 0x220d external}; internal record at
  *     entry+0xc = { u16 0x1f00 pad, u32 offset (from FILE+8), u32 size } (offset at
  *     entry+0x10); external = a NUL-terminated path at entry+0xc.
@@ -50,6 +54,8 @@ export interface CsarSound {
   waveSoundIndex?: number;
   /** Raw typed-record words (first 4) for sequence/stream sounds. */
   typed: number[];
+  /** Sequence sounds: CSEQ label offset (`fileId` is the CSEQ file) and the banks (indices into `Csar.banks`) it plays. */
+  sequence?: { labelOffset: number; bankIds: number[] };
 }
 
 export interface CsarWaveArchive {
@@ -187,6 +193,13 @@ export function parseCsar(d: Uint8Array, fileSize: number): Csar {
       typed: [0, 1, 2, 3].map((k) => u32At(d, typed + 4 * k)),
     };
     if (kind === 'wave') s.waveSoundIndex = u32At(d, typed);
+    if (kind === 'sequence') {
+      const tab = typed + u32At(d, typed + 4);
+      const nb = u32At(d, tab);
+      const bankIds: number[] = [];
+      for (let k = 0; k < Math.min(nb, 16); k++) bankIds.push(u32At(d, tab + 4 + 4 * k) & 0xffffff);
+      s.sequence = { labelOffset: u32At(d, typed + 0x10), bankIds };
+    }
     return s;
   });
   // Wave archive record: u32 fileId, u32 flag; flag 1 = 20-byte record with
