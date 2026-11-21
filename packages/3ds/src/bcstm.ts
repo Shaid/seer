@@ -39,6 +39,20 @@ export interface BcstmInfo {
   loopStartSample: number;
   totalSamples: number;
   durationSeconds: number;
+  /**
+   * TrackInfo from the INFO block (ref at INFO+0x10, type 0x0101): one entry per
+   * mixing track, each naming the stream channels it plays. Empty when the file
+   * carries no TrackInfo (ref type 0 / offset 0xffffffff, e.g. Fates' 3/5-channel
+   * BGM). A 4-channel Awakening BGM reads as two stereo tracks (0,1)+(2,3).
+   */
+  tracks: BcstmTrack[];
+}
+
+export interface BcstmTrack {
+  volume: number;
+  pan: number;
+  /** Stream channel indices this track plays. */
+  channels: number[];
 }
 
 const CODEC_NAMES: Record<number, BcstmCodec> = {
@@ -89,6 +103,7 @@ export function parseBcstmInfo(data: Uint8Array): BcstmInfo {
   const totalSamples = u32At(data, streamInfoOffset + 12);
 
   return {
+    tracks: readTracks(data, infoOffset),
     codec,
     codecId,
     channelCount,
@@ -98,4 +113,32 @@ export function parseBcstmInfo(data: Uint8Array): BcstmInfo {
     totalSamples,
     durationSeconds: sampleRate > 0 ? totalSamples / sampleRate : 0,
   };
+}
+
+/** TrackInfo reference table → tracks; `[]` on absent/out-of-range data. Top-level INFO ref offsets are relative to INFO+8; nested ones to their own table/entry. */
+function readTracks(data: Uint8Array, infoOffset: number): BcstmTrack[] {
+  const refPos = infoOffset + 16;
+  if (refPos + 8 > data.length) return [];
+  if (u16At(data, refPos) !== 0x0101) return [];
+  const table = infoOffset + 8 + u32At(data, refPos + 4);
+  if (table + 4 > data.length) return [];
+  const count = u32At(data, table);
+  if (count === 0 || count > 32) return [];
+  const tracks: BcstmTrack[] = [];
+  for (let i = 0; i < count; i++) {
+    const rp = table + 4 + i * 8;
+    if (rp + 8 > data.length || u16At(data, rp) !== 0x4101) return [];
+    const entry = table + u32At(data, rp + 4);
+    if (entry + 12 > data.length) return [];
+    const byteTable = entry + u32At(data, entry + 8);
+    if (byteTable + 4 > data.length) return [];
+    const n = u32At(data, byteTable);
+    if (n === 0 || n > 32 || byteTable + 4 + n > data.length) return [];
+    tracks.push({
+      volume: data[entry]!,
+      pan: data[entry + 1]!,
+      channels: Array.from(data.subarray(byteTable + 4, byteTable + 4 + n)),
+    });
+  }
+  return tracks;
 }

@@ -114,3 +114,35 @@ describe('BCSTM header', () => {
     expect(() => parseBcstmInfo(buf)).toThrow(/unknown codec/);
   });
 });
+
+describe('parseBcstmInfo TrackInfo', () => {
+  // First 0x100 bytes (header + INFO up to both track byte-tables) of a real
+  // FE Awakening 4-channel BGM: two tracks, (vol 115, ch 0+1) and (vol 127, ch 2+3).
+  const real = Buffer.from(
+    [
+      '4353544dfffe400000000002c0d8c000030000000040000040000000a0010000',
+      '01400000e00100004018000002400000201a0000a0bec0000000000000000000',
+      '494e464fa0010000004100001800000001010000500000000101000064000000',
+      '02010400d87f000000c00100d25254008201000000200000003800009d0f0000',
+      'd21a0000a00f00000400000000380000001f0000180000000200000001410000',
+      '38000000014100004c00000004000000024100004c0000000241000054000000',
+      '024100005c000000024100006400000073400000000100000c00000002000000',
+      '000100007f400000000100000c00000002000000020300000003000020000000'
+    ].join(''),
+    'hex',
+  );
+  it('reads two stereo tracks', () => {
+    const info = parseBcstmInfo(new Uint8Array(real));
+    expect(info.channelCount).toBe(4);
+    expect(info.tracks).toEqual([
+      { volume: 115, pan: 64, channels: [0, 1] },
+      { volume: 127, pan: 64, channels: [2, 3] },
+    ]);
+  });
+  it('null control: a file with no TrackInfo ref yields no tracks', () => {
+    const bytes = new Uint8Array(real);
+    // Blank the TrackInfo ref (type + offset) at INFO+0x10 = 0x50.
+    bytes.fill(0, 0x50, 0x58);
+    expect(parseBcstmInfo(bytes).tracks).toEqual([]);
+  });
+});
