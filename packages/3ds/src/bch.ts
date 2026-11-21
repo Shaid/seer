@@ -84,7 +84,13 @@ export interface BchBone {
 
 export interface BchModel {
   name: string;
-  materials: { name: string; diffuse: [number, number, number, number] }[];
+  /**
+   * `textureNames` are the material's three texture-slot names (`''` when a
+   * slot is unused), read at +0x1c/+0x20/+0x24 of its 0x2c-byte entry — see
+   * docs/3ds-formats.md §7 (lucina). Names match `Bch.textures[].name` of the
+   * model's own file or its `_t` / `_cl0n_*` companion.
+   */
+  materials: { name: string; diffuse: [number, number, number, number]; textureNames: string[] }[];
   meshes: BchMesh[];
   bones: BchBone[];
   /** Accumulated (bone-to-model-space) bind matrices, one 16-element row-major Mat4 per bone, parallel to `bones`. */
@@ -393,7 +399,7 @@ export function parseBch(data: Uint8Array): Bch {
   }
 
   const textures = readTextures(rv, mainHeaderOffset);
-  const models = readModels(rv, mainHeaderOffset);
+  const models = readModels(rv, mainHeaderOffset, stringTableOffset);
   const skeletalAnimations = readSkeletalAnimations(rv, mainHeaderOffset);
   return { models, textures, skeletalAnimations };
 }
@@ -651,7 +657,7 @@ function readSkeletalAnimations(view: DataView, mainHeaderOffset: number): BchSk
   return animations;
 }
 
-function readModels(view: DataView, mainHeaderOffset: number): BchModel[] {
+function readModels(view: DataView, mainHeaderOffset: number, stringTableOffset: number): BchModel[] {
   const modelsPointerTableOffset = u32(view, mainHeaderOffset);
   const modelsPointerTableEntries = u32(view, mainHeaderOffset + 4);
   const modelsNameOffset = u32(view, mainHeaderOffset + 8);
@@ -662,7 +668,7 @@ function readModels(view: DataView, mainHeaderOffset: number): BchModel[] {
     const modelOffset = u32(view, modelsPointerTableOffset + m * 4);
     if (modelOffset >= view.byteLength) continue;
     try {
-      const model = readModel(view, modelOffset);
+      const model = readModel(view, modelOffset, stringTableOffset);
       if (model.meshes.length > 0) models.push(model);
     } catch (e) {
       console.warn(`  ✗ BCH model ${m}: ${(e as Error).message}`);
@@ -671,7 +677,7 @@ function readModels(view: DataView, mainHeaderOffset: number): BchModel[] {
   return models;
 }
 
-function readModel(view: DataView, base: number): BchModel {
+function readModel(view: DataView, base: number, stringTableOffset: number): BchModel {
   const bc = new Uint8Array(view.buffer, view.byteOffset, view.byteLength)[4]!;
   let p = base;
   p += 4; // flags, skeletonScalingType, silhouetteMaterialEntries
@@ -748,14 +754,28 @@ function readModel(view: DataView, base: number): BchModel {
   const materials: BchModel['materials'] = [];
   for (let i = 0; i < Math.min(materialsTableEntries, 0x1000); i++) {
     const mo = materialsTableOffset + i * 0x2c;
-    materials.push({ name: `material${i}`, diffuse: [0.8, 0.8, 0.8, 1] });
-    void mo;
+    // Texture-slot name pointers at +0x1c/+0x20/+0x24: relative to the string
+    // table unless the file's relocation table already made them absolute.
+    const textureNames: string[] = [];
+    for (let slot = 0; slot < 3; slot++) {
+      const raw = mo + 0x1c + slot * 4 + 4 <= view.byteLength ? u32(view, mo + 0x1c + slot * 4) : 0;
+      const abs = raw >= stringTableOffset ? raw : raw + stringTableOffset;
+      textureNames.push(raw !== 0 && abs < view.byteLength ? readCString(view, abs) : '');
+    }
+    materials.push({ name: `material${i}`, diffuse: [0.8, 0.8, 0.8, 1], textureNames });
   }
 
-  // Objects (meshes)
+  // Objects (meshes). Each entry is 0x38 bytes at bc >= 0x21 (Fates/Echoes
+  // bc 0x22): materialId/flags/nodeId/priority (8) + vsh-commands (off,wc) +
+  // faces-header (off,count) + a second command block (off,wc) + bounding
+  // centre (3 floats) + 4 trailing words. The earlier 0x40 stride read the
+  // 2nd+ object of every multi-object model from the wrong offset (garbage
+  // 100k-vertex meshes). Verified over 943 multi-object Fates models: 0x38
+  // gives in-range entries in 938, 0x40 in 0 (docs/3ds-formats.md §7).
+  const objectStride = bc >= 0x21 ? 0x38 : 0x40;
   const meshes: BchMesh[] = [];
   for (let oi = 0; oi < verticesTableEntries; oi++) {
-    const vo = verticesTableOffset + oi * 0x40;
+    const vo = verticesTableOffset + oi * objectStride;
     const materialId = u16(view, vo);
     const flags = u16(view, vo + 2);
     const isSilhouette = (flags & 1) !== 0;
@@ -766,6 +786,11 @@ function readModel(view: DataView, base: number): BchModel {
     const facesHeaderEntries = u32(view, vo + 20);
     if (isSilhouette) continue;
     if (vshCommandsOffset >= view.byteLength) continue;
+    // A handful of field models (e.g. Btl_WoodsLost) carry an object table
+    // whose entries sit 12 bytes off our read position; the garbage entries
+    // show up as 0x3fc-style face-header counts and ~0.5M-vertex meshes.
+    // Real entries have 1-3 face headers (max seen well under 0x40).
+    if (facesHeaderEntries > 0x40 || vshCommandsWordCount > 0x4000) continue;
 
     const mesh = readMesh(
       view,
@@ -827,7 +852,14 @@ function readMesh(
 
   // The main attributes buffer address lives in reg 0x200; stride + attribute
   // count are packed into the buffer-0 stride register (0x205).
-  const attributesBufferOffset = commands.parameter(VSH_ATTRS_BUFFER_ADDRESS);
+  // Buffer 0's own address (reg 0x203) is what the vertex indices are relative
+  // to; reg 0x200 is only the shared base. They coincide for single-object
+  // models (offset 0), but multi-object field models keep every object's
+  // vertices in one buffer, so 0x200 alone reads every object from the start
+  // of the shared buffer (shredded geometry). 0x203 is already absolute after
+  // relocation (docs/3ds-formats.md §7.4); fall back to 0x200 if unset.
+  const attributesBufferOffset =
+    commands.attributesBufferAddress(0) || commands.parameter(VSH_ATTRS_BUFFER_ADDRESS);
   const strideRegister = commands.parameter(VSH_BUFFER0_STRIDE);
   const attributesBufferStride = (strideRegister >> 16) & 0xff;
   const totalAttributes = Math.min(strideRegister >> 28, 23);
