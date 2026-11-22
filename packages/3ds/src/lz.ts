@@ -51,7 +51,18 @@ function readDecompressedSize(data: Uint8Array, inPos: number): { size: number; 
 }
 
 function decompressLz10Or11(data: Uint8Array, long: boolean): Uint8Array {
+  return decodeLz10Or11(data, long, false).out;
+}
+
+/**
+ * Shared LZ10/LZ11 loop. With `strict`, an input over-read (the stream ran off
+ * the end of `data`) throws instead of silently reading zeros, and the number
+ * of consumed input bytes is returned so callers can check the stream ends
+ * where the data does.
+ */
+function decodeLz10Or11(data: Uint8Array, long: boolean, strict: boolean): { out: Uint8Array; consumed: number } {
   const { size, inPos: start } = readDecompressedSize(data, 4);
+  if (strict && size > MAX_BARE_RATIO * data.length) throw new Error('LZ declared size implausible');
   const out = new Uint8Array(size);
   // Ring buffer mirroring DSDecmp's history window.
   const buf = new Uint8Array(BUFFER_LENGTH);
@@ -62,6 +73,7 @@ function decompressLz10Or11(data: Uint8Array, long: boolean): Uint8Array {
   let flags = 0;
 
   while (outPos < size) {
+    if (strict && inPos >= data.length) throw new Error('LZ input exhausted before declared size');
     if (mask === 1) {
       flags = data[inPos++];
       mask = 0x80;
@@ -114,7 +126,30 @@ function decompressLz10Or11(data: Uint8Array, long: boolean): Uint8Array {
       bufPos = (bufPos + 1) % BUFFER_LENGTH;
     }
   }
-  return out;
+  if (strict && inPos > data.length) throw new Error('LZ input over-read');
+  return { out, consumed: inPos };
+}
+
+/** Largest decompressed/compressed ratio accepted for a bare (unwrapped) LZ stream. */
+const MAX_BARE_RATIO = 64;
+/** Trailing bytes tolerated after a bare stream ends (4-byte alignment padding). */
+const MAX_BARE_PADDING = 4;
+
+/**
+ * Decode `data` as a bare LZ10/LZ11 stream only if it is unambiguously one:
+ * it decodes to exactly its declared size without over-reading, consumes the
+ * input to within alignment padding, and the declared size is at most 64x the
+ * input. Returns `null` otherwise (a raw file whose first byte happens to be
+ * 0x10/0x11).
+ */
+export function tryDecompressBareLz(data: Uint8Array): Uint8Array | null {
+  if (data.length < 5 || (data[0] !== 0x10 && data[0] !== 0x11)) return null;
+  try {
+    const { out, consumed } = decodeLz10Or11(data, data[0] === 0x11, true);
+    return data.length - consumed <= MAX_BARE_PADDING ? out : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -147,9 +182,11 @@ function copyRepeat(
  * A stored wrapper (`00` + u24 == length - 4) yields its raw payload. The LZ13
  * outer size is ignored; output length is the inner LZ11 size.
  *
- * Data that is not any of those forms (an already-uncompressed CTPK, BCH or
- * CGFX, whose magics never start with 0x10/0x11/0x13) passes through
- * untouched. A wrapper with an unrecognised inner type throws rather than
+ * Data that is not any of those forms passes through untouched. That includes
+ * raw files whose first byte is 0x10/0x11 (a BIN whose pointer table starts
+ * 0x10): a bare stream is only accepted when it decodes to exactly its declared
+ * size, consumes the input to within padding and declares <= 64x its input
+ * (see `tryDecompressBareLz`). A wrapper with an unrecognised inner type throws rather than
  * silently handing back still-compressed bytes for a parser to choke on.
  */
 export function decompressLz13(data: Uint8Array): Uint8Array {
@@ -165,6 +202,7 @@ export function decompressLz13(data: Uint8Array): Uint8Array {
     }
     return decompressLz(data.subarray(4));
   }
-  if (data[0] === 0x10 || data[0] === 0x11) return decompressLz(data);
-  return data;
+  // A bare stream is accepted only when it verifies end to end; a raw file
+  // that merely starts with 0x10/0x11 (e.g. an Awakening `bev/` BIN) passes through.
+  return tryDecompressBareLz(data) ?? data;
 }

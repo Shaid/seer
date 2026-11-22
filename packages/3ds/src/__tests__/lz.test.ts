@@ -1,6 +1,6 @@
 import { existsSync, openSync, readFileSync, readSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { decompressLz10, decompressLz11, decompressLz13 } from '../lz.js';
+import { decompressLz10, decompressLz11, decompressLz13, tryDecompressBareLz } from '../lz.js';
 
 function bytes(...vals: number[]): Uint8Array {
   return new Uint8Array(vals);
@@ -79,6 +79,50 @@ describe('LZ13 (FE3DS wrapper)', () => {
   it('passes through non-LZ13 input untouched', () => {
     const plain = bytes(0x43, 0x54, 0x50, 0x4b, 0x00);
     expect(decompressLz13(plain)).toEqual(plain);
+  });
+});
+
+describe('bare LZ detection vs raw files', () => {
+  const lz11 = bytes(0x11, 0x0a, 0x00, 0x00, 0x20, 0x41, 0x42, 0x70, 0x01);
+  const lz10 = bytes(0x10, 0x0a, 0x00, 0x00, 0x20, 0x41, 0x42, 0x50, 0x01);
+
+  it('a raw BIN starting 0x11 passes through (size field looks like a stream header)', () => {
+    // FE BIN head: u32 data size with low byte 0x11, then pointer-table-like words.
+    const raw = new Uint8Array(0x40);
+    raw[0] = 0x11;
+    raw[1] = 0x02;
+    for (let i = 4; i < raw.length; i++) raw[i] = (i * 37) & 0xff;
+    expect(decompressLz13(raw)).toBe(raw);
+  });
+
+  it('a raw buffer starting 0x10 passes through', () => {
+    const raw = new Uint8Array(0x30);
+    raw[0] = 0x10;
+    raw[1] = 0x01;
+    for (let i = 4; i < raw.length; i++) raw[i] = (i * 91 + 3) & 0xff;
+    expect(decompressLz13(raw)).toBe(raw);
+  });
+
+  it('a huge declared size on a tiny input is rejected as implausible', () => {
+    const raw = concat(bytes(0x11, 0xff, 0xff, 0xff), new Uint8Array(0x20));
+    expect(decompressLz13(raw)).toBe(raw);
+  });
+
+  it('real bare streams still decode, with or without alignment padding', () => {
+    expect(Buffer.from(decompressLz13(lz11)).toString()).toBe('ABABABABAB');
+    expect(Buffer.from(decompressLz13(lz10)).toString()).toBe('ABABABABAB');
+    expect(Buffer.from(decompressLz13(concat(lz11, bytes(0, 0, 0)))).toString()).toBe('ABABABABAB');
+  });
+
+  it('null control: the same stream with a long unconsumed tail is not a clean bare stream', () => {
+    const tail = concat(lz11, new Uint8Array(32).fill(0x5a));
+    expect(tryDecompressBareLz(lz11)).not.toBeNull();
+    expect(tryDecompressBareLz(tail)).toBeNull();
+    expect(decompressLz13(tail)).toBe(tail);
+  });
+
+  it('null control: a truncated stream is not decoded', () => {
+    expect(tryDecompressBareLz(lz11.subarray(0, 7))).toBeNull();
   });
 });
 
