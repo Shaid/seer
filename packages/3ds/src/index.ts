@@ -16,6 +16,7 @@ export * from './bcstm.js';
 export * from './cwav.js';
 export * from './bcsar.js';
 export * from './mat4-ctr.js';
+export * from './skin.js';
 export * from './ctr-anim.js';
 export * from './bch.js';
 export * from './cgfx.js';

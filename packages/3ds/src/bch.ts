@@ -36,9 +36,9 @@ import {
   type CtrSampledJointAnimation,
 } from './ctr-anim.js';
 import { u16At } from './le.js';
+import { toModelSpace } from './skin.js';
 import { ctrTextureByteSize } from './ctr-texture.js';
 import {
-  matApply,
   matIdentity,
   matMul,
   matRotX,
@@ -138,6 +138,15 @@ const TEX_UNIT0_SIZE = 0x82;
 const TEX_UNIT0_ADDRESS = 0x85;
 const TEX_UNIT0_TYPE = 0x8e;
 
+/**
+ * Divisor taking `int16 position x uniform-7 position scale` to the skeleton's units. Measured on Fates bodies
+ * (`bu/uBody_*`, smooth-skinned, so no bone matrix is involved): with the offset above, 256 puts the lowest vertex at
+ * y = -0.017 and the highest at 12.82 against a head bone at 12.58 (`uBody_F_arch_0`); 255 and 257 give -0.044 and +0.008.
+ * Without it the mesh is 256 times its own skeleton. The origin of the factor is not decoded, and it is not
+ * universal: Echoes bodies whose uniform-7 position scale is ~1.9 (not ~0.06) need a factor about 37x larger
+ * (docs/3ds-formats.md section 11.4); the real quantisation range is not the uniform.
+ */
+export const BCH_POSITION_UNITS = 256;
 const ATTRIBUTE_POSITION = 0;
 const ATTRIBUTE_COLOR = 3;
 const ATTRIBUTE_UV = 4;
@@ -834,12 +843,16 @@ function readMesh(
   // Position offset + attribute scales from vertex shader uniforms (regs 6/7).
   const uniform6 = commands.getFloatUniform(6);
   const uniform7 = commands.getFloatUniform(7);
+  // The float uniforms are stored as PICA vec4 register words, w z y x, so a position offset (x, y, z) sits at
+  // array indices 3, 2, 1. Read in array order (0, 1, 2) a Fates body's offset (0, 6.358, -0.076) came out as
+  // (0, -0.076, 6.358): the body shifted 6.4 along z instead of up (feet at -6.5 instead of 0).
   const positionOffset: [number, number, number] = [
-    uniform6[0] ?? 0,
-    uniform6[1] ?? 0,
+    uniform6[3] ?? 0,
     uniform6[2] ?? 0,
+    uniform6[1] ?? 0,
   ];
-  const positionScale = uniform7[4] ?? 1;
+  // The int16 positions times the uniform scale are BCH_POSITION_UNITS times the model's real size (below).
+  const positionScale = (uniform7[4] ?? 1) / BCH_POSITION_UNITS;
   const colorScale = uniform7[7] ?? 1;
   // Derived from Ohana3DS-Rebirth's BCH reader: its 8 scales are POPPED off a
   // stack built by pushing `getFloatUniform(7)` in forward order, so the pop
@@ -948,18 +961,18 @@ function readMesh(
           if (b0 >= 0 && b0 < nodeList.length) boneIndex = nodeList[b0]!;
         }
       }
-      // Skinning: transform by the bone's accumulated matrix (rigid/fallback).
+      // Skinning: bone-local (rigid / none) vertices take the bone's accumulated matrix; smooth ones (skinningMode 1) are
+      // already in model space (src/skin.ts).
       // `nodeList` entries are read straight off disk — a malformed/unusual
       // file can hold a bone index past the skeleton's actual bone count, so
       // treat that the same as "no bone" rather than emitting an index a
       // glTF skin (or this file's own `skeletonTransforms` lookup) can't use.
       let bone = boneIndex >= 0 ? boneIndex : nodeList.length > 0 ? nodeList[0]! : -1;
       if (bone >= 0 && bone < skeletonTransforms.length) {
-        pos = matApply(skeletonTransforms[bone]!, pos);
+        pos = toModelSpace(pos, skeletonTransforms[bone]!, 'bch', skinningMode);
       } else {
         bone = -1;
       }
-      void skinningMode;
       vertices.push(pos);
       boneIndices.push(bone);
       if (hasVertexColor) vertexColors.push(color);

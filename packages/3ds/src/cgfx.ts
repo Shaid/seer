@@ -28,8 +28,8 @@ import {
   type CtrSampledJointAnimation,
 } from './ctr-anim.js';
 import { u32At, u16At } from './le.js';
+import { toModelSpace } from './skin.js';
 import {
-  matApply,
   matMul,
   matRotX,
   matRotY,
@@ -557,7 +557,6 @@ function readShapeGeometry(
     fp += 4;
     fp += 4; // face main header entries
     const faceMainHeaderOffset = relOffset(data, fp);
-    void skinningMode;
 
     // Bone node list
     const nodeList: number[] = [];
@@ -640,14 +639,14 @@ function readShapeGeometry(
           if (b0 >= 0 && b0 < nodeList.length) boneIndex = nodeList[b0]!;
         }
       }
-      // Skinning: transform the vertex by its bone's accumulated matrix.
-      // (Exact for rigid skinning; a first-bone approximation for smooth.)
+      // Skinning: a rigid (and mode-0) vertex is local to its bone, so it takes the bone's accumulated matrix; a
+      // smooth-skinned vertex (skinningMode 2) is already in model space and must not (src/skin.ts).
       // `nodeList` entries are read straight off disk — bounds-check before
       // recording for a glTF skin too (not just before transforming), same
       // fix as bch.ts's readMesh.
       let bone = boneIndex >= 0 ? boneIndex : nodeList.length > 0 ? nodeList[0]! : -1;
       if (bone >= 0 && bone < skeletonTransforms.length) {
-        pos = matApply(skeletonTransforms[bone]!, pos);
+        pos = toModelSpace(pos, skeletonTransforms[bone]!, 'cgfx', skinningMode);
       } else {
         bone = -1;
       }
