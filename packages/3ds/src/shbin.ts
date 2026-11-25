@@ -92,42 +92,81 @@ export function parseShbin(data: Uint8Array, base = 0): Shbin {
   return { code, descriptors, entries };
 }
 
-const OPCODES: Record<number, string> = {
+const ARITH: Record<number, string> = {
   0x00: 'add', 0x01: 'dp3', 0x02: 'dp4', 0x03: 'dph', 0x04: 'dst', 0x05: 'ex2', 0x06: 'lg2', 0x07: 'litp', 0x08: 'mul', 0x09: 'sge', 0x0a: 'slt',
-  0x0b: 'flr', 0x0c: 'max', 0x0d: 'min', 0x0e: 'rcp', 0x0f: 'rsq', 0x12: 'mova', 0x13: 'mov', 0x20: 'nop', 0x21: 'end', 0x22: 'breakc', 0x23: 'call',
-  0x24: 'callc', 0x25: 'callu', 0x26: 'ifu', 0x27: 'ifc', 0x28: 'loop', 0x29: 'emit', 0x2a: 'setemit', 0x2b: 'jmpc', 0x2c: 'jmpu', 0x2d: 'cmp', 0x2e: 'cmp',
+  0x0b: 'flr', 0x0c: 'max', 0x0d: 'min', 0x0e: 'rcp', 0x0f: 'rsq', 0x12: 'mova', 0x13: 'mov', 0x18: 'dphi', 0x19: 'dsti', 0x1a: 'sgei', 0x1b: 'slti',
 };
+/** Flow-control opcodes (PICA200 ISA; the table of 3dbrew / Citra: BREAK 0x20, NOP 0x21, END 0x22, ... JMPC 0x2C, JMPU 0x2D, CMP 0x2E-0x2F). */
+const FLOW: Record<number, string> = {
+  0x20: 'break', 0x21: 'nop', 0x22: 'end', 0x23: 'breakc', 0x24: 'call', 0x25: 'callc', 0x26: 'callu', 0x27: 'ifu', 0x28: 'ifc', 0x29: 'loop',
+  0x2a: 'emit', 0x2b: 'setemit', 0x2c: 'jmpc', 0x2d: 'jmpu',
+};
+/** Opcodes whose first source is 5 bits and second 7 bits (the "inverted" forms). */
+const INVERTED = new Set([0x18, 0x19, 0x1a, 0x1b]);
+const ONE_SRC = new Set([0x05, 0x06, 0x07, 0x0b, 0x0e, 0x0f, 0x12, 0x13]);
+const IDX = ['', '[a0.x]', '[a0.y]', '[aL]'];
+const CMP_OPS = ['==', '!=', '<', '<=', '>', '>=', '?', '?'];
 
 function swz(bits: number): string {
   const s = [0, 1, 2, 3].map((i) => 'xyzw'[(bits >>> (6 - 2 * i)) & 3]).join('');
   return s === 'xyzw' ? '' : `.${s}`;
 }
-function srcReg(n: number, neg: boolean, bits: number): string {
-  const r = n < 0x10 ? `v${n}` : n < 0x20 ? `r${n - 0x10}` : `c${n - 0x20}`;
+/** Source operand: `n` the 7-bit (or 5-bit) register field, `idx` the address-register selector (only meaningful on the constant range). */
+function srcReg(n: number, neg: boolean | number, bits: number, idx = 0): string {
+  const r = n < 0x10 ? `v${n}` : n < 0x20 ? `r${n - 0x10}` : `c${n - 0x20}${IDX[idx]}`;
   return `${neg ? '-' : ''}${r}${swz(bits)}`;
+}
+function dstReg(dst: number, d: number): string {
+  const mask = [0, 1, 2, 3].map((i) => ((d >>> (3 - i)) & 1 ? 'xyzw'[i] : '')).join('');
+  return `${dst < 0x10 ? `o${dst}` : `r${dst - 0x10}`}.${mask}`;
 }
 
 /**
- * Disassembles one instruction of the arithmetic formats (opcodes 0x00-0x1B, CMP and MAD). Flow-control instructions are returned
- * as their mnemonic and raw word. Registers: `vN` input, `rN` temporary, `cN` float constant, `oN` output.
+ * Disassembles one PICA200 instruction: arithmetic (format 1 / 1i), MAD / MADI, CMP and the flow-control group (call / if / loop / jmp with
+ * their target and length, `end`, `nop`). Registers: `vN` input, `rN` temporary, `cN` float constant, `oN` output; `[a0.x]`-style
+ * suffixes are the address-register index. Targets are absolute instruction indices.
  */
 export function disassembleShaderInstruction(shbin: Shbin, pc: number): string {
   const w = shbin.code[pc]!;
   const op = w >>> 26;
-  if (op >= 0x38) {
+  if (op >= 0x30) {
+    const inv = op < 0x38;
     const d = shbin.descriptors[w & 0x1f]?.[0] ?? 0;
-    const dst = (w >>> 24) & 0x1f;
-    const mask = [0, 1, 2, 3].map((i) => ((d >>> (3 - i)) & 1 ? 'xyzw'[i] : '')).join('');
-    return `mad ${dst < 0x10 ? `o${dst}` : `r${dst - 0x10}`}.${mask}, ${srcReg((w >>> 17) & 0x7f, ((d >>> 4) & 1) === 1, d >>> 5)}, ${srcReg((w >>> 12) & 0x1f, ((d >>> 13) & 1) === 1, d >>> 14)}, ${srcReg((w >>> 5) & 0x7f, ((d >>> 22) & 1) === 1, d >>> 23)}`;
+    const idx = (w >>> 22) & 3;
+    const src1 = (w >>> 17) & 0x1f;
+    const src2 = inv ? (w >>> 12) & 0x1f : (w >>> 10) & 0x7f;
+    const src3 = inv ? (w >>> 5) & 0x7f : (w >>> 5) & 0x1f;
+    const idx2 = inv ? 0 : idx; // the index register applies to the 7-bit (constant-capable) operand
+    const idx3 = inv ? idx : 0;
+    return `mad ${dstReg((w >>> 24) & 0x1f, d)}, ${srcReg(src1, (d >>> 4) & 1, d >>> 5)}, ${srcReg(src2, (d >>> 13) & 1, d >>> 14, idx2)}, ${srcReg(src3, (d >>> 22) & 1, d >>> 23, idx3)}`;
   }
-  const name = OPCODES[op] ?? `op${op.toString(16)}`;
-  if (op >= 0x20 && op !== 0x2d && op !== 0x2e) return `${name} ${w.toString(16).padStart(8, '0')}`;
+  const flow = FLOW[op];
+  if (flow) {
+    const dest = (w >>> 10) & 0xfff;
+    const num = w & 0xff;
+    const cond = ['or', 'and', 'x', 'y'][(w >>> 22) & 3];
+    const refs = `${(w >>> 25) & 1 ? '' : '!'}cc.x ${cond} ${(w >>> 24) & 1 ? '' : '!'}cc.y`;
+    switch (op) {
+      case 0x23: case 0x25: case 0x28: case 0x2c: return `${flow} ${refs} -> ${dest} (+${num})`;
+      case 0x24: return `call ${dest} (+${num})`;
+      case 0x26: case 0x27: case 0x2d: return `${flow} b${(w >>> 22) & 15} -> ${dest} (+${num})`;
+      case 0x29: return `loop i${(w >>> 22) & 3} -> ${dest}`;
+      default: return flow;
+    }
+  }
+  if (op === 0x2e || op === 0x2f) {
+    const d = shbin.descriptors[w & 0x7f]?.[0] ?? 0;
+    return `cmp ${srcReg((w >>> 12) & 0x7f, (d >>> 4) & 1, d >>> 5, (w >>> 19) & 3)} ${CMP_OPS[(w >>> 24) & 7]}x, ${srcReg((w >>> 7) & 0x1f, (d >>> 13) & 1, d >>> 14)} (y ${CMP_OPS[(w >>> 21) & 7]})`;
+  }
+  const name = ARITH[op];
+  if (!name) return `op${op.toString(16)} ${w.toString(16).padStart(8, '0')}`;
   const d = shbin.descriptors[w & 0x7f]?.[0] ?? 0;
-  const dst = (w >>> 21) & 0x1f;
-  const mask = [0, 1, 2, 3].map((i) => ((d >>> (3 - i)) & 1 ? 'xyzw'[i] : '')).join('');
-  const s1 = srcReg((w >>> 12) & 0x7f, ((d >>> 4) & 1) === 1, d >>> 5);
-  const s2 = srcReg((w >>> 7) & 0x1f, ((d >>> 13) & 1) === 1, d >>> 14);
-  if (op === 0x2d || op === 0x2e) return `cmp ${s1}, ${s2}`;
-  const o = dst < 0x10 ? `o${dst}` : `r${dst - 0x10}`;
-  return [0x05, 0x06, 0x07, 0x0b, 0x0e, 0x0f, 0x12, 0x13].includes(op) ? `${name} ${o}.${mask}, ${s1}` : `${name} ${o}.${mask}, ${s1}, ${s2}`;
+  const idx = (w >>> 19) & 3;
+  const inv = INVERTED.has(op);
+  const a = inv ? (w >>> 14) & 0x1f : (w >>> 12) & 0x7f;
+  const b = inv ? (w >>> 7) & 0x7f : (w >>> 7) & 0x1f;
+  const s1 = srcReg(a, ((d >>> 4) & 1) === 1, d >>> 5, inv ? 0 : idx);
+  const s2 = srcReg(b, ((d >>> 13) & 1) === 1, d >>> 14, inv ? idx : 0);
+  const o = dstReg((w >>> 21) & 0x1f, d);
+  return ONE_SRC.has(op) ? `${name} ${o}, ${s1}` : `${name} ${o}, ${s1}, ${s2}`;
 }
