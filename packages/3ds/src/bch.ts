@@ -28,6 +28,7 @@
  * ±1/±2 rather than random noise — a real-but-imperfect result).
  */
 import {
+  sampleCtrAxis,
   sampleCtrSkeletalAnimation,
   type CtrAnimAxis,
   type CtrAnimVec4,
@@ -200,8 +201,46 @@ export interface BchSkeletalAnimation {
   bones: BchAnimBoneTrack[];
 }
 
+/**
+ * One light of a BCH scene file (`common/scene.bch`, `scene/*.bch`: Fates, Echoes). The entry's size differs by kind; the fields below are
+ * valid for the kinds named. `flags` (+0x28) is `0x109` for the directional key light and the point lights, `0x101` for a hemisphere light,
+ * `0x102` for the ambient light. Colour words are RGBA bytes packed as a little-endian u32 (byte 0 = red).
+ */
+export interface BchLight {
+  name: string;
+  flags: number;
+  /** Entry size in bytes (distance to the next entry; the last entry is assumed 0x6c). */
+  size: number;
+  /** Position (+0x1c, point lights; zero on the key light and the hemisphere light). */
+  position: [number, number, number];
+  /** Directional / point / ambient: the colour words at +0x30 (ambient), +0x34 (diffuse), +0x38 (specular 0), +0x3c (specular 1) as [r, g, b, a] in 0..1. The ambient light has only the first. Placeholders where the scene animates them (`lightAnimations`). */
+  colors: [number, number, number, number][];
+  /** Directional light: +0x40, the direction the light travels (unit length; `-direction` points to the light). */
+  direction: [number, number, number];
+  /** Hemisphere light (`flags` 0x101, entry 0x60): ground colour (+0x30), sky colour (+0x40), sky direction (+0x50), blend factor (+0x5c); RGBA floats. */
+  hemisphere?: { ground: [number, number, number, number]; sky: [number, number, number, number]; skyDirection: [number, number, number]; factor: number };
+}
+
+/** One animated light parameter (a track element of a `BchLightAnimation`). Target ids: 0x1c position, 0x1d..0x20 colour word 0..3, 0x21 hemisphere ground, 0x22 hemisphere sky, 0x26 hemisphere factor. */
+export interface BchLightAnimElement {
+  target: number;
+  /** Up to three channels (r, g, b / x, y, z); undefined = no track. */
+  channels: (BchAnimAxis | undefined)[];
+}
+
+/** A scene light's animation: tracks over `frameCount` frames (24 in every scene: the frame is the hour of the day). */
+export interface BchLightAnimation {
+  name: string;
+  frameCount: number;
+  elements: BchLightAnimElement[];
+}
+
 export interface Bch {
   models: BchModel[];
+  /** Scene lights (`scene/*.bch`, `common/scene.bch`). */
+  lights: BchLight[];
+  /** Scene light animations, one per light by name. */
+  lightAnimations: BchLightAnimation[];
   textures: BchTexture[];
   skeletalAnimations: BchSkeletalAnimation[];
   /** Lighting LUT sets (`common/Iron15_LUT.bch`). */
@@ -460,6 +499,15 @@ function readCString(view: DataView, off: number): string {
 
 /** Parse a BCH buffer (relocation applied on a copy). Throws on a bad magic. */
 export function parseBch(data: Uint8Array): Bch {
+  const { view: rv, mainHeaderOffset, stringTableOffset } = relocateBch(data);
+  const textures = readTextures(rv, mainHeaderOffset);
+  const models = readModels(rv, mainHeaderOffset, stringTableOffset);
+  const skeletalAnimations = readSkeletalAnimations(rv, mainHeaderOffset);
+  return { models, lights: readBchLights(rv, mainHeaderOffset), lightAnimations: readBchLightAnimations(rv, mainHeaderOffset), textures, skeletalAnimations, lutSets: readLutSets(rv, mainHeaderOffset), shaders: readShaders(rv, mainHeaderOffset) };
+}
+
+/** The BCH with its relative pointers rewritten to absolute file offsets (on a copy), and the header offsets the readers need. */
+export function relocateBch(data: Uint8Array): { view: DataView; mainHeaderOffset: number; stringTableOffset: number } {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   if (data.length < 4 || data[0] !== 0x42 || data[1] !== 0x43 || data[2] !== 0x48) {
     throw new Error('Not a BCH file');
@@ -509,10 +557,7 @@ export function parseBch(data: Uint8Array): Bch {
     else if (flags === 0x2d) write(gc, (peek(gc) + dataExtendedOffset) & 0x7fffffff);
   }
 
-  const textures = readTextures(rv, mainHeaderOffset);
-  const models = readModels(rv, mainHeaderOffset, stringTableOffset);
-  const skeletalAnimations = readSkeletalAnimations(rv, mainHeaderOffset);
-  return { models, textures, skeletalAnimations, lutSets: readLutSets(rv, mainHeaderOffset), shaders: readShaders(rv, mainHeaderOffset) };
+  return { view: rv, mainHeaderOffset, stringTableOffset };
 }
 
 /**
@@ -575,14 +620,15 @@ const SEGMENT_TRANSFORM_QUATERNION = 7;
  * curve exactly (undocumented in any reference; a pragmatic simplification
  * in the same spirit as this file's UV-scale derivation, see module doc).
  */
-function readAxisKeyFrameGroup(view: DataView, groupOffset: number): BchAnimAxis {
+function readAxisKeyFrameGroup(view: DataView, groupOffset: number, invDurationAt28 = false): BchAnimAxis {
   const segmentFlags = u32(view, groupOffset + 12);
   const quantization = (segmentFlags >> 8) & 0xff;
   const entries = Math.min(segmentFlags >>> 16, 0x4000);
   const valueScale = readFloat(view, groupOffset + 16);
   const valueOffset = readFloat(view, groupOffset + 20);
   const frameScale = readFloat(view, groupOffset + 24);
-  const frameOffset = readFloat(view, groupOffset + 28);
+  // +28: bone clips read it as a frame offset; in light tracks it is 1 / (end - start) in 446 of 446 groups, so there it is no offset
+  const frameOffset = invDurationAt28 ? 0 : readFloat(view, groupOffset + 28);
   const dataOffset = u32(view, groupOffset + 32);
 
   const keys: { frame: number; value: number }[] = [];
@@ -994,6 +1040,79 @@ function readMaterialShading(view: DataView, mo: number, stringTableOffset: numb
 }
 
 /** The LUT sets of the content header (triple at +48): per set 18-odd named tables, each a command buffer of 256 writes to port 0x1C8. */
+export function readBchLights(view: DataView, mainHeaderOffset: number, wordShift = 0): BchLight[] {
+  const out: BchLight[] = [];
+  const table = u32(view, mainHeaderOffset + 60);
+  const count = Math.min(u32(view, mainHeaderOffset + 64), 64);
+  if (count === 0 || table + count * 4 > view.byteLength) return out;
+  const ptrs = Array.from({ length: count }, (_, i) => u32(view, table + 4 * i));
+  for (const [i, p] of ptrs.entries()) {
+    if (p + 0x34 > view.byteLength) continue;
+    const next = ptrs[i + 1];
+    const size = next !== undefined && next > p ? next - p : 0x6c;
+    const sh = 4 * wordShift; // null-control hook: read every field one word (or more) off
+    const f3 = (o: number): [number, number, number] => [readFloat(view, p + sh + o), readFloat(view, p + sh + o + 4), readFloat(view, p + sh + o + 8)];
+    const f4 = (o: number): [number, number, number, number] => [...f3(o), readFloat(view, p + sh + o + 12)];
+    const rgba = (o: number): [number, number, number, number] => [0, 1, 2, 3].map((k) => view.getUint8(p + sh + o + k) / 255) as [number, number, number, number];
+    const flags = u32(view, p + 0x28);
+    const light: BchLight = {
+      name: readCString(view, u32(view, p)),
+      flags,
+      size,
+      position: f3(0x1c),
+      colors: [rgba(0x30), ...(size >= 0x40 ? [rgba(0x34), rgba(0x38), rgba(0x3c)] : [])],
+      direction: size >= 0x4c ? f3(0x40) : [0, 0, 0],
+    };
+    if (flags === 0x101 && size >= 0x60) light.hemisphere = { ground: f4(0x30), sky: f4(0x40), skyDirection: f3(0x50), factor: readFloat(view, p + sh + 0x5c) };
+    out.push(light);
+  }
+  return out;
+}
+
+/**
+ * Light animations (content table entry 11, +132). Entry: name (+0), frame count f32 (+8), element table pointer (+0xc), element count (+0x10).
+ * Element: target id (u16 at +4), constant mask (+8: bit c = channel c is a constant f32 stored in the slot), three channel slots from +0xc
+ * (a key-frame group pointer, or the constant). The key-frame group is the one `readAxisKeyFrameGroup` reads (+0x1c holds 1 / (end - start), not a frame offset).
+ */
+export function readBchLightAnimations(view: DataView, mainHeaderOffset: number, slotShift = 0): BchLightAnimation[] {
+  const out: BchLightAnimation[] = [];
+  const table = u32(view, mainHeaderOffset + 132);
+  const count = Math.min(u32(view, mainHeaderOffset + 136), 64);
+  if (count === 0 || table + count * 4 > view.byteLength) return out;
+  for (let i = 0; i < count; i++) {
+    const p = u32(view, table + 4 * i);
+    if (p + 0x14 > view.byteLength) continue;
+    const elementTable = u32(view, p + 0xc);
+    const elementCount = Math.min(u32(view, p + 0x10), 32);
+    const elements: BchLightAnimElement[] = [];
+    for (let e = 0; e < elementCount; e++) {
+      const ep = u32(view, elementTable + 4 * e);
+      if (ep + 0x18 > view.byteLength) continue;
+      const mask = u32(view, ep + 8);
+      const target = u32(view, ep + 4) & 0xffff;
+      const channels: (BchAnimAxis | undefined)[] = [];
+      for (let c = 0; c < 3; c++) {
+        const slot = u32(view, ep + 12 + 4 * c + 4 * slotShift);
+        // a scalar element (hemisphere factor) has one slot; the others are not channels
+        if (target === 0x26 && c > 0) channels.push(undefined);
+        else if ((mask >> c) & 1) channels.push({ constant: readFloat(view, ep + 12 + 4 * c + 4 * slotShift) });
+        else if (slot > 0 && slot + 0x24 <= view.byteLength) channels.push(readAxisKeyFrameGroup(view, slot, true));
+        else channels.push(undefined);
+      }
+      elements.push({ target, channels });
+    }
+    out.push({ name: readCString(view, u32(view, p)), frameCount: readFloat(view, p + 8), elements });
+  }
+  return out;
+}
+
+/** A light parameter at `frame`: the element's channels sampled (linear between keys). `undefined` when the animation has no such element. */
+export function sampleBchLightElement(anim: BchLightAnimation, target: number, frame: number): number[] | undefined {
+  const el = anim.elements.find((e) => e.target === target);
+  if (!el) return undefined;
+  return el.channels.filter((c) => c !== undefined).map((c) => sampleCtrAxis(c, frame, 0));
+}
+
 function readLutSets(view: DataView, mainHeaderOffset: number): BchLutSet[] {
   const out: BchLutSet[] = [];
   const table = u32(view, mainHeaderOffset + 48);

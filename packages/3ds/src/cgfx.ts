@@ -219,7 +219,47 @@ export interface CgfxSkeletalAnimation {
   bones: CgfxAnimBoneTrack[];
 }
 
+/**
+ * One CGFX light (DATA dict 6; Awakening `bls/ls_*`). `kind` is the object magic: `CALT` ambient, `CFLT` directional, `CHLT` hemisphere
+ * (`CVLT` etc. are not in the 58 base light sets). Layout (confirmed over the 58 base files: float colours equal the packed byte
+ * colours, directions have unit length; docs/3ds-formats.md section 11.6): CALT `+0xb8` colour (f32 rgb), `+0xc8` the same as RGBA bytes;
+ * CFLT `+0x48` rotation (euler degrees), `+0xcc` / `+0xdc` / `+0xec` diffuse / specular 0 / specular 1 (f32 rgb), `+0x100` / `+0x104` / `+0x108`
+ * the same as RGBA bytes, `+0x10c` the direction the light travels; CHLT `+0xb8` ground, `+0xc8` sky (f32 rgb), `+0xd8` sky direction, `+0xe4` blend factor.
+ */
+export interface CgfxLight {
+  name: string;
+  kind: string;
+  /** CALT: [ambient]; CFLT: [diffuse, specular0, specular1]; CHLT: [ground, sky]; f32 rgb. */
+  colors: [number, number, number][];
+  /** The same colours as the packed RGBA byte words (CALT: 1, CFLT: 3, CHLT: none), each [r, g, b] in 0..1. */
+  byteColors: [number, number, number][];
+  /** CFLT: the direction (+0x10c); CHLT: the sky direction (+0xd8). */
+  direction?: [number, number, number];
+  /** CFLT: euler rotation in degrees (+0x48). */
+  rotation?: [number, number, number];
+  /** CHLT: blend factor (+0xe4). */
+  factor?: number;
+}
+
+function readCgfxLights(data: Uint8Array, dict: DictEntry[]): CgfxLight[] {
+  const out: CgfxLight[] = [];
+  const f3 = (o: number): [number, number, number] => [readFloat(data, o), readFloat(data, o + 4), readFloat(data, o + 8)];
+  const bytes = (o: number): [number, number, number] => [0, 1, 2].map((k) => (data[o + k] ?? 0) / 255) as [number, number, number];
+  for (const e of dict) {
+    const p = e.offset;
+    if (p <= 0 || p + 0x130 > data.length) continue;
+    const kind = String.fromCharCode(data[p + 4]!, data[p + 5]!, data[p + 6]!, data[p + 7]!);
+    if (kind === 'CALT') out.push({ name: e.name, kind, colors: [f3(p + 0xb8)], byteColors: [bytes(p + 0xc8)] });
+    else if (kind === 'CFLT')
+      out.push({ name: e.name, kind, colors: [f3(p + 0xcc), f3(p + 0xdc), f3(p + 0xec)], byteColors: [bytes(p + 0x100), bytes(p + 0x104), bytes(p + 0x108)], direction: f3(p + 0x10c), rotation: f3(p + 0x48) });
+    else if (kind === 'CHLT') out.push({ name: e.name, kind, colors: [f3(p + 0xb8), f3(p + 0xc8)], byteColors: [], direction: f3(p + 0xd8), factor: readFloat(data, p + 0xe4) });
+  }
+  return out;
+}
+
 export interface Cgfx {
+  /** Scene lights (DATA dict 6): the Awakening light sets `bls/ls_*`. */
+  lights: CgfxLight[];
   models: CgfxModel[];
   textures: CgfxTexture[];
   skeletalAnimations: CgfxSkeletalAnimation[];
@@ -1401,7 +1441,7 @@ export function parseCgfx(data: Uint8Array): Cgfx {
   readDictRef(data, dataStart + 24); // materials (global, unused)
   readDictRef(data, dataStart + 32); // shaders
   readDictRef(data, dataStart + 40); // cameras
-  readDictRef(data, dataStart + 48); // lights
+  const lightDict = readDictRef(data, dataStart + 48); // lights
   readDictRef(data, dataStart + 56); // fogs
   readDictRef(data, dataStart + 64); // scenes
 
@@ -1438,5 +1478,5 @@ export function parseCgfx(data: Uint8Array): Cgfx {
 
   const skeletalAnimations = readCgfxSkeletalAnimations(data, dataStart);
   const { cameras, cameraAnimations } = parseCgfxCameras(data);
-  return { models: modelList, textures: cgfxTextures, skeletalAnimations, cameras, cameraAnimations, lutSets: readLutSets(data, readDictRef(data, dataStart + 16)) };
+  return { lights: readCgfxLights(data, lightDict), models: modelList, textures: cgfxTextures, skeletalAnimations, cameras, cameraAnimations, lutSets: readLutSets(data, readDictRef(data, dataStart + 16)) };
 }
