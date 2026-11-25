@@ -52,9 +52,10 @@ import {
   type TevStage,
 } from './pica.js';
 import { parseShbin, type Shbin } from './shbin.js';
-import { toModelSpace } from './skin.js';
+import { isSmoothSkinning, toModelSpace } from './skin.js';
 import { ctrTextureByteSize } from './ctr-texture.js';
 import {
+  matApply,
   matIdentity,
   matMul,
   matRotX,
@@ -84,6 +85,8 @@ export interface BchMesh {
   faces: BchFace[];
   materialId: number;
   vertexColors?: [number, number, number, number][];
+  /** Unit vertex normals (attribute 1 times `irScale.normal`, in the same space as `vertices`: rigid vertices are rotated by their bone's world matrix), when the shape has one. */
+  normals?: [number, number, number][];
   uvs?: [number, number][];
   /** Second texture-coordinate set (attribute 5), present on Fates head meshes whose material also binds an eye map. */
   uvs1?: [number, number][];
@@ -236,6 +239,7 @@ const TEX_UNIT0_TYPE = 0x8e;
  */
 export const BCH_POSITION_UNITS = 256;
 const ATTRIBUTE_POSITION = 0;
+const ATTRIBUTE_NORMAL = 1;
 const ATTRIBUTE_COLOR = 3;
 const ATTRIBUTE_UV = 4;
 const ATTRIBUTE_UV1 = 5;
@@ -1121,15 +1125,18 @@ function readMesh(
   const formats = commands.formats();
   let hasUvAttr = false;
   let hasUv1Attr = false;
+  let hasNormalAttr = false;
   for (let a = 0; a < totalAttributes; a++) {
     if (mainPermutation[bufferPermutation[a] ?? 0] === ATTRIBUTE_UV) hasUvAttr = true;
     if (mainPermutation[bufferPermutation[a] ?? 0] === ATTRIBUTE_UV1) hasUv1Attr = true;
+    if (mainPermutation[bufferPermutation[a] ?? 0] === ATTRIBUTE_NORMAL) hasNormalAttr = true;
   }
 
   const vertices: [number, number, number][] = [];
   const vertexColors: [number, number, number, number][] = [];
   const uvs: [number, number][] = [];
   const uvs1: [number, number][] = [];
+  const normals: [number, number, number][] = [];
   const boneIndices: number[] = [];
   const skinModes: number[] = [];
   const faces: BchFace[] = [];
@@ -1172,6 +1179,7 @@ function readMesh(
       let color: [number, number, number, number] = [1, 1, 1, 1];
       let uv: [number, number] = [0, 0];
       let uv1: [number, number] | null = null;
+      let normal: [number, number, number] = [0, 1, 0];
       let boneIndex = -1;
       let hasVertexColor = false;
       let voff = vBase;
@@ -1183,6 +1191,8 @@ function readMesh(
         voff += (format.length + 1) * (type === 2 ? 2 : type === 3 ? 4 : 1);
         if (att === ATTRIBUTE_POSITION) {
           pos = [vec[0]!, vec[1]!, vec[2]!]; // raw int16; scaled below once the mesh's range is known
+        } else if (att === ATTRIBUTE_NORMAL) {
+          normal = [vec[0]! * irScale.normal, vec[1]! * irScale.normal, vec[2]! * irScale.normal];
         } else if (att === ATTRIBUTE_COLOR) {
           hasVertexColor = true;
           color = [
@@ -1220,6 +1230,7 @@ function readMesh(
       if (hasVertexColor) vertexColors.push(color);
       if (hasUvAttr) uvs.push(uv);
       if (hasUv1Attr) uvs1.push(uv1 ?? [0, 0]);
+      if (hasNormalAttr) normals.push(normal);
     }
 
     for (let i = 0; i + 2 < vertices.length - base; i += 3) {
@@ -1247,6 +1258,16 @@ function readMesh(
     const bone = boneIndices[i]!;
     if (bone >= 0) pos = toModelSpace(pos, skeletonTransforms[bone]!, 'bch', skinModes[i]!);
     vertices[i] = pos;
+    if (hasNormalAttr) {
+      let n = normals[i]!;
+      if (bone >= 0 && !isSmoothSkinning('bch', skinModes[i]!)) {
+        const o = matApply(skeletonTransforms[bone]!, [0, 0, 0]);
+        const r = matApply(skeletonTransforms[bone]!, n);
+        n = [r[0] - o[0], r[1] - o[1], r[2] - o[2]];
+      }
+      const len = Math.hypot(n[0], n[1], n[2]) || 1;
+      normals[i] = [n[0] / len, n[1] / len, n[2] / len];
+    }
   }
 
   const hasSkinning = boneIndices.some((b) => b >= 0);
@@ -1265,6 +1286,7 @@ function readMesh(
     materialId: 0,
     ...(uvs.length > 0 ? { uvs } : {}),
     ...(uvs1.length > 0 ? { uvs1 } : {}),
+    ...(normals.length > 0 ? { normals } : {}),
     ...(vertexColors.length > 0 ? { vertexColors } : {}),
     ...(hasSkinning ? { boneIndices } : {}),
   };

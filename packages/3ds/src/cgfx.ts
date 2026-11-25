@@ -38,8 +38,9 @@ import {
   type LightingLut,
   type TevStage,
 } from './pica.js';
-import { toModelSpace } from './skin.js';
+import { isSmoothSkinning, toModelSpace } from './skin.js';
 import {
+  matApply,
   matMul,
   matRotX,
   matRotY,
@@ -149,6 +150,8 @@ export interface CgfxMesh {
   materialId: number;
   /** Per-vertex RGBA colors (0..1) when the shape has a color attribute. */
   vertexColors?: [number, number, number, number][];
+  /** Unit vertex normals (attribute 1 times its format scale; rigid vertices rotated by their bone's world matrix), when the shape has one. */
+  normals?: [number, number, number][];
   /** Per-vertex UV texture coordinates when the shape has a UV attribute. */
   uvs?: [number, number][];
   /** Rigid (single-influence) skinning bone per vertex, -1 if unskinned. Parallel to `vertices`. */
@@ -338,6 +341,7 @@ function readSkeleton(data: Uint8Array, skeletonOffset: number): CgfxBone[] {
 interface ShapeGeometry {
   vertices: [number, number, number][];
   vertexColors: [number, number, number, number][];
+  normals: [number, number, number][];
   uvs: [number, number][];
   faces: CgfxFace[];
   boneIndices?: number[];
@@ -678,8 +682,10 @@ function readShapeGeometry(
 
   const hasColor = formats.some((f) => f.attribute === 3);
   const hasUv = formats.some((f) => f.attribute === 4);
+  const hasNormal = formats.some((f) => f.attribute === 1);
   const vertices: [number, number, number][] = [];
   const vertexColors: [number, number, number, number][] = [];
+  const normals: [number, number, number][] = [];
   const uvs: [number, number][] = [];
   const boneIndices: number[] = [];
   const faces: CgfxFace[] = [];
@@ -744,6 +750,7 @@ function readShapeGeometry(
         vertices.push([0, 0, 0]);
         boneIndices.push(-1);
         if (hasColor) vertexColors.push([1, 1, 1, 1]);
+        if (hasNormal) normals.push([0, 1, 0]);
         if (hasUv) uvs.push([0, 0]);
         continue;
       }
@@ -751,6 +758,7 @@ function readShapeGeometry(
       let pos: [number, number, number] = [0, 0, 0];
       let color: [number, number, number, number] = [1, 1, 1, 1];
       let uv: [number, number] = [0, 0];
+      let normal: [number, number, number] = [0, 1, 0];
       let boneIndex = -1;
       for (const f of formats) {
         const val = readVector(data, vBase + f.offset, f);
@@ -760,6 +768,8 @@ function readShapeGeometry(
             val[1]! * f.scale + shape.positionOffset[1],
             val[2]! * f.scale + shape.positionOffset[2],
           ];
+        } else if (f.attribute === 1) {
+          normal = [val[0]! * f.scale, val[1]! * f.scale, val[2]! * f.scale];
         } else if (f.attribute === 3 && hasColor) {
           color = [
             clamp01(val[0]! * f.scale),
@@ -785,6 +795,11 @@ function readShapeGeometry(
       let bone = boneIndex >= 0 ? boneIndex : nodeList.length > 0 ? nodeList[0]! : -1;
       if (bone >= 0 && bone < skeletonTransforms.length) {
         pos = toModelSpace(pos, skeletonTransforms[bone]!, 'cgfx', skinningMode);
+        if (!isSmoothSkinning('cgfx', skinningMode)) {
+          const o = matApply(skeletonTransforms[bone]!, [0, 0, 0]);
+          const r = matApply(skeletonTransforms[bone]!, normal);
+          normal = [r[0] - o[0], r[1] - o[1], r[2] - o[2]];
+        }
       } else {
         bone = -1;
       }
@@ -796,6 +811,10 @@ function readShapeGeometry(
       vertices.push(pos);
       boneIndices.push(bone);
       if (hasColor) vertexColors.push(color);
+      if (hasNormal) {
+        const len = Math.hypot(normal[0], normal[1], normal[2]) || 1;
+        normals.push([normal[0] / len, normal[1] / len, normal[2] / len]);
+      }
       if (hasUv) uvs.push(uv);
     }
 
@@ -805,7 +824,7 @@ function readShapeGeometry(
   }
 
   const hasSkinning = boneIndices.some((b) => b >= 0);
-  return { vertices, vertexColors, uvs, faces, ...(hasSkinning ? { boneIndices } : {}) };
+  return { vertices, vertexColors, normals, uvs, faces, ...(hasSkinning ? { boneIndices } : {}) };
 }
 
 function readVector(
@@ -1403,6 +1422,7 @@ export function parseCgfx(data: Uint8Array): Cgfx {
         faces: geo.faces,
         materialId: model.shapeMaterialIds[s] ?? 0,
         ...(geo.vertexColors.length > 0 ? { vertexColors: geo.vertexColors } : {}),
+        ...(geo.normals.length > 0 ? { normals: geo.normals } : {}),
         ...(geo.uvs.length > 0 ? { uvs: geo.uvs } : {}),
         ...(geo.boneIndices ? { boneIndices: geo.boneIndices } : {}),
       });
