@@ -20,3 +20,5 @@ export * from './skin.js';
 export * from './ctr-anim.js';
 export * from './bch.js';
 export * from './cgfx.js';
+export * from './pica.js';
+export * from './shbin.js';

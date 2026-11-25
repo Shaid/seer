@@ -28,6 +28,16 @@ import {
   type CtrSampledJointAnimation,
 } from './ctr-anim.js';
 import { u32At, u16At } from './le.js';
+import {
+  PICA_TEV_STAGE_BASE,
+  PicaRegisterFile,
+  decodeAlphaTest,
+  decodeTevStage,
+  decodeLightingLutWords,
+  readPicaWrites,
+  type LightingLut,
+  type TevStage,
+} from './pica.js';
 import { toModelSpace } from './skin.js';
 import {
   matMul,
@@ -145,12 +155,40 @@ export interface CgfxMesh {
   boneIndices?: number[];
 }
 
+/**
+ * Fragment-pipeline state of one CGFX material (MTOB), docs/3ds-formats.md "Material shading (all three titles)". The six TEV stages
+ * are a run of 0x1C-byte records (a PICA write block of registers 0xC0.. + 1 pad word each) found after the texture mappers; the PICA
+ * writes that follow them carry the alpha test (0x104), the buffer colour (0xFD), the buffer update flags (0xE0) and lighting
+ * config 0 (0x1C3). The two lighting LUT references that follow name a LUT set and a table (`Qz_LookUpTableSet`, `Spec_Bronze`).
+ */
+export interface CgfxMaterialShading {
+  /** Shader object name (`DefaultShader`). */
+  shaderName: string;
+  tev: TevStage[];
+  /** Alpha test (reg 0x104) and the other tail writes by register (0xFD buffer colour, 0xE0 update flags, 0x1C3 lighting config 0). */
+  alphaTest: { enabled: boolean; func: string; ref: number };
+  tailRegisters: [number, number][];
+  /** Texture mapper names (up to 3; `envmap` is the SDK's built-in reflection map, the others name `.t` colour variants). */
+  mapperNames: string[];
+  /** Packed colours at +0xD4: emission, ambient, diffuse, specular0, specular1, constant0-5 (r, g, b, a 0-255). */
+  colors: [number, number, number, number][];
+  /** The two lighting LUT references: set name, table name and the three words after the name (`[?, input, scale]` for the first, hypothesis). */
+  lutRefs: { setName: string; tableName: string; words: number[] }[];
+}
+
 export interface CgfxMaterial {
   name: string;
   /** RGBA diffuse color, floats 0..1. */
   diffuse: [number, number, number, number];
   /** Name of texture-mapper-0's texture (the primary/diffuse map), if any — cross-references `Cgfx.textures[].name`. */
   textureName?: string;
+  shading?: CgfxMaterialShading;
+}
+
+/** A material-private LUT set (`<model>.MaterialLutset`): named 256-entry tables (`Specular`). */
+export interface CgfxLutSet {
+  name: string;
+  luts: { name: string; lut: LightingLut }[];
 }
 
 export interface CgfxModel {
@@ -186,6 +224,8 @@ export interface Cgfx {
   cameras: CgfxCamera[];
   /** CANM camera animations (DATA dict 12). */
   cameraAnimations: CgfxCameraAnimation[];
+  /** LUTS lookup-table sets (DATA dict 2); most unit models name the shared `Qz_LookUpTableSet` instead, which no file defines. */
+  lutSets: CgfxLutSet[];
 }
 
 const PRIMITIVE_TRIANGLES = 4;
@@ -301,6 +341,103 @@ interface ShapeGeometry {
   uvs: [number, number][];
   faces: CgfxFace[];
   boneIndices?: number[];
+}
+
+const rgba8c = (v: number): [number, number, number, number] => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+
+/**
+ * Finds a material's TEV block: six consecutive 0x1C-byte records whose headers are `0x804F0000 | register` for registers C0, C8, D0,
+ * D8, F0, F8, within 0x300-0x900 bytes of the MTOB start (verified on 694 of 694 Awakening materials; a random offset never matches).
+ * Returns the offset of the first record's data word, or -1.
+ */
+export function findCgfxTevBlock(data: Uint8Array, mtob: number): number {
+  for (let o = mtob + 0x300; o < Math.min(mtob + 0x900, data.length - 0x100); o += 4) {
+    if (u32At(data, o + 4) !== 0x804f00c0) continue;
+    if (PICA_TEV_STAGE_BASE.every((reg, i) => u32At(data, o + 4 + 0x1c * i) === ((0x804f0000 | reg) >>> 0))) return o;
+  }
+  return -1;
+}
+
+/** Reads the shading state of the MTOB at `mtob`; null when no TEV block is found. */
+function readMtobShading(data: Uint8Array, mtob: number): CgfxMaterialShading | null {
+  const tev = findCgfxTevBlock(data, mtob);
+  if (tev < 0) return null;
+  const regs = new PicaRegisterFile();
+  for (let i = 0; i < 6; i++) {
+    const b = tev + 0x1c * i;
+    regs.apply(readPicaWrites([u32At(data, b), u32At(data, b + 4), u32At(data, b + 8), u32At(data, b + 12), u32At(data, b + 16), u32At(data, b + 20)]));
+  }
+  const get = (r: number) => regs.get(r);
+  // The tail: PICA write blocks until a word that is not a plausible header.
+  const tail = new PicaRegisterFile();
+  let p = tev + 0x1c * 6 - 4;
+  for (let k = 0; k < 8 && p + 8 <= data.length; k++) {
+    const header = u32At(data, p + 4);
+    const reg = header & 0xffff;
+    const extra = (header >>> 20) & 0x7ff;
+    if (reg === 0 || reg > 0x3ff || extra > 0x20) break;
+    const words = [u32At(data, p)];
+    for (let j = 0; j < extra; j++) words.push(u32At(data, p + 8 + 4 * j));
+    tail.apply(readPicaWrites([words[0]!, header, ...words.slice(1)]));
+    p += 8 + 4 * extra + (extra % 2 === 1 ? 4 : 0);
+  }
+  // LUT references: `[4, 0x40000000, set ptr, name ptr, 0, a, b]` records after the tail.
+  const lutRefs: CgfxMaterialShading['lutRefs'] = [];
+  for (let o = tev + 0x1c * 6; o < tev + 0x1c * 6 + 0xa0 && lutRefs.length < 2; o += 4) {
+    if (u32At(data, o) === 4 && u32At(data, o + 4) === 0x40000000) {
+      const setPtr = relOffset(data, o + 8);
+      const namePtr = relOffset(data, o + 12);
+      if (setPtr && namePtr) lutRefs.push({ setName: readCString(data, setPtr), tableName: readCString(data, namePtr), words: [u32At(data, o + 16), u32At(data, o + 20), u32At(data, o + 24)] });
+    }
+  }
+  const shdr = relOffset(data, mtob + 0x284);
+  const shaderName = shdr ? readCString(data, relOffset(data, shdr + 0x18) || shdr) : '';
+  const mapperNames: string[] = [];
+  for (let mi = 0; mi < 3; mi++) {
+    const mapper = relOffset(data, mtob + 0x274 + mi * 4);
+    const header = mapper ? relOffset(data, mapper + 8) : 0;
+    const nameOff = header ? relOffset(data, header + 0x18) : 0;
+    mapperNames.push(nameOff ? readCString(data, nameOff) : '');
+  }
+  const colors: [number, number, number, number][] = [];
+  for (let i = 0; i < 11; i++) colors.push(rgba8c(u32At(data, mtob + 0xd4 + 4 * i)));
+  return {
+    shaderName,
+    tev: [0, 1, 2, 3, 4, 5].map((i) => decodeTevStage(get, i)),
+    alphaTest: decodeAlphaTest(tail.get(0x104)),
+    tailRegisters: tail.entries(),
+    mapperNames,
+    colors,
+    lutRefs,
+  };
+}
+
+/** LUTS objects: `[flags][magic][..][name ptr] ... [sampler DICT at +0x18/+0x1c]`; a sampler holds its table as PICA writes to port 0x1C8 (two blocks of 128 words) from +0x14. */
+function readLutSets(data: Uint8Array, entries: DictEntry[]): CgfxLutSet[] {
+  const out: CgfxLutSet[] = [];
+  for (const e of entries) {
+    const luts: CgfxLutSet['luts'] = [];
+    try {
+      const dict = readDictRef(data, e.offset + 0x18);
+      for (const s of dict) {
+        const words: number[] = [];
+        let p = s.offset + 0x14;
+        while (words.length < 256 && p + 8 <= data.length) {
+          const header = u32At(data, p + 4);
+          if ((header & 0xffff) !== 0x1c8) break;
+          const extra = (header >>> 20) & 0x7ff;
+          words.push(u32At(data, p));
+          for (let j = 0; j < extra; j++) words.push(u32At(data, p + 8 + 4 * j));
+          p += 8 + 4 * extra + (extra % 2 === 1 ? 4 : 0);
+        }
+        if (words.length >= 256) luts.push({ name: s.name, lut: decodeLightingLutWords(words) });
+      }
+    } catch {
+      /* not a LUTS object */
+    }
+    out.push({ name: e.name, luts });
+  }
+  return out;
 }
 
 function readModel(
@@ -423,7 +560,8 @@ function readModel(
       }
     }
     if (!textureName) textureName = firstResolvedName;
-    materials.push({ name: matName, diffuse, ...(textureName ? { textureName } : {}) });
+    const shading = readMtobShading(data, m.offset);
+    materials.push({ name: matName, diffuse, ...(textureName ? { textureName } : {}), ...(shading ? { shading } : {}) });
   }
 
   // Shapes (geometry headers)
@@ -1280,5 +1418,5 @@ export function parseCgfx(data: Uint8Array): Cgfx {
 
   const skeletalAnimations = readCgfxSkeletalAnimations(data, dataStart);
   const { cameras, cameraAnimations } = parseCgfxCameras(data);
-  return { models: modelList, textures: cgfxTextures, skeletalAnimations, cameras, cameraAnimations };
+  return { models: modelList, textures: cgfxTextures, skeletalAnimations, cameras, cameraAnimations, lutSets: readLutSets(data, readDictRef(data, dataStart + 16)) };
 }

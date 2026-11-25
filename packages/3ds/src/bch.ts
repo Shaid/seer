@@ -36,6 +36,22 @@ import {
   type CtrSampledJointAnimation,
 } from './ctr-anim.js';
 import { u16At } from './le.js';
+import {
+  PicaRegisterFile,
+  decodeAlphaTest,
+  decodeBlendFunc,
+  decodeLightPermutation,
+  decodeLightingLutInputs,
+  decodeTevStage,
+  lightingLutFromCommands,
+  readPicaWrites,
+  type LightingLut,
+  type LightingLutInput,
+  type LightingLutSlot,
+  type PicaBlend,
+  type TevStage,
+} from './pica.js';
+import { parseShbin, type Shbin } from './shbin.js';
 import { toModelSpace } from './skin.js';
 import { ctrTextureByteSize } from './ctr-texture.js';
 import {
@@ -73,6 +89,24 @@ export interface BchMesh {
   uvs1?: [number, number][];
   /** Rigid (single-influence) skinning bone per vertex, -1 if unskinned. Parallel to `vertices`. */
   boneIndices?: number[];
+  /**
+   * The vertex shader's per-mesh constants (`IrScale` = c7, c8 and `PosOffs` = c6 of the game's DefaultShader), read from the mesh's
+   * command buffer. The shader computes `position = aPosition * irScale.position + posOffs`, `normal = aNormal * irScale.normal`,
+   * `colour = aColor * irScale.color`, `uv0 = aTexCoord0 * irScale.tex0` (then the texture matrix), and the smooth-skin weight
+   * `aBoneWeight * irScale.boneWeight` (docs/3ds-formats.md, "Material shading").
+   */
+  irScale?: {
+    position: number;
+    normal: number;
+    tangent: number;
+    color: number;
+    tex0: number;
+    tex1: number;
+    tex2: number;
+    boneWeight: number;
+  };
+  /** Position attribute type (0 int8, 1 uint8, 2 int16, 3 float32), the largest raw position component, the object's bounding-box size. */
+  positionInfo?: { positionFormat: number; rawMax: number; boxSize: number | null; scale: number };
 }
 
 export interface BchBone {
@@ -84,6 +118,53 @@ export interface BchBone {
   translation: [number, number, number];
 }
 
+/**
+ * Fragment-pipeline state of one BCH material (docs/3ds-formats.md, "Material shading (all three titles)"). Read from the 0x140-byte
+ * parameter block a material entry points at (+0x00) and the 0x84-word command buffer it points at (+0xC8): six TEV stages,
+ * lighting LUT inputs, alpha test, blend, the vertex-shader constants the material uploads, the LUT names.
+ */
+export interface BchMaterialShading {
+  /** The material's own name (`body_mat`, `skin_mat`, `MtBody`); `BchModel.materials[i].name` is a placeholder (`material<i>`). */
+  materialName: string;
+  /** `0@DefaultShader-hs`, `1@StealthShader`... : variant digit, program, suffix (-hs hemisphere light, -nl no vertex lights, -rs/-ss reflection / sphere map, -u2/-s2 second UV set). */
+  shaderName: string;
+  /** TEV stages 0-5. */
+  tev: TevStage[];
+  /** TEV buffer: initial colour (register 0xFD), update flags (register 0xE0). */
+  tevBufferColor: [number, number, number, number];
+  tevBufferUpdate: number;
+  /** Packed colours at +0x58: emission, ambient, diffuse, specular0, specular1, constant0-5 (r, g, b, a 0-255). */
+  colors: [number, number, number, number][];
+  /** Lighting LUT slot configuration (registers 0x1D0-0x1D2). */
+  lutInputs: Record<LightingLutSlot, LightingLutInput>;
+  /** Table names of the six material LUT slots (+0xEC..+0x100): D0, D1, then (hypothesis for the rest) FR, RR, RG, RB; '' = unused. */
+  lutNames: string[];
+  /** LUT set (a `Bch.lutSets` entry) each slot reads from (+0xD4..+0xE8); '' = unused. */
+  lutSetNames: string[];
+  /** Light slots enabled (register permutation at +0xC0, nibbles). */
+  lightPermutation: number[];
+  /** The word at +0xA4 (2 in 343 of 347 sampled materials; `0x01010002` on the rest): lighting flags, meaning not decoded. */
+  lightingFlags: number;
+  /** `TexcMap` (vertex-shader constant c10) x, y, z: the UV set (0-2) each of the three texture units reads. */
+  texCoordSources: [number, number, number];
+  alphaTest: { enabled: boolean; func: string; ref: number };
+  /** Blend function (register 0x101) and constant colour (0x103). */
+  blend: PicaBlend;
+  blendColor: [number, number, number, number];
+  /** Register 0x40 (face culling: 0 none, 1 front, 2 back as stored by the SDK). */
+  cullMode: number;
+  /** Every register of the command buffer except the vertex-shader uniform ports, `[register, value]`. */
+  registers: [number, number][];
+  /** Vertex-shader float uniforms the material uploads, by constant register: `c10` TexcMap, `c11`-`c18` texture matrices, `c19` TexTran, `c20` MatAmbi, `c21` MatDiff. Each vec4 as stored (w, z, y, x). */
+  vsUniforms: Record<number, number[]>;
+}
+
+/** One lighting LUT set (a BCH `Iron15_LUT` file: 18 named 256-entry tables). */
+export interface BchLutSet {
+  name: string;
+  luts: { name: string; lut: LightingLut }[];
+}
+
 export interface BchModel {
   name: string;
   /**
@@ -92,7 +173,7 @@ export interface BchModel {
    * docs/3ds-formats.md §7 (lucina). Names match `Bch.textures[].name` of the
    * model's own file or its `_t` / `_cl0n_*` companion.
    */
-  materials: { name: string; diffuse: [number, number, number, number]; textureNames: string[] }[];
+  materials: { name: string; diffuse: [number, number, number, number]; textureNames: string[]; shading?: BchMaterialShading }[];
   meshes: BchMesh[];
   bones: BchBone[];
   /** Accumulated (bone-to-model-space) bind matrices, one 16-element row-major Mat4 per bone, parallel to `bones`. */
@@ -120,6 +201,10 @@ export interface Bch {
   models: BchModel[];
   textures: BchTexture[];
   skeletalAnimations: BchSkeletalAnimation[];
+  /** Lighting LUT sets (`common/Iron15_LUT.bch`). */
+  lutSets: BchLutSet[];
+  /** Shader programs (`common/SharedData.bch`: the DefaultShader variants and the SilhouetteShader); one entry per shader name, sharing the parsed DVLB where names share a binary. */
+  shaders: { name: string; shbin: Shbin }[];
 }
 
 // PICA200 register ids (see Ohana3DS PICACommand.cs)
@@ -144,15 +229,10 @@ const TEX_UNIT0_TYPE = 0x8e;
  * Divisor taking `int16 position x uniform-7 position scale` to the skeleton's units. The vertex shader constants c7/c8
  * (`getFloatUniform(7)`, 8 floats, each vec4 stored w,z,y,x) hold the scales of position, normal, tangent, colour | tex0,
  * tex1, tex2, bone weight, so the position scale is array index 3 (the normal's is index 2 = 1/127, which pins the order).
- * Measured on Fates bodies (`bu/uBody_*`, smooth-skinned, so no bone matrix is involved): with the offset above, 256 puts
- * the lowest vertex at y = -0.017 and the highest at 12.82 against a head bone at 12.58 (`uBody_F_arch_0`).
- *
- * The shorts are normalised per mesh (the widest axis spans the full int16 range in 99% of 2,173 meshes), so the real
- * scale is `halfSize / 32767`, and the object's oriented bounding box (+0x34 of the object entry: centre, 3x3 axes,
- * size) gives `halfSize`. In 78% of meshes `uniform7[3] / 256` agrees with the box within 5%; in most of the rest it is
- * off by exactly a power of 256 (x256 too large for 154 meshes, x1/256 for 37). `BCH_POSITION_UNITS` is the base divisor;
- * `readMesh` multiplies it by the power of 256 that brings the scale closest to the box, and uses the box scale itself where
- * no power of 256 fits (Echoes). Echoes bodies: 110 of 114 correct, the exact formula is open (lucina docs/3ds-formats.md 11.5).
+ * Settled (lucina docs/3ds-formats.md, Material shading): the position scale is the vertex shader constant c7.x (`IrScale`,
+ * `uniform7[3]`), applied to the raw attribute and followed by `+ c6` (`PosOffs`); the earlier "x256 / power of 256 / box"
+ * rules compensated for a register-merge bug in the command reader (rewrites of a register were OR-merged instead of
+ * honouring the byte-enable mask). Kept only as a legacy export; `readMesh` no longer uses it.
  */
 export const BCH_POSITION_UNITS = 256;
 const ATTRIBUTE_POSITION = 0;
@@ -235,7 +315,7 @@ class PicaCommandReader {
         read++;
         this.writeCommand(nextId, mask, next);
         if (nextId > VSH_FLOAT_UNIFORM_CONFIG && nextId < VSH_FLOAT_UNIFORM_DATA + 8) {
-          this.currentUniforms.push(f32(this.commands[nextId]!));
+          this.currentUniforms.push(f32(next));
         }
       }
 
@@ -249,9 +329,18 @@ class PicaCommandReader {
     }
   }
 
+  /**
+   * PICA command writes carry a 4-bit byte-enable mask (bit i = byte i is written). The first version of this reader treated the
+   * mask as a bit mask and OR-ed the previous register value into every rewrite, so a register written twice (the float uniform
+   * data port 0x2c1, once per uniform) came out as the OR of all its earlier values: `IrScale.x` read 256x too large because
+   * an earlier write's exponent bits were merged in (docs/3ds-formats.md, "Material shading", the BCH position-scale answer).
+   */
   private writeCommand(id: number, mask: number, parameter: number): void {
-    const prev = this.commands[id]!;
-    this.commands[id] = (prev & ~mask) | (parameter & (0xfffffff0 | mask));
+    let value = this.commands[id]!;
+    for (let b = 0; b < 4; b++) {
+      if ((mask >> b) & 1) value = (value & ~(0xff << (8 * b))) | (parameter & (0xff << (8 * b)));
+    }
+    this.commands[id] = value >>> 0;
   }
 
   parameter(id: number): number {
@@ -419,7 +508,7 @@ export function parseBch(data: Uint8Array): Bch {
   const textures = readTextures(rv, mainHeaderOffset);
   const models = readModels(rv, mainHeaderOffset, stringTableOffset);
   const skeletalAnimations = readSkeletalAnimations(rv, mainHeaderOffset);
-  return { models, textures, skeletalAnimations };
+  return { models, textures, skeletalAnimations, lutSets: readLutSets(rv, mainHeaderOffset), shaders: readShaders(rv, mainHeaderOffset) };
 }
 
 /**
@@ -780,7 +869,8 @@ function readModel(view: DataView, base: number, stringTableOffset: number): Bch
       const abs = raw >= stringTableOffset ? raw : raw + stringTableOffset;
       textureNames.push(raw !== 0 && abs < view.byteLength ? readCString(view, abs) : '');
     }
-    materials.push({ name: `material${i}`, diffuse: [0.8, 0.8, 0.8, 1], textureNames });
+    const shading = readMaterialShading(view, mo, stringTableOffset);
+    materials.push({ name: `material${i}`, diffuse: [0.8, 0.8, 0.8, 1], textureNames, ...(shading ? { shading } : {}) });
   }
 
   // Objects (meshes). Each entry is 0x38 bytes at bc >= 0x21 (Fates/Echoes
@@ -837,6 +927,123 @@ function readModel(view: DataView, base: number, stringTableOffset: number): Bch
   return { name: modelName, materials, meshes, bones: boneList, bindMatrices };
 }
 
+function bchString(view: DataView, raw: number, stringTableOffset: number): string {
+  if (raw === 0) return '';
+  const abs = raw >= stringTableOffset ? raw : raw + stringTableOffset;
+  return abs < view.byteLength ? readCString(view, abs) : '';
+}
+
+const rgba8 = (v: number): [number, number, number, number] => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+
+/**
+ * The fragment state of the material entry at `mo` (0x2c bytes): +0x00 points at the 0x140-byte parameter block, which holds the
+ * colours (+0x58), the lighting words (+0xA4 flags, +0xA8 abs, +0xB0 select, +0xB8 scale, +0xC0 light permutation), the fragment command
+ * buffer (+0xC8 offset, +0xCC word count), the LUT set / table name pointers (+0xD4.., +0xEC..) and the shader name (+0x104).
+ * Returns null when the block or the buffer is out of range.
+ */
+function readMaterialShading(view: DataView, mo: number, stringTableOffset: number): BchMaterialShading | null {
+  if (mo + 0x2c > view.byteLength) return null;
+  const p = u32(view, mo);
+  if (p === 0 || p + 0x140 > view.byteLength) return null;
+  const bufOffset = u32(view, p + 0xc8);
+  const bufWords = u32(view, p + 0xcc);
+  if (bufWords === 0 || bufWords > 0x400 || bufOffset + bufWords * 4 > view.byteLength) return null;
+  const words: number[] = [];
+  for (let i = 0; i < bufWords; i++) words.push(u32(view, bufOffset + 4 * i));
+  const writes = readPicaWrites(words);
+  const regs = new PicaRegisterFile().apply(writes.filter((w) => w.reg < 0x2c0 || w.reg > 0x2c8));
+  const vsUniforms: Record<number, number[]> = {};
+  let current = -1;
+  for (const w of writes) {
+    if (w.reg === 0x2c0) current = w.value & 0x7f;
+    else if (w.reg >= 0x2c1 && w.reg <= 0x2c8 && current >= 0) (vsUniforms[current] ??= []).push(f32(w.value));
+  }
+  const tc = vsUniforms[10] ?? [];
+  const colors: [number, number, number, number][] = [];
+  for (let i = 0; i < 11; i++) colors.push(rgba8(u32(view, p + 0x58 + 4 * i)));
+  const lutNames: string[] = [];
+  const lutSetNames: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    lutNames.push(bchString(view, u32(view, p + 0xec + 4 * i), stringTableOffset));
+    lutSetNames.push(bchString(view, u32(view, p + 0xd4 + 4 * i), stringTableOffset));
+  }
+  return {
+    materialName: bchString(view, u32(view, mo + 0x28), stringTableOffset),
+    shaderName: bchString(view, u32(view, p + 0x104), stringTableOffset),
+    tev: [0, 1, 2, 3, 4, 5].map((i) => decodeTevStage((r) => regs.get(r), i)),
+    tevBufferColor: rgba8(regs.get(0xfd)),
+    tevBufferUpdate: regs.get(0xe0),
+    colors,
+    lutInputs: decodeLightingLutInputs(u32(view, p + 0xa8), u32(view, p + 0xb0), u32(view, p + 0xb8)),
+    lutNames,
+    lutSetNames,
+    lightPermutation: decodeLightPermutation(u32(view, p + 0xc0), 5),
+    lightingFlags: u32(view, p + 0xa4),
+    texCoordSources: [tc[3] ?? 0, tc[2] ?? 0, tc[1] ?? 0],
+    alphaTest: decodeAlphaTest(regs.get(0x104)),
+    blend: decodeBlendFunc(regs.get(0x101)),
+    blendColor: rgba8(regs.get(0x103)),
+    cullMode: regs.get(0x40),
+    registers: regs.entries(),
+    vsUniforms,
+  };
+}
+
+/** The LUT sets of the content header (triple at +48): per set 18-odd named tables, each a command buffer of 256 writes to port 0x1C8. */
+function readLutSets(view: DataView, mainHeaderOffset: number): BchLutSet[] {
+  const out: BchLutSet[] = [];
+  const table = u32(view, mainHeaderOffset + 48);
+  const count = Math.min(u32(view, mainHeaderOffset + 52), 64);
+  if (count === 0 || table + count * 4 > view.byteLength) return out;
+  for (let i = 0; i < count; i++) {
+    const set = u32(view, table + 4 * i);
+    if (set + 12 > view.byteLength) continue;
+    const samplers = u32(view, set);
+    const n = Math.min(u32(view, set + 4), 256);
+    const name = readCString(view, u32(view, set + 8));
+    const luts: BchLutSet['luts'] = [];
+    for (let k = 0; k < n; k++) {
+      const o = samplers + 16 * k;
+      if (o + 16 > view.byteLength) break;
+      const cmd = u32(view, o + 4);
+      const wc = u32(view, o + 8);
+      if (cmd + wc * 4 > view.byteLength) continue;
+      const words: number[] = [];
+      for (let w = 0; w < wc; w++) words.push(u32(view, cmd + 4 * w));
+      const lut = lightingLutFromCommands(words);
+      if (lut) luts.push({ name: readCString(view, u32(view, o + 12)), lut });
+    }
+    out.push({ name, luts });
+  }
+  return out;
+}
+
+/** The shader table (content header triple at +24): entries of `[DVLB offset][size] ... [name at +0x28]`. */
+function readShaders(view: DataView, mainHeaderOffset: number): { name: string; shbin: Shbin }[] {
+  const out: { name: string; shbin: Shbin }[] = [];
+  const table = u32(view, mainHeaderOffset + 24);
+  const count = Math.min(u32(view, mainHeaderOffset + 28), 256);
+  if (count === 0 || table + count * 4 > view.byteLength) return out;
+  const cache = new Map<number, Shbin>();
+  const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+  for (let i = 0; i < count; i++) {
+    const entry = u32(view, table + 4 * i);
+    if (entry + 0x2c > view.byteLength) continue;
+    const dvlb = u32(view, entry);
+    try {
+      let shbin = cache.get(dvlb);
+      if (!shbin) {
+        shbin = parseShbin(bytes, dvlb);
+        cache.set(dvlb, shbin);
+      }
+      out.push({ name: readCString(view, u32(view, entry + 0x28)), shbin });
+    } catch {
+      /* not a DVLB: skip */
+    }
+  }
+  return out;
+}
+
 /**
  * The largest side of an object's oriented bounding box. The pointer at +0x34 of an object entry leads to centre (3 floats),
  * the 3x3 axes (9 floats) and the size (3 floats) at float index 12, 15 and 24. Null when the pointer is out of range or the
@@ -878,12 +1085,22 @@ function readMesh(
     uniform6[2] ?? 0,
     uniform6[1] ?? 0,
   ];
-  // Position scale: int16 x uniform7[3] / BCH_POSITION_UNITS, times the power of 256 that matches the object's bounding box
-  // (below, once the raw range is known).
-  const uniformPositionScale = (uniform7[3] ?? 1) / BCH_POSITION_UNITS;
-  const colorScale = uniform7[7] ?? 1;
-  // Texture coordinates are the int16 / 32767 as stored. The tex0 scale (uniform7[7]) is not applied: it is 2.0, 0.06, 0.01...
-  // for meshes whose UVs, read as raw / 32767, land exactly on the atlas (head face cell, ear strip, body islands; lucina docs/3ds-formats.md 11.5).
+  // `IrScale` (c7, c8): each vec4 is stored w, z, y, x, so c7 = (position, normal, tangent, colour) is array indices 3, 2, 1, 0 and
+  // c8 = (tex0, tex1, tex2, bone weight) indices 7, 6, 5, 4. The shader multiplies the raw attribute by these directly; there is no
+  // other divisor (the older 256x / bounding-box heuristics compensated for a register-merge bug in this reader's `writeCommand`).
+  const irScale = {
+    position: uniform7[3] ?? 1,
+    normal: uniform7[2] ?? 1,
+    tangent: uniform7[1] ?? 1,
+    color: uniform7[0] ?? 1,
+    tex0: uniform7[7] ?? 1,
+    tex1: uniform7[6] ?? 1,
+    tex2: uniform7[5] ?? 1,
+    boneWeight: uniform7[4] ?? 1,
+  };
+  const uniformPositionScale = irScale.position;
+  const colorScale = irScale.color;
+  // Texture coordinates stay raw / 32767 (the tex0 scale is 1/32767 to within a few percent; lucina docs 11.5 measured both).
   const uvScale = 1;
 
   // The main attributes buffer address lives in reg 0x200; stride + attribute
@@ -1015,14 +1232,10 @@ function readMesh(
   // index past the skeleton's bone count was treated as "no bone" above.
   let rawMax = 0;
   for (const v of vertices) rawMax = Math.max(rawMax, Math.abs(v[0]), Math.abs(v[1]), Math.abs(v[2]));
+  // The shader's own constant. The box is only a fallback for a mesh whose command buffer has no usable IrScale.
   let positionScale = uniformPositionScale;
-  if (boxSize !== null && rawMax > 0 && uniformPositionScale > 0) {
-    const boxScale = boxSize / 2 / rawMax;
-    const k = Math.round(Math.log(boxScale / uniformPositionScale) / Math.log(256));
-    const snapped = uniformPositionScale * 256 ** k;
-    // The uniform is exact when it is a power of 256 from the box (Fates, 93% of meshes within 25%); where it is not (Echoes:
-    // no power of two fits, median residual 0.27 octaves) the box itself, which is a few percent loose, is the scale.
-    positionScale = Math.abs(k) <= 2 && Math.abs(Math.log2(boxScale / snapped)) <= 0.5 ? snapped : boxScale;
+  if (!(positionScale > 0 && Number.isFinite(positionScale)) || uniform7.length < 4) {
+    positionScale = boxSize !== null && rawMax > 0 ? boxSize / 2 / rawMax : 1;
   }
   for (let i = 0; i < vertices.length; i++) {
     const raw = vertices[i]!;
@@ -1037,8 +1250,16 @@ function readMesh(
   }
 
   const hasSkinning = boneIndices.some((b) => b >= 0);
+  const positionAttr = mainPermutation.findIndex((a) => a === ATTRIBUTE_POSITION);
   return {
     name: '',
+    irScale,
+    positionInfo: {
+      positionFormat: formats[positionAttr >= 0 ? positionAttr : 0]?.type ?? -1,
+      rawMax,
+      boxSize,
+      scale: positionScale,
+    },
     vertices,
     faces,
     materialId: 0,
