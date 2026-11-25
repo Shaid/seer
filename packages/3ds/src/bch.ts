@@ -69,6 +69,8 @@ export interface BchMesh {
   materialId: number;
   vertexColors?: [number, number, number, number][];
   uvs?: [number, number][];
+  /** Second texture-coordinate set (attribute 5), present on Fates head meshes whose material also binds an eye map. */
+  uvs1?: [number, number][];
   /** Rigid (single-influence) skinning bone per vertex, -1 if unskinned. Parallel to `vertices`. */
   boneIndices?: number[];
 }
@@ -139,17 +141,24 @@ const TEX_UNIT0_ADDRESS = 0x85;
 const TEX_UNIT0_TYPE = 0x8e;
 
 /**
- * Divisor taking `int16 position x uniform-7 position scale` to the skeleton's units. Measured on Fates bodies
- * (`bu/uBody_*`, smooth-skinned, so no bone matrix is involved): with the offset above, 256 puts the lowest vertex at
- * y = -0.017 and the highest at 12.82 against a head bone at 12.58 (`uBody_F_arch_0`); 255 and 257 give -0.044 and +0.008.
- * Without it the mesh is 256 times its own skeleton. The origin of the factor is not decoded, and it is not
- * universal: Echoes bodies whose uniform-7 position scale is ~1.9 (not ~0.06) need a factor about 37x larger
- * (docs/3ds-formats.md section 11.4); the real quantisation range is not the uniform.
+ * Divisor taking `int16 position x uniform-7 position scale` to the skeleton's units. The vertex shader constants c7/c8
+ * (`getFloatUniform(7)`, 8 floats, each vec4 stored w,z,y,x) hold the scales of position, normal, tangent, colour | tex0,
+ * tex1, tex2, bone weight, so the position scale is array index 3 (the normal's is index 2 = 1/127, which pins the order).
+ * Measured on Fates bodies (`bu/uBody_*`, smooth-skinned, so no bone matrix is involved): with the offset above, 256 puts
+ * the lowest vertex at y = -0.017 and the highest at 12.82 against a head bone at 12.58 (`uBody_F_arch_0`).
+ *
+ * The shorts are normalised per mesh (the widest axis spans the full int16 range in 99% of 2,173 meshes), so the real
+ * scale is `halfSize / 32767`, and the object's oriented bounding box (+0x34 of the object entry: centre, 3x3 axes,
+ * size) gives `halfSize`. In 78% of meshes `uniform7[3] / 256` agrees with the box within 5%; in most of the rest it is
+ * off by exactly a power of 256 (x256 too large for 154 meshes, x1/256 for 37). `BCH_POSITION_UNITS` is the base divisor;
+ * `readMesh` multiplies it by the power of 256 that brings the scale closest to the box, and uses the box scale itself where
+ * no power of 256 fits (Echoes). Echoes bodies: 110 of 114 correct, the exact formula is open (lucina docs/3ds-formats.md 11.5).
  */
 export const BCH_POSITION_UNITS = 256;
 const ATTRIBUTE_POSITION = 0;
 const ATTRIBUTE_COLOR = 3;
 const ATTRIBUTE_UV = 4;
+const ATTRIBUTE_UV1 = 5;
 const ATTRIBUTE_BONE_INDEX = 7;
 const ATTRIBUTE_BONE_WEIGHT = 8;
 
@@ -803,6 +812,7 @@ function readModel(view: DataView, base: number, stringTableOffset: number): Bch
 
     const mesh = readMesh(
       view,
+      readObjectBoxSize(view, u32(view, vo + 0x34)),
       vshCommandsOffset,
       Math.min(vshCommandsWordCount, 0x20000),
       facesHeaderOffset,
@@ -827,8 +837,25 @@ function readModel(view: DataView, base: number, stringTableOffset: number): Bch
   return { name: modelName, materials, meshes, bones: boneList, bindMatrices };
 }
 
+/**
+ * The largest side of an object's oriented bounding box. The pointer at +0x34 of an object entry leads to centre (3 floats),
+ * the 3x3 axes (9 floats) and the size (3 floats) at float index 12, 15 and 24. Null when the pointer is out of range or the
+ * size is not a positive finite number.
+ */
+function readObjectBoxSize(view: DataView, pointer: number): number | null {
+  if (pointer === 0 || pointer + 27 * 4 > view.byteLength) return null;
+  let max = 0;
+  for (let k = 24; k < 27; k++) {
+    const v = readFloat(view, pointer + k * 4);
+    if (!Number.isFinite(v) || v < 0) return null;
+    max = Math.max(max, v);
+  }
+  return max > 0 ? max : null;
+}
+
 function readMesh(
   view: DataView,
+  boxSize: number | null,
   vshCommandsOffset: number,
   vshCommandsWordCount: number,
   facesHeaderOffset: number,
@@ -851,17 +878,13 @@ function readMesh(
     uniform6[2] ?? 0,
     uniform6[1] ?? 0,
   ];
-  // The int16 positions times the uniform scale are BCH_POSITION_UNITS times the model's real size (below).
-  const positionScale = (uniform7[4] ?? 1) / BCH_POSITION_UNITS;
+  // Position scale: int16 x uniform7[3] / BCH_POSITION_UNITS, times the power of 256 that matches the object's bounding box
+  // (below, once the raw range is known).
+  const uniformPositionScale = (uniform7[3] ?? 1) / BCH_POSITION_UNITS;
   const colorScale = uniform7[7] ?? 1;
-  // Derived from Ohana3DS-Rebirth's BCH reader: its 8 scales are POPPED off a
-  // stack built by pushing `getFloatUniform(7)` in forward order, so the pop
-  // sequence (texture0, texture1, texture2, boneWeight, position, normal,
-  // tangent, color) reverses back to array order — texture0Scale is the
-  // LAST element, i.e. the same index this file already (mis-)reads as
-  // `colorScale`. Left as a separate name since only one of the two callers
-  // is actually correct and this isn't the place to relitigate colorScale.
-  const uvScale = uniform7[7] ?? 1;
+  // Texture coordinates are the int16 / 32767 as stored. The tex0 scale (uniform7[7]) is not applied: it is 2.0, 0.06, 0.01...
+  // for meshes whose UVs, read as raw / 32767, land exactly on the atlas (head face cell, ear strip, body islands; lucina docs/3ds-formats.md 11.5).
+  const uvScale = 1;
 
   // The main attributes buffer address lives in reg 0x200; stride + attribute
   // count are packed into the buffer-0 stride register (0x205).
@@ -880,14 +903,18 @@ function readMesh(
   const bufferPermutation = commands.attributesBufferPermutation(0);
   const formats = commands.formats();
   let hasUvAttr = false;
+  let hasUv1Attr = false;
   for (let a = 0; a < totalAttributes; a++) {
     if (mainPermutation[bufferPermutation[a] ?? 0] === ATTRIBUTE_UV) hasUvAttr = true;
+    if (mainPermutation[bufferPermutation[a] ?? 0] === ATTRIBUTE_UV1) hasUv1Attr = true;
   }
 
   const vertices: [number, number, number][] = [];
   const vertexColors: [number, number, number, number][] = [];
   const uvs: [number, number][] = [];
+  const uvs1: [number, number][] = [];
   const boneIndices: number[] = [];
+  const skinModes: number[] = [];
   const faces: BchFace[] = [];
 
   for (let f = 0; f < facesHeaderEntries; f++) {
@@ -927,6 +954,7 @@ function readMesh(
       let pos: [number, number, number] = [0, 0, 0];
       let color: [number, number, number, number] = [1, 1, 1, 1];
       let uv: [number, number] = [0, 0];
+      let uv1: [number, number] | null = null;
       let boneIndex = -1;
       let hasVertexColor = false;
       let voff = vBase;
@@ -937,11 +965,7 @@ function readMesh(
         const vec = readVector(view, voff, format, type);
         voff += (format.length + 1) * (type === 2 ? 2 : type === 3 ? 4 : 1);
         if (att === ATTRIBUTE_POSITION) {
-          pos = [
-            vec[0]! * positionScale + positionOffset[0],
-            vec[1]! * positionScale + positionOffset[1],
-            vec[2]! * positionScale + positionOffset[2],
-          ];
+          pos = [vec[0]!, vec[1]!, vec[2]!]; // raw int16; scaled below once the mesh's range is known
         } else if (att === ATTRIBUTE_COLOR) {
           hasVertexColor = true;
           color = [
@@ -956,6 +980,10 @@ function readMesh(
           // 3DS convention: V=0 at the texture's top; flip to the
           // OpenGL/canvas V=0-at-bottom convention once here (see cgfx.ts).
           uv = [su * uvScale, 1 - sv * uvScale];
+        } else if (att === ATTRIBUTE_UV1) {
+          const su = type === 2 ? vec[0]! / 32767 : vec[0]!;
+          const sv = type === 2 ? vec[1]! / 32767 : vec[1]!;
+          uv1 = [su, 1 - sv];
         } else if (att === ATTRIBUTE_BONE_INDEX && nodeList.length > 0) {
           const b0 = Math.floor(vec[0]!);
           if (b0 >= 0 && b0 < nodeList.length) boneIndex = nodeList[b0]!;
@@ -968,20 +996,44 @@ function readMesh(
       // treat that the same as "no bone" rather than emitting an index a
       // glTF skin (or this file's own `skeletonTransforms` lookup) can't use.
       let bone = boneIndex >= 0 ? boneIndex : nodeList.length > 0 ? nodeList[0]! : -1;
-      if (bone >= 0 && bone < skeletonTransforms.length) {
-        pos = toModelSpace(pos, skeletonTransforms[bone]!, 'bch', skinningMode);
-      } else {
-        bone = -1;
-      }
+      if (!(bone >= 0 && bone < skeletonTransforms.length)) bone = -1;
+      skinModes.push(skinningMode);
       vertices.push(pos);
       boneIndices.push(bone);
       if (hasVertexColor) vertexColors.push(color);
       if (hasUvAttr) uvs.push(uv);
+      if (hasUv1Attr) uvs1.push(uv1 ?? [0, 0]);
     }
 
     for (let i = 0; i + 2 < vertices.length - base; i += 3) {
       faces.push({ verts: [base + i, base + i + 1, base + i + 2] });
     }
+  }
+
+  // Scale the raw positions. Skinning: bone-local (rigid / none) vertices take the bone's accumulated matrix; smooth ones
+  // (BCH skinningMode 1) are already in model space (src/skin.ts). `nodeList` entries are read straight off disk, so a bone
+  // index past the skeleton's bone count was treated as "no bone" above.
+  let rawMax = 0;
+  for (const v of vertices) rawMax = Math.max(rawMax, Math.abs(v[0]), Math.abs(v[1]), Math.abs(v[2]));
+  let positionScale = uniformPositionScale;
+  if (boxSize !== null && rawMax > 0 && uniformPositionScale > 0) {
+    const boxScale = boxSize / 2 / rawMax;
+    const k = Math.round(Math.log(boxScale / uniformPositionScale) / Math.log(256));
+    const snapped = uniformPositionScale * 256 ** k;
+    // The uniform is exact when it is a power of 256 from the box (Fates, 93% of meshes within 25%); where it is not (Echoes:
+    // no power of two fits, median residual 0.27 octaves) the box itself, which is a few percent loose, is the scale.
+    positionScale = Math.abs(k) <= 2 && Math.abs(Math.log2(boxScale / snapped)) <= 0.5 ? snapped : boxScale;
+  }
+  for (let i = 0; i < vertices.length; i++) {
+    const raw = vertices[i]!;
+    let pos: [number, number, number] = [
+      raw[0] * positionScale + positionOffset[0],
+      raw[1] * positionScale + positionOffset[1],
+      raw[2] * positionScale + positionOffset[2],
+    ];
+    const bone = boneIndices[i]!;
+    if (bone >= 0) pos = toModelSpace(pos, skeletonTransforms[bone]!, 'bch', skinModes[i]!);
+    vertices[i] = pos;
   }
 
   const hasSkinning = boneIndices.some((b) => b >= 0);
@@ -991,6 +1043,7 @@ function readMesh(
     faces,
     materialId: 0,
     ...(uvs.length > 0 ? { uvs } : {}),
+    ...(uvs1.length > 0 ? { uvs1 } : {}),
     ...(vertexColors.length > 0 ? { vertexColors } : {}),
     ...(hasSkinning ? { boneIndices } : {}),
   };
