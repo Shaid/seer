@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBch } from '../bch.js';
+import { parseBch, readVsBoolWord } from '../bch.js';
 import { parseCgfx } from '../cgfx.js';
 
 describe('BCH', () => {
@@ -36,5 +36,24 @@ describe('CGFX', () => {
     buf.set([0x43, 0x47, 0x46, 0x58], 0); // "CGFX"
     new DataView(buf.buffer).setUint16(6, 0x14, true); // headerLength
     expect(() => parseCgfx(buf)).toThrow(/no DATA chunk/);
+  });
+});
+
+describe('BCH vertex-shader bool word', () => {
+  const stream = (...words: number[]): DataView => {
+    const b = new Uint8Array(words.length * 4);
+    const v = new DataView(b.buffer);
+    words.forEach((w, i) => v.setUint32(i * 4, w >>> 0, true));
+    return v;
+  };
+  it('reads register 0x2b0 from a mesh command buffer (bit 5 = IsHemiL)', () => {
+    const w = readVsBoolWord(stream(0x7fff6c2b, 0x000f02b0), 2)!;
+    expect(w & 0xffff).toBe(0x6c2b);
+    expect((w >> 5) & 1).toBe(1); // IsHemiL
+    expect((w >> 6) & 1).toBe(0); // IsHemiO
+    expect(readVsBoolWord(stream(0x7fff0003, 0x000f02b0), 2)! >> 5 & 1).toBe(0);
+  });
+  it('is undefined when the stream never writes the register', () => {
+    expect(readVsBoolWord(stream(0x12345678, 0x000f0200), 2)).toBeUndefined();
   });
 });

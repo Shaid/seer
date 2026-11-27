@@ -111,6 +111,22 @@ export interface BchMesh {
   };
   /** Position attribute type (0 int8, 1 uint8, 2 int16, 3 float32), the largest raw position component, the object's bounding-box size. */
   positionInfo?: { positionFormat: number; rawMax: number; boxSize: number | null; scale: number };
+  /**
+   * The vertex shader's bool-uniform word (register 0x2b0, value `0x7fffXXXX`, bit n = `bN`) from the mesh's command buffer, when it carries one
+   * (the BCH models do, CGFX models do not; the engine never sets these bools itself). `b5` IsHemiL (hemisphere lighting), `b6` IsHemiO (hemisphere
+   * occlusion by vertex alpha), `b7` IsVertA (vertex alpha), `b12` IsVertL (vertex lights); docs/3ds-formats.md (lucina) sections 11.6 / 11.7.
+   */
+  vsBoolWord?: number;
+}
+
+/** PICA register of the vertex-shader bool uniforms (b0..b15 in the low 16 bits; the high half is the 0x7fff enable pattern). */
+export const VSH_BOOL_UNIFORM = 0x2b0;
+
+/** The bool-uniform word of a mesh command buffer (`words` 32-bit words), or undefined when the stream never writes register 0x2b0. */
+export function readVsBoolWord(view: DataView, wordCount: number): number | undefined {
+  const reader = new PicaCommandReader(view, wordCount);
+  const v = reader.parameter(VSH_BOOL_UNIFORM);
+  return v === 0 ? undefined : v;
 }
 
 export interface BchBone {
@@ -1196,6 +1212,8 @@ function readMesh(
     sliceView(view, vshCommandsOffset, vshCommandsWordCount * 4),
     Math.min(vshCommandsWordCount, 0x20000),
   );
+  const vsBoolRaw = commands.parameter(VSH_BOOL_UNIFORM);
+  const vsBoolWord = vsBoolRaw === 0 ? undefined : vsBoolRaw;
 
   // Position offset + attribute scales from vertex shader uniforms (regs 6/7).
   const uniform6 = commands.getFloatUniform(6);
@@ -1394,6 +1412,7 @@ function readMesh(
   return {
     name: '',
     irScale,
+    ...(vsBoolWord !== undefined ? { vsBoolWord } : {}),
     positionInfo: {
       positionFormat: formats[positionAttr >= 0 ? positionAttr : 0]?.type ?? -1,
       rawMax,
