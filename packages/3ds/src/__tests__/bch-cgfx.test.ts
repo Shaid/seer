@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseBch, readVsBoolWord } from '../bch.js';
-import { parseCgfx } from '../cgfx.js';
+import { cgfxTevConstantColor, parseCgfx } from '../cgfx.js';
 
 describe('BCH', () => {
   it('throws on a non-BCH buffer', () => {
@@ -55,5 +55,18 @@ describe('BCH vertex-shader bool word', () => {
   });
   it('is undefined when the stream never writes the register', () => {
     expect(readVsBoolWord(stream(0x12345678, 0x000f0200), 2)).toBeUndefined();
+  });
+});
+
+describe('CGFX stage constant index', () => {
+  const colors = Array.from({ length: 11 }, (_, i) => [i, 0, 0, 255] as [number, number, number, number]);
+  it('0-5 pick constant0-5, 6-10 pick emission..specular1, anything else is constant0', () => {
+    expect(cgfxTevConstantColor(0, colors)![0]).toBe(5);
+    expect(cgfxTevConstantColor(2, colors)![0]).toBe(7);
+    expect(cgfxTevConstantColor(5, colors)![0]).toBe(10);
+    expect(cgfxTevConstantColor(6, colors)![0]).toBe(0);
+    expect(cgfxTevConstantColor(10, colors)![0]).toBe(4);
+    expect(cgfxTevConstantColor(11, colors)![0]).toBe(5);
+    expect(cgfxTevConstantColor(0, [])).toBeUndefined();
   });
 });

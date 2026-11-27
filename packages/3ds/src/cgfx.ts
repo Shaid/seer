@@ -168,6 +168,12 @@ export interface CgfxMaterialShading {
   /** Shader object name (`DefaultShader`). */
   shaderName: string;
   tev: TevStage[];
+  /**
+   * Per-stage constant-colour index: the low byte of the word just before each stage's PICA record in the material's command cache
+   * (code.bin trace, docs/3ds-formats.md 11.8). 0-5 select `constant0-5` (`colors[5 + i]`), 6-10 emission / ambient / diffuse / specular0 /
+   * specular1 (`colors[i - 6]`); the engine copies the selected colour unmodified into the stage's constant word (`tev[k].constant` here holds it).
+   */
+  constIndices: number[];
   /** Alpha test (reg 0x104) and the other tail writes by register (0xFD buffer colour, 0xE0 update flags, 0x1C3 lighting config 0). */
   alphaTest: { enabled: boolean; func: string; ref: number };
   tailRegisters: [number, number][];
@@ -402,6 +408,12 @@ export function findCgfxTevBlock(data: Uint8Array, mtob: number): number {
   return -1;
 }
 
+/** The colour a stage's constant index selects from a material's 11 packed colours (emission, ambient, diffuse, specular0, specular1, constant0-5); an index outside 0-10 takes the engine's default arm (constant0). */
+export function cgfxTevConstantColor(index: number, colors: [number, number, number, number][]): [number, number, number, number] | undefined {
+  const c = colors[index <= 5 ? 5 + index : index <= 10 ? index - 6 : 5];
+  return c ? [c[0], c[1], c[2], c[3]] : undefined;
+}
+
 /** Reads the shading state of the MTOB at `mtob`; null when no TEV block is found. */
 function readMtobShading(data: Uint8Array, mtob: number): CgfxMaterialShading | null {
   const tev = findCgfxTevBlock(data, mtob);
@@ -445,9 +457,17 @@ function readMtobShading(data: Uint8Array, mtob: number): CgfxMaterialShading | 
   }
   const colors: [number, number, number, number][] = [];
   for (let i = 0; i < 11; i++) colors.push(rgba8c(u32At(data, mtob + 0xd4 + 4 * i)));
+  const constIndices = [0, 1, 2, 3, 4, 5].map((i) => u32At(data, tev + 0x1c * i - 4) & 0xff);
   return {
     shaderName,
-    tev: [0, 1, 2, 3, 4, 5].map((i) => decodeTevStage(get, i)),
+    constIndices,
+    // The engine overwrites each stage's constant word with the colour its index selects (index >= 11 falls to the default arm, constant0).
+    tev: [0, 1, 2, 3, 4, 5].map((i) => {
+      const st = decodeTevStage(get, i);
+      const idx = constIndices[i]!;
+      const c = cgfxTevConstantColor(idx, colors);
+      return c ? { ...st, constant: c } : st;
+    }),
     alphaTest: decodeAlphaTest(tail.get(0x104)),
     tailRegisters: tail.entries(),
     mapperNames,
