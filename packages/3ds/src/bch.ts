@@ -112,7 +112,7 @@ export interface BchMesh {
   /** Position attribute type (0 int8, 1 uint8, 2 int16, 3 float32), the largest raw position component, the object's bounding-box size. */
   positionInfo?: { positionFormat: number; rawMax: number; boxSize: number | null; scale: number };
   /**
-   * The vertex shader's bool-uniform word (register 0x2b0, value `0x7fffXXXX`, bit n = `bN`) from the mesh's command buffer, when it carries one
+   * The vertex shader's bool-uniform word (register 0x2b0, value `0x7fffXXXX`, bit n = `bN`) from the mesh's command buffers (the face-group streams carry it), when it has one
    * (the BCH models do, CGFX models do not; the engine never sets these bools itself). `b5` IsHemiL (hemisphere lighting), `b6` IsHemiO (hemisphere
    * occlusion by vertex alpha), `b7` IsVertA (vertex alpha), `b12` IsVertL (vertex lights); docs/3ds-formats.md (lucina) sections 11.6 / 11.7.
    */
@@ -1212,8 +1212,10 @@ function readMesh(
     sliceView(view, vshCommandsOffset, vshCommandsWordCount * 4),
     Math.min(vshCommandsWordCount, 0x20000),
   );
+  // The bool word is written in the face-group command buffers (`idxCommands` below), once per group; the first group's word is the mesh's
+  const boolWords: number[] = [];
   const vsBoolRaw = commands.parameter(VSH_BOOL_UNIFORM);
-  const vsBoolWord = vsBoolRaw === 0 ? undefined : vsBoolRaw;
+  if (vsBoolRaw !== 0) boolWords.push(vsBoolRaw);
 
   // Position offset + attribute scales from vertex shader uniforms (regs 6/7).
   const uniform6 = commands.getFloatUniform(6);
@@ -1292,6 +1294,8 @@ function readMesh(
       sliceView(view, faceHeaderOffset, faceHeaderWordCount * 4),
       faceHeaderWordCount,
     );
+    const faceBool = idxCommands.parameter(VSH_BOOL_UNIFORM);
+    if (faceBool !== 0) boolWords.push(faceBool);
     const idxBufferOffset = idxCommands.indexBufferAddress();
     const idxBufferFormat = idxCommands.indexBufferFormat();
     const idxBufferTotalVertices = Math.min(idxCommands.indexBufferTotalVertices(), 0x40000);
@@ -1412,7 +1416,7 @@ function readMesh(
   return {
     name: '',
     irScale,
-    ...(vsBoolWord !== undefined ? { vsBoolWord } : {}),
+    ...(boolWords.length > 0 ? { vsBoolWord: boolWords[0]! } : {}),
     positionInfo: {
       positionFormat: formats[positionAttr >= 0 ? positionAttr : 0]?.type ?? -1,
       rawMax,
