@@ -17,6 +17,18 @@ describe('CTR texture decode', () => {
     expect(rgba[o + 3]).toBe(255);
   });
 
+  it('widens 4-bit channels by replication: 15 -> 255 (RGBA4, LA4), not 240', () => {
+    const d4 = new Uint8Array(2 * 8 * 8);
+    d4[0] = 0x6f; // u16 little-endian 0xff6f
+    d4[1] = 0xff;
+    const rgba = decodeCtrTexture(4, 8, 8, d4); // value 0xff6f: r=15 g=15 b=6 a=15
+    expect([rgba[0], rgba[1], rgba[2], rgba[3]]).toEqual([255, 255, 6 * 17, 255]);
+    const dl = new Uint8Array(8 * 8);
+    dl[0] = 0xf9; // L=15 A=9
+    const la = decodeCtrTexture(9, 8, 8, dl);
+    expect([la[0], la[3]]).toEqual([255, 9 * 17]);
+  });
+
   it('decodes an RGBA8 texture in the tiled layout', () => {
     const data = new Uint8Array(4 * 8 * 8);
     // Pixel (0,0) → tile k=0 (byte 0). Store ABGR: A=1,B=2,G=3,R=4.

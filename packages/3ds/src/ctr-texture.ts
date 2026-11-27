@@ -226,10 +226,11 @@ function writePixel(format: FormatName, out: Uint8Array, value: number, px: numb
       b = (value & 0x1f) * 8;
       break;
     case 'rgba4':
-      a = (value & 0xf) * 16;
-      r = ((value >> 12) & 0xf) * 16;
-      g = ((value >> 8) & 0xf) * 16;
-      b = ((value >> 4) & 0xf) * 16;
+      // 4-bit channels widen by replication (x * 17, 15 -> 255) as the hardware does (Citra Convert4To8); x * 16 capped alpha at 240 and broke `Greater 243` alpha tests
+      a = (value & 0xf) * 17;
+      r = ((value >> 12) & 0xf) * 17;
+      g = ((value >> 8) & 0xf) * 17;
+      b = ((value >> 4) & 0xf) * 17;
       break;
     case 'la8': {
       a = value & 0xff;
@@ -250,8 +251,8 @@ function writePixel(format: FormatName, out: Uint8Array, value: number, px: numb
       r = g = b = 0;
       break;
     case 'la4': {
-      a = (value & 0xf) * 16;
-      const lum = ((value >> 4) & 0xf) * 16;
+      a = (value & 0xf) * 17;
+      const lum = ((value >> 4) & 0xf) * 17;
       r = g = b = lum;
       break;
     }
@@ -351,7 +352,7 @@ function decodeEtc(data: Uint8Array, width: number, height: number, hasAlpha: bo
             ? ((block >> (shift + 24)) & 1) + (((block << 1) >> (shift + 8)) & 2)
             : ((block >> (shift + 8)) & 1) + (((block << 1) >> (shift - 8)) & 2);
         const mod = ETC_TABLE[cmp][tm];
-        const alpha = Number((a64 >> BigInt(shift * 4)) & 15n) * 16;
+        const alpha = Number((a64 >> BigInt(shift * 4)) & 15n) * 17;
         out[o] = clamp(r + mod);
         out[o + 1] = clamp(g + mod);
         out[o + 2] = clamp(b + mod);
